@@ -72,7 +72,7 @@ async function targetsIn(dir: string, root: string): Promise<RunTarget[]> {
 
 /**
  * What a project can run. The project folder first; when it has nothing, the usual website
- * folders, then one to three app folders directly inside it (e.g. Zappit\newsroom).
+ * folders, then one to three app folders directly inside it (e.g. shop\web).
  */
 export async function detectRunTargets(root: string, otherProjects: string[]): Promise<RunTarget[]> {
   if (!existsSync(root)) return []

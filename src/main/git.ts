@@ -1,6 +1,6 @@
 // Git for the Changes panel: what changed, diffs, staging, commits, branches, push and pull.
 // Commands run in the repository root with paths relative to it, because a project can be a
-// folder inside a bigger repository (each PixFrix site is a folder of the monorepo).
+// folder inside a bigger repository (for example one site in a monorepo).
 
 import { app, shell } from 'electron'
 import { execFile, spawn } from 'node:child_process'

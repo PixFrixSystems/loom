@@ -77,7 +77,7 @@ async function findIn(root: string): Promise<string | null> {
 
 /**
  * The icon file a project most likely uses. When the folder itself is not an app
- * (no package.json) it also looks one folder down, e.g. Zappit\newsroom.
+ * (no package.json) it also looks one folder down, e.g. shop\web.
  */
 export async function detectProjectIcon(root: string, otherProjects: string[]): Promise<string | null> {
   const direct = await findIn(root)
@@ -91,7 +91,7 @@ export async function detectProjectIcon(root: string, otherProjects: string[]): 
     if (found) return found
   }
 
-  // A folder wrapping one to three apps (e.g. Zappit\newsroom). A folder of many apps is a
+  // A folder wrapping one to three apps (e.g. shop\web). A folder of many apps is a
   // collection, not a project with one face, so it keeps its colour thread.
   const others = new Set(otherProjects.map(norm))
   let apps: string[] = []
