@@ -34,7 +34,7 @@ npm run smoke:live   # also sends two tiny messages to Claude (Haiku) and tests 
 - A resumed chat shows its messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
 - Don't continue the same chat in VS Code and Loom at the same time: both write to the same history file.
 - New chats start in "Ask before edits". Change the default in Settings, or per chat from the message box.
-- Effort and Ultracode sit in the message box and can change mid-chat. "Default" effort follows `effortLevel` in your Claude settings.
+- Effort and Ultracode sit in the message box and can change mid-chat. "Default" effort follows `effortLevel` in your Claude settings. New chats start with whatever you picked last.
 - To move a chat to another project, right-click its tab or its row in the sidebar, then Move to project. Its history moves to that project's folder (the original is kept in `~/.claude/chat-backups`) and Claude works there from the next message.
 - Plan limits in the status bar come from the same source as Claude Code's `/usage`, checked every five minutes and after each reply. Loom also writes them to `~/.claude/usage-cache.json`, so the 80% usage guard works for Loom chats. The SDK marks this call experimental; if it breaks, the meters just stop updating.
 - Split layouts: the grid button in the top bar has ready-made layouts (side by side, top and bottom, three columns, four squares, one large with two stacked) and splits for the pane you're in. Drag a tab onto a pane to show it there, or onto a pane's edge to split it. Drag the lines between panes to resize; double-click one to even them out. Clicking a tab shows it in the selected pane (the one with the green line). The layout is saved.
