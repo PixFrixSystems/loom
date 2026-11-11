@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   Ellipsis,
+  GitBranch,
   FolderPlus,
   Layers,
   LoaderCircle,
@@ -11,7 +12,7 @@ import {
   SquareTerminal
 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
-import { THREAD_COLORS, type ChatTab, type Group, type Project, type SessionSummary } from '@shared/types'
+import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary } from '@shared/types'
 import { projectForPath, timeAgo } from '../lib/paths'
 import { useStore, type MenuItem } from '../store'
 import { ProjectMark } from './ProjectMark'
@@ -46,6 +47,31 @@ function InlineEdit({ value, onDone }: { value: string; onDone: (v: string | nul
       }}
       onClick={(e) => e.stopPropagation()}
     />
+  )
+}
+
+/** "github.com/owner/repo" from either kind of remote address. */
+function remoteName(url: string): string {
+  return url
+    .replace(/^git@([^:]+):/, '$1/')
+    .replace(/^[a-z+]+:\/\/(?:[^@/]+@)?/i, '')
+    .replace(/\.git$/, '')
+}
+
+/** A project in git: full when it has a remote to push to, faded when it lives only on this PC. */
+function GitMark({ git }: { git: GitStatus | null | undefined }): ReactNode {
+  if (!git) return null
+  const lines = [
+    git.remote ? `Git, connected to ${remoteName(git.remote)}` : 'Git, only on this PC (no remote to push to)',
+    git.branch ? `Branch ${git.branch}` : 'No branch checked out',
+    git.changes ? `${git.changes} uncommitted ${git.changes === 1 ? 'change' : 'changes'}` : 'Nothing uncommitted',
+    git.ahead ? `${git.ahead} to push` : '',
+    git.behind ? `${git.behind} to pull` : ''
+  ]
+  return (
+    <span className={`git-mark${git.remote ? '' : ' is-local'}`} title={lines.filter(Boolean).join('\n')} aria-label={lines[0]}>
+      <GitBranch />
+    </span>
   )
 }
 
@@ -251,6 +277,7 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
           <span className="project-name">{project.name}</span>
         )}
         <span className="row-end">
+          <GitMark git={s.git[project.id]} />
           <ActivityMark activity={activity} />
           <ServerMark projectId={project.id} />
           <span className="row-actions">

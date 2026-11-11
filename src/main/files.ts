@@ -48,9 +48,14 @@ export async function fileMtime(path: string): Promise<number | null> {
   }
 }
 
+// Loom checks git in the background for every project; with optional locks off those checks never
+// hold a lock that could make a commit by you or Claude fail at the same moment.
+const RUN_ENV = { ...process.env, GIT_OPTIONAL_LOCKS: '0' } as Record<string, string>
+delete RUN_ENV.ELECTRON_RUN_AS_NODE
+
 function run(cmd: string, args: string[], cwd: string, timeout = 8000): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { cwd, timeout, windowsHide: true, maxBuffer: 64 * 1024 * 1024 }, (err, stdout) => {
+    execFile(cmd, args, { cwd, timeout, windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: RUN_ENV }, (err, stdout) => {
       if (err) reject(err)
       else resolve(stdout)
     })
@@ -87,6 +92,25 @@ export async function listProjectFiles(root: string): Promise<string[]> {
   return found
 }
 
+const remotes = new Map<string, { at: number; url: string | null }>()
+
+/** The repository's remote: origin when there is one, else the first. Cached; remotes rarely change. */
+async function remoteOf(dir: string): Promise<string | null> {
+  const key = dir.toLowerCase()
+  const hit = remotes.get(key)
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.url
+  let url: string | null = null
+  try {
+    const lines = (await run('git', ['config', '--get-regexp', '^remote\\..*\\.url$'], dir, 5000)).split('\n').filter(Boolean)
+    const pick = lines.find((l) => l.startsWith('remote.origin.url ')) ?? lines[0]
+    url = pick ? pick.slice(pick.indexOf(' ') + 1).trim() : null
+  } catch {
+    // no remotes: git exits with 1
+  }
+  remotes.set(key, { at: Date.now(), url })
+  return url
+}
+
 export async function gitStatus(dir: string): Promise<GitStatus | null> {
   try {
     const out = await run('git', ['-c', 'core.quotepath=false', 'status', '--porcelain=v1', '-b', '--', '.'], dir, 8000)
@@ -104,7 +128,7 @@ export async function gitStatus(dir: string): Promise<GitStatus | null> {
       ahead = Number(extra.match(/ahead (\d+)/)?.[1] ?? 0)
       behind = Number(extra.match(/behind (\d+)/)?.[1] ?? 0)
     }
-    return { branch, changes: lines.length, ahead, behind }
+    return { branch, changes: lines.length, ahead, behind, remote: await remoteOf(dir) }
   } catch {
     return null
   }

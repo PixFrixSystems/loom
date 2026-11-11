@@ -195,6 +195,8 @@ interface Store extends PersistedState {
 
   refreshSessions: (force?: boolean) => Promise<void>
   refreshGit: (projectId: string) => Promise<void>
+  /** Git state of every project, a few at a time, for the sidebar's git marks. */
+  refreshAllGit: () => Promise<void>
   refreshChanges: (projectId: string) => Promise<void>
   /** A file's changes in a tab: uncommitted ones, or the ones made in a commit. */
   openDiff: (projectId: string | null, path: string, commit?: string, commitLabel?: string) => void
@@ -411,6 +413,11 @@ export const useStore = create<Store>((set, get) => {
       for (const p of get().projects) void get().loadIcon(p.id)
       for (const g of get().groups) void get().loadGroupIcon(g.id)
       for (const p of get().projects) void get().loadRunTargets(p.id)
+      // Which projects are in git, for the sidebar: soon after start, then every few minutes.
+      setTimeout(() => void get().refreshAllGit(), 1500)
+      setInterval(() => {
+        if (document.hasFocus()) void get().refreshAllGit()
+      }, 3 * 60_000)
       window.loom.onServers((servers) => set({ servers }))
       void window.loom.serverList().then((servers) => set({ servers }))
       window.loom.onUsage((usage) => set({ usage }))
@@ -426,6 +433,7 @@ export const useStore = create<Store>((set, get) => {
       set((s) => ({ projects: [...s.projects, project] }))
       void get().loadIcon(project.id)
       void get().loadRunTargets(project.id)
+      void get().refreshGit(project.id)
       return project
     },
     pickAndAddProject: async (groupId = null) => {
@@ -1004,6 +1012,13 @@ export const useStore = create<Store>((set, get) => {
       const name = baseName(path)
       const tab: DiffTab = { id: uid(), kind: 'diff', projectId, path, commit, title: commit ? `${name} @ ${commitLabel ?? commit.slice(0, 7)}` : `${name} changes` }
       get().openTab(tab)
+    },
+    refreshAllGit: async () => {
+      const queue = get().projects.map((p) => p.id)
+      const worker = async (): Promise<void> => {
+        for (let id = queue.shift(); id; id = queue.shift()) await get().refreshGit(id)
+      }
+      await Promise.all(Array.from({ length: 6 }, worker))
     },
     refreshGit: async (projectId) => {
       const p = get().projects.find((x) => x.id === projectId)

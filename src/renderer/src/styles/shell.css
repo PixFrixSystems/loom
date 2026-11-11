@@ -1757,3 +1757,22 @@
   background: var(--bg-hover);
   color: var(--text);
 }
+
+/* In the sidebar: projects in git. Faded when the repository has no remote. */
+.git-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-3);
+}
+
+.git-mark svg {
+  width: 13px;
+  height: 13px;
+}
+
+.git-mark.is-local {
+  opacity: 0.45;
+}

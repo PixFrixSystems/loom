@@ -366,6 +366,8 @@ export interface GitStatus {
   changes: number
   ahead: number
   behind: number
+  /** Where it pushes to (origin, else the first remote); null for a repository kept only on this PC */
+  remote: string | null
 }
 
 /** A changed file. `index` and `work` are git's status letters for the staged and unstaged side. */
