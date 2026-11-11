@@ -1,4 +1,4 @@
-import { Check, FolderPlus, LoaderCircle, LogIn, MessageSquarePlus, RotateCw } from 'lucide-react'
+import { Check, Download, FolderPlus, LoaderCircle, LogIn, MessageSquarePlus, RotateCw } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { AuthStatus, PermissionMode } from '@shared/types'
 import { normPath, projectForPath, timeAgo } from '../lib/paths'
@@ -46,6 +46,7 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
   const [auth, setAuth] = useState<AuthStatus | null>(null)
   const [checking, setChecking] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
+  const [installing, setInstalling] = useState(false)
   const [exists, setExists] = useState<Record<string, boolean>>({})
   const [picked, setPicked] = useState<Set<string> | null>(null)
   const [showAll, setShowAll] = useState(false)
@@ -147,10 +148,31 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
               </p>
             ) : signedIn ? (
               <p>{account(auth)} Loom uses this sign-in, along with your Claude Code settings, skills and hooks.</p>
+            ) : auth.missing ? (
+              <>
+                <p>Loom chats through Claude Code, Anthropic&apos;s command-line tool, and it isn&apos;t on this PC yet. Install it first, then sign in here.</p>
+                {installing ? (
+                  <p className="start-hint">Anthropic&apos;s installer is running in the terminal beside this. When it finishes, this step moves on by itself.</p>
+                ) : null}
+                <div className="start-actions">
+                  <button
+                    className="btn primary"
+                    onClick={() => {
+                      setInstalling(true)
+                      s.openInstallTerminal()
+                    }}
+                  >
+                    <Download /> Install Claude Code
+                  </button>
+                  <button className="btn ghost" disabled={checking} onClick={() => void check()}>
+                    {checking ? <LoaderCircle className="spin" /> : <RotateCw />} Check again
+                  </button>
+                </div>
+              </>
             ) : auth.error ? (
               <>
                 <p>Loom could not run Claude Code: {auth.error}</p>
-                <p className="start-hint">Run npm install in the Loom folder, or pick your installed Claude Code in Settings.</p>
+                <p className="start-hint">Pick another Claude Code program in Settings, or reinstall it.</p>
               </>
             ) : (
               <>

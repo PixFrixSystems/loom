@@ -453,6 +453,8 @@ export interface AuthStatus {
   plan?: string
   /** "claude.ai", "console", an API key... */
   method?: string
+  /** No Claude Code program on this PC to ask */
+  missing?: boolean
   error?: string
 }
 

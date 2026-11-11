@@ -22,8 +22,11 @@ export function SettingsView(): ReactNode {
   const info = s.info
   const update = (patch: Partial<LoomSettings>): void => s.set({ settings: { ...st, ...patch } })
 
+  // The installed Loom app has no bundled copy; there "bundled" quietly means the installed one.
+  const hasBundled = !!info?.bundledPath
+  const source: ClaudeSource = st.claudeSource === 'bundled' && info && !hasBundled ? 'installed' : st.claudeSource
   const sources: { value: ClaudeSource; label: string; detail: string }[] = [
-    { value: 'bundled', label: 'Bundled with Loom', detail: info?.bundledPath ?? 'Not found' },
+    ...(hasBundled || !info ? [{ value: 'bundled' as const, label: 'Bundled with Loom', detail: info?.bundledPath ?? '' }] : []),
     { value: 'installed', label: 'Your installed Claude Code', detail: info?.installedPath ?? 'Not found on this PC' },
     { value: 'custom', label: 'Another program', detail: 'Pick a claude.exe below' }
   ]
@@ -39,14 +42,14 @@ export function SettingsView(): ReactNode {
             <div className="radio-list">
               {sources.map((o) => (
                 <label key={o.value} className="radio-row">
-                  <input type="radio" name="claude-source" checked={st.claudeSource === o.value} onChange={() => update({ claudeSource: o.value })} />
+                  <input type="radio" name="claude-source" checked={source === o.value} onChange={() => update({ claudeSource: o.value })} />
                   <span>
                     <span className="radio-label">{o.label}</span>
                     <span className="radio-detail selectable">{o.detail}</span>
                   </span>
                 </label>
               ))}
-              {st.claudeSource === 'custom' ? (
+              {source === 'custom' ? (
                 <div className="inline-field">
                   <input
                     className="field"

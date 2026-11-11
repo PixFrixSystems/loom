@@ -58,9 +58,10 @@ function bundledClaudePath(): string | null {
   }
 }
 
-let installedCache: string | null | undefined
+// Only a found path is kept, so a Claude Code installed while Loom is open is picked up.
+let installedCache: string | null = null
 function installedClaudePath(): string | null {
-  if (installedCache !== undefined) return installedCache
+  if (installedCache && existsSync(installedCache)) return installedCache
   const candidates = [join(homedir(), '.local', 'bin', 'claude.exe')]
   try {
     const out = execFileSync('where.exe', ['claude'], { encoding: 'utf8', windowsHide: true, timeout: 4000 })
@@ -99,6 +100,7 @@ export function claudeProgram(settings: LoomSettings): string {
 
 /** Asks Claude Code whether this PC is signed in. It answers in JSON either way. */
 export function claudeAuthStatus(settings: LoomSettings): Promise<AuthStatus> {
+  if (!executableFor(settings)) return Promise.resolve({ loggedIn: false, missing: true })
   return new Promise((resolve) => {
     execFile(claudeProgram(settings), ['auth', 'status', '--json'], { windowsHide: true, timeout: 20000 }, (err, stdout) => {
       try {
@@ -111,11 +113,20 @@ export function claudeAuthStatus(settings: LoomSettings): Promise<AuthStatus> {
   })
 }
 
+/**
+ * The claude.exe chats run with. "bundled" means the copy that npm install brings along; the
+ * installed Loom app ships without it (it isn't ours to hand out), so there it falls back to
+ * the Claude Code installed on this PC.
+ */
 export function executableFor(settings: LoomSettings): string | undefined {
   if (settings.claudeSource === 'installed') return installedClaudePath() ?? undefined
   if (settings.claudeSource === 'custom' && settings.claudeCustomPath.trim()) return settings.claudeCustomPath.trim()
-  return bundledClaudePath() ?? undefined
+  return bundledClaudePath() ?? installedClaudePath() ?? undefined
 }
+
+const MISSING_CLAUDE =
+  "Claude Code isn't installed on this PC. Open Settings, then Show the steps, to install it and sign in."
+
 
 // ---------- Saved conversations ----------
 
@@ -422,7 +433,7 @@ class ChatSession {
       for await (const message of q) this.handle(message)
     } catch (e) {
       if (!this.closed) {
-        failure = (e as Error).message || 'Claude stopped unexpectedly'
+        failure = executableFor(this.settings()) ? (e as Error).message || 'Claude stopped unexpectedly' : MISSING_CLAUDE
         const tail = this.stderrTail.trim().split(/\r?\n/).slice(-6).join('\n')
         this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text: failure, detail: tail || undefined }] })
       }

@@ -155,6 +155,8 @@ interface Store extends PersistedState {
   openStart: () => void
   /** Opens a terminal beside the steps running `claude auth login`. */
   openLoginTerminal: () => Promise<void>
+  /** Runs Anthropic's Claude Code installer in a terminal beside the getting-started steps. */
+  openInstallTerminal: () => void
 
   chat: (tabId: string) => ChatRuntime
   loadHistory: (tabId: string) => Promise<void>
@@ -682,6 +684,27 @@ export const useStore = create<Store>((set, get) => {
       }
       set((s) => ({ tabs: [...s.tabs, tab] }))
       // Beside the steps, so both stay in view while the browser does the signing in.
+      get().splitPane('right', tab.id)
+    },
+    openInstallTerminal: () => {
+      // Anthropic's own installer, as its docs give it for each shell.
+      const shell = get().settings.shell
+      const ps = 'irm https://claude.ai/install.ps1 | iex'
+      const run =
+        shell === 'powershell'
+          ? ps
+          : shell === 'cmd'
+            ? 'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd'
+            : `powershell -NoProfile -Command "${ps}"`
+      const tab: TerminalTab = {
+        id: uid(),
+        kind: 'terminal',
+        projectId: null,
+        cwd: get().info?.homeDir ?? 'C:\\',
+        title: 'Install Claude Code',
+        run
+      }
+      set((s) => ({ tabs: [...s.tabs, tab] }))
       get().splitPane('right', tab.id)
     },
     openSettings: () => {
