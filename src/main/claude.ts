@@ -4,7 +4,7 @@ import { createReadStream, createWriteStream, existsSync, promises as fsp, readF
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import type {
   CanUseTool,
   ModelInfo,
@@ -17,6 +17,7 @@ import type {
   SlashCommand
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
+  AuthStatus,
   ChatEvent,
   ChatStartOptions,
   ChatStatus,
@@ -86,8 +87,28 @@ export function claudeInfo(): ClaudeInfo {
     installedPath: installedClaudePath(),
     homeDir: homedir(),
     claudeDir: join(homedir(), '.claude'),
-    defaultEffort: defaultEffort()
+    defaultEffort: defaultEffort(),
+    platform: process.platform
   }
+}
+
+/** The Claude Code program Loom runs, or plain "claude" from PATH when none is found. */
+export function claudeProgram(settings: LoomSettings): string {
+  return executableFor(settings) ?? 'claude'
+}
+
+/** Asks Claude Code whether this PC is signed in. It answers in JSON either way. */
+export function claudeAuthStatus(settings: LoomSettings): Promise<AuthStatus> {
+  return new Promise((resolve) => {
+    execFile(claudeProgram(settings), ['auth', 'status', '--json'], { windowsHide: true, timeout: 20000 }, (err, stdout) => {
+      try {
+        const j = JSON.parse(stdout) as { loggedIn?: boolean; email?: string; subscriptionType?: string; authMethod?: string }
+        resolve({ loggedIn: j.loggedIn === true, email: j.email, plan: j.subscriptionType, method: j.authMethod })
+      } catch {
+        resolve({ loggedIn: false, error: err ? err.message : 'Claude Code did not answer.' })
+      }
+    })
+  })
 }
 
 export function executableFor(settings: LoomSettings): string | undefined {

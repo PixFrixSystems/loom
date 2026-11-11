@@ -67,6 +67,16 @@ export interface TerminalTab {
   projectId: string | null
   cwd: string
   title: string
+  /** A command to type into the new shell once it is ready (cleared after) */
+  run?: string
+}
+
+/** The getting-started steps, opened on the first launch and from Settings. */
+export interface StartTab {
+  id: string
+  kind: 'start'
+  projectId: null
+  title: string
 }
 
 export interface SettingsTab {
@@ -107,7 +117,7 @@ export interface DiffTab {
   title: string
 }
 
-export type Tab = ChatTab | FileTab | TerminalTab | SettingsTab | ServerTab | BrowserTab | DiffTab
+export type Tab = ChatTab | FileTab | TerminalTab | SettingsTab | ServerTab | BrowserTab | DiffTab | StartTab
 
 /** A tab's live state, handed from one window to another when it moves. */
 export interface TabSnapshot {
@@ -187,6 +197,8 @@ export interface PersistedState {
   activeTabId: string | null
   layout?: LayoutNode
   focusedPane?: string
+  /** Set once someone has gone through, or skipped, the getting-started steps */
+  onboarded?: boolean
   settings: LoomSettings
   sidebarWidth: number
   sidebarOpen: boolean
@@ -430,6 +442,18 @@ export interface ClaudeInfo {
   homeDir: string
   claudeDir: string
   defaultEffort: EffortLevel | null
+  platform: string
+}
+
+/** Whether Claude Code is signed in on this PC, from `claude auth status`. */
+export interface AuthStatus {
+  loggedIn: boolean
+  email?: string
+  /** "max", "pro" and so on, for a Claude subscription */
+  plan?: string
+  /** "claude.ai", "console", an API key... */
+  method?: string
+  error?: string
 }
 
 export interface UsageLimit {

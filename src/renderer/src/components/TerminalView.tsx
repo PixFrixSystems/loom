@@ -87,10 +87,18 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
     // Output that arrives before the shell is (re)attached waits, so a replayed screen comes first.
     let attached = false
     const early: string[] = []
+    // A command to type in once the new shell is ready: on its first output, which is its prompt.
+    let pending = tab.run ?? null
     const offData = window.loom.onPtyData((id, data) => {
       if (id !== tab.id) return
       if (attached) t.write(data)
       else early.push(data)
+      if (pending) {
+        const cmd = pending
+        pending = null
+        setTimeout(() => window.loom.ptyWrite(tab.id, `${cmd}\r`), 250)
+        useStore.getState().updateTab(tab.id, { run: undefined } as Partial<TerminalTab>)
+      }
     })
     const offExit = window.loom.onPtyExit((id, code) => {
       if (id === tab.id) setExited(code)
@@ -100,7 +108,11 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
 
     void window.loom.ptyCreate(tab.id, tab.cwd, t.cols, t.rows).then((r) => {
       if (!r.ok) setError(r.error)
-      else if (r.replay) t.write(r.replay)
+      else if (r.replay) {
+        // An already running shell: whatever was to be typed was typed back then.
+        pending = null
+        t.write(r.replay)
+      }
       attached = true
       for (const d of early) t.write(d)
       early.length = 0

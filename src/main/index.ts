@@ -12,7 +12,9 @@ import type {
   RunTarget
 } from '@shared/types'
 import {
+  claudeAuthStatus,
   claudeInfo,
+  claudeProgram,
   closeAllChats,
   closeChat,
   commandsFor,
@@ -46,7 +48,7 @@ import {
 import { detectProjectIcon, iconDataUrl } from './icons'
 import { fullImage } from './images'
 import { lastUsage, refreshUsage } from './usage'
-import { configFiles, fileMtime, gitStatus, listDir, listProjectFiles, readTextFile, writeTextFile } from './files'
+import { configFiles, dirsExist, fileMtime, gitStatus, listDir, listProjectFiles, readTextFile, writeTextFile } from './files'
 import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './pty'
 import {
   detectRunTargets,
@@ -245,6 +247,9 @@ function registerIpc(): void {
     return r.canceled ? null : r.filePaths[0] ?? null
   })
   ipcMain.handle('app:claudeInfo', () => claudeInfo())
+  ipcMain.handle('claude:auth', () => claudeAuthStatus(settings()))
+  ipcMain.handle('claude:program', () => claudeProgram(settings()))
+  ipcMain.handle('fs:dirsExist', (_e, paths: string[]) => dirsExist(paths))
   ipcMain.handle('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
   ipcMain.handle('app:openPath', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('app:openExternal', (_e, url: string) => {

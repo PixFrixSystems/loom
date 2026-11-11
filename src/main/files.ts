@@ -111,6 +111,19 @@ async function remoteOf(dir: string): Promise<string | null> {
   return url
 }
 
+/** Which of these folders exist, in the same order. */
+export async function dirsExist(paths: string[]): Promise<boolean[]> {
+  return Promise.all(
+    paths.map(async (p) => {
+      try {
+        return (await fs.stat(p)).isDirectory()
+      } catch {
+        return false
+      }
+    })
+  )
+}
+
 export async function gitStatus(dir: string): Promise<GitStatus | null> {
   try {
     const out = await run('git', ['-c', 'core.quotepath=false', 'status', '--porcelain=v1', '-b', '--', '.'], dir, 8000)

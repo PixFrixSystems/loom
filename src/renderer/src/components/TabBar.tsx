@@ -1,4 +1,4 @@
-import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare, Globe, LoaderCircle, MessageSquare, PanelLeft, PanelRight, Plus, Server, Settings, SquareTerminal, X } from 'lucide-react'
+import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, Compass, FileText, GitCompare, Globe, LoaderCircle, MessageSquare, PanelLeft, PanelRight, Plus, Server, Settings, SquareTerminal, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Tab } from '@shared/types'
 import { inFileRow, paneOfTab } from '../lib/layout'
@@ -71,6 +71,7 @@ function TabIcon({ tab }: { tab: Tab }): ReactNode {
   if (tab.kind === 'chat') return <MessageSquare />
   if (tab.kind === 'file') return <FileText />
   if (tab.kind === 'diff') return <GitCompare />
+  if (tab.kind === 'start') return <Compass />
   if (tab.kind === 'terminal') return <SquareTerminal />
   if (tab.kind === 'server') return <Server />
   if (tab.kind === 'browser') return <Globe />

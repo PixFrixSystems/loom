@@ -25,6 +25,7 @@ import {
   type RunTarget,
   type ServerInfo,
   type SessionSummary,
+  type TerminalTab,
   type SlashCommandInfo,
   type Tab,
   type TabSnapshot,
@@ -150,6 +151,10 @@ interface Store extends PersistedState {
   openFile: (path: string, projectId?: string | null) => void
   newTerminal: (projectId: string | null) => void
   openSettings: () => void
+  /** The getting-started steps, in a tab of their own. */
+  openStart: () => void
+  /** Opens a terminal beside the steps running `claude auth login`. */
+  openLoginTerminal: () => Promise<void>
 
   chat: (tabId: string) => ChatRuntime
   loadHistory: (tabId: string) => Promise<void>
@@ -227,6 +232,7 @@ const PERSISTED: PersistedKeys[] = [
   'activeTabId',
   'layout',
   'focusedPane',
+  'onboarded',
   'settings',
   'sidebarWidth',
   'sidebarOpen',
@@ -295,6 +301,7 @@ export const useStore = create<Store>((set, get) => {
     rightPanelWidth: 280,
     rightPanelView: 'files',
     knownModels: [],
+    onboarded: undefined,
 
     ready: false,
     info: null,
@@ -385,7 +392,7 @@ export const useStore = create<Store>((set, get) => {
       })
       window.loom.onMainDo((action, args) => {
         const st = get() as unknown as Record<string, (...a: unknown[]) => void>
-        if (['openFile', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice', 'openDiff'].includes(action)) st[action](...args)
+        if (['openFile', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice', 'openDiff', 'openStart'].includes(action)) st[action](...args)
       })
       // Server output tabs belong to servers that stopped when Loom last quit.
       const tabs = state.tabs.filter((t) => t.kind !== 'server')
@@ -398,6 +405,8 @@ export const useStore = create<Store>((set, get) => {
         focused = paneById(layout, focused.id)!
       }
       set({ ...state, tabs, layout, focusedPane: focused.id, activeTabId: focused.tabId, info, ready: true })
+      // First launch: nothing saved yet, so show the getting-started steps.
+      if (state.onboarded === undefined && !state.projects.length && !tabs.some((t) => t.kind === 'start')) get().openStart()
       window.loom.onChatEvent((tabId, event) => get().handleChatEvent(tabId, event))
       let last = pickPersisted(get())
       let timer: ReturnType<typeof setTimeout> | null = null
@@ -506,6 +515,8 @@ export const useStore = create<Store>((set, get) => {
       const tab = s.tabs.find((t) => t.id === tabId)
       if (!tab) return
       if (s.detached[tabId]) void window.loom.popoutDiscard(tabId)
+      // Closing the steps counts as done with them: they don't come back by themselves.
+      if (tab.kind === 'start') set({ onboarded: true })
       if (tab.kind === 'chat') void window.loom.chatClose(tabId)
       if (tab.kind === 'terminal') void window.loom.ptyKill(tabId)
       const idx = s.tabs.findIndex((t) => t.id === tabId)
@@ -645,6 +656,33 @@ export const useStore = create<Store>((set, get) => {
       const cwd = project?.path ?? get().info?.homeDir ?? 'C:\\'
       const count = get().tabs.filter((t) => t.kind === 'terminal' && t.projectId === (project?.id ?? null)).length
       get().openTab({ id: uid(), kind: 'terminal', projectId: project?.id ?? null, cwd, title: count ? `Terminal ${count + 1}` : 'Terminal' })
+    },
+    openStart: () => {
+      if (POPOUT_TAB) return window.loom.mainDo('openStart', [])
+      const open = get().tabs.find((t) => t.kind === 'start')
+      if (open) return get().activate(open.id)
+      get().openTab({ id: uid(), kind: 'start', projectId: null, title: 'Get started' })
+    },
+    openLoginTerminal: async () => {
+      const exe = await window.loom.claudeProgram()
+      const shell = get().settings.shell
+      const run =
+        shell === 'powershell'
+          ? `& "${exe}" auth login`
+          : shell === 'gitbash'
+            ? `"${exe.replace(/\\/g, '/')}" auth login`
+            : `"${exe}" auth login`
+      const tab: TerminalTab = {
+        id: uid(),
+        kind: 'terminal',
+        projectId: null,
+        cwd: get().info?.homeDir ?? 'C:\\',
+        title: 'Sign in to Claude',
+        run
+      }
+      set((s) => ({ tabs: [...s.tabs, tab] }))
+      // Beside the steps, so both stay in view while the browser does the signing in.
+      get().splitPane('right', tab.id)
     },
     openSettings: () => {
       if (POPOUT_TAB) return window.loom.mainDo('openSettings', [])

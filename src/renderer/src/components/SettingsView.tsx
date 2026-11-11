@@ -98,6 +98,11 @@ export function SettingsView(): ReactNode {
 
         <section className="set-section">
           <h2>Terminal</h2>
+          <Row title="Getting started" hint="The first-launch steps: signing in to Claude, adding projects, and how much Claude does without asking.">
+            <button className="btn" onClick={() => s.openStart()}>
+              Show the steps
+            </button>
+          </Row>
           <Row title="Shell" hint="Used for new terminal tabs.">
             <Dropdown<ShellChoice>
               value={st.shell}

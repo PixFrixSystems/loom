@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
+  AuthStatus,
   ChatEvent,
   ChatStartOptions,
   ClaudeInfo,
@@ -34,6 +35,9 @@ const api = {
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('app:pickFolder'),
   pickFile: (title: string): Promise<string | null> => ipcRenderer.invoke('app:pickFile', title),
   claudeInfo: (): Promise<ClaudeInfo> => ipcRenderer.invoke('app:claudeInfo'),
+  authStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('claude:auth'),
+  claudeProgram: (): Promise<string> => ipcRenderer.invoke('claude:program'),
+  dirsExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('fs:dirsExist', paths),
   reveal: (path: string): Promise<void> => ipcRenderer.invoke('app:reveal', path),
   openPath: (path: string): Promise<string> => ipcRenderer.invoke('app:openPath', path),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url),

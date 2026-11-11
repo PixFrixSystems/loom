@@ -1063,3 +1063,345 @@
   color: var(--text);
   font-size: 12px;
 }
+
+/* ---------- Getting started ---------- */
+.start {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.start-inner {
+  max-width: 660px;
+  margin: 0 auto;
+  padding: 48px 32px 72px;
+}
+
+.start-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+.start-head h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.start-head p {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.start-head .btn {
+  flex: none;
+}
+
+.start-warn {
+  margin: 0 0 24px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* The steps hang on a thread, like a chat's steps: filled when done, a ring for the one to do next. */
+.start-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.start-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 16px;
+  padding-bottom: 30px;
+}
+
+.start-step::after {
+  content: '';
+  position: absolute;
+  top: 26px;
+  bottom: 4px;
+  left: 10.5px;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.start-step:last-child::after {
+  display: none;
+}
+
+.start-mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--accent-ink);
+  transition: background var(--base) var(--ease-out), border-color var(--base) var(--ease-out);
+}
+
+.start-step.is-current .start-mark {
+  border-color: var(--accent);
+}
+
+.start-step.is-done .start-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.start-mark svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 3;
+}
+
+.start-body h2 {
+  margin: 1px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.start-body p {
+  max-width: 62ch;
+  margin: 0 0 8px;
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.start-body .start-hint {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.start-body .start-label {
+  margin: 14px 0 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.start-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.start-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.start-actions .btn {
+  height: 30px;
+}
+
+.start-thread {
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--thread);
+}
+
+.start-folders,
+.start-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 580px;
+}
+
+.start-folders {
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.start-folder,
+.start-mode {
+  display: grid;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--fast) ease;
+}
+
+.start-folder {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.start-mode {
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+}
+
+.start-folder:hover,
+.start-mode:hover {
+  background: var(--bg-hover);
+}
+
+.start-folder-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.start-folder-name,
+.start-mode-label {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.start-folder-path {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.start-folder-meta {
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.start-mode-desc {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.start-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 580px;
+  margin: 14px 0 6px;
+}
+
+.start-body .start-label-row .start-label {
+  margin: 0;
+}
+
+.start-count {
+  margin-left: 4px;
+  color: var(--text-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.start-link,
+.start-more {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.start-link:hover,
+.start-more:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.start-more {
+  align-self: flex-start;
+  margin: 6px 8px 4px;
+}
+
+/* Tick boxes and choices use Loom's own (base.css); the choices sit level with their first line. */
+.start-mode .radio {
+  margin-top: 2px;
+}
+
+.start-tips {
+  margin-top: 8px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.start-tips h2 {
+  margin: 0 0 12px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.start-tips dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 9px 18px;
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.start-tips dt {
+  color: var(--text);
+}
+
+.start-tips dd {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.start-tips .start-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

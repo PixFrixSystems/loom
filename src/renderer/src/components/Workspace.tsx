@@ -6,6 +6,7 @@ import { projectForPath } from '../lib/paths'
 import { useStore } from '../store'
 import { ChatView } from './ChatView'
 import { FileView } from './FileView'
+import { Onboarding } from './Onboarding'
 import { DiffView } from './DiffView'
 import { PreviewView } from './PreviewView'
 import { ProjectMark } from './ProjectMark'
@@ -31,6 +32,8 @@ export function TabContent({ tab, active, visible }: { tab: Tab; active: boolean
       return <PreviewView tab={tab} active={active} visible={visible} />
     case 'diff':
       return <DiffView tab={tab} active={active} visible={visible} />
+    case 'start':
+      return <Onboarding visible={visible} />
   }
 }
 
