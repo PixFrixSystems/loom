@@ -21,6 +21,7 @@ import {
   listAllSessions,
   liveQuery,
   loadSdk,
+  moveSession,
   loadHistory,
   openChat,
   renameSession,
@@ -254,6 +255,7 @@ function registerIpc(): void {
   ipcMain.handle('sessions:list', (_e, force?: boolean) => listAllSessions(force))
   ipcMain.handle('sessions:history', (_e, sessionId: string) => loadHistory(sessionId))
   ipcMain.handle('sessions:rename', (_e, sessionId: string, title: string) => renameSession(sessionId, title))
+  ipcMain.handle('sessions:move', (_e, sessionId: string, fromCwd: string, toCwd: string) => moveSession(sessionId, fromCwd, toCwd))
 
   ipcMain.handle('chat:open', (e, tabId: string, opts: ChatStartOptions) => {
     openChat(e.sender, tabId, opts, settings, (id, error) => {

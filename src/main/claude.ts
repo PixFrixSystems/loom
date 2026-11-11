@@ -1,8 +1,9 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { existsSync, promises as fsp, readFileSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync, promises as fsp, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { createInterface } from 'node:readline'
 import { execFileSync } from 'node:child_process'
 import type {
   CanUseTool,
@@ -817,4 +818,70 @@ export async function writeCommitMessage(cwd: string, files: string, diff: strin
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** Claude Code's folder for a project's chats: the path with everything but letters and digits as "-". */
+function projectDirName(cwd: string): string {
+  return cwd.replace(/[^a-zA-Z0-9]/g, '-')
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Moves a chat to another project. Its history file and the folder beside it (sub-agent work) go
+ * to the new project's folder, so Claude Code resumes it there, and the messages recorded at the
+ * old root say the new one, so every app lists it under the new project. Messages recorded in
+ * other folders keep their paths. The original file is kept in ~/.claude/chat-backups.
+ */
+export async function moveSession(sessionId: string, fromCwd: string, toCwd: string): Promise<{ ok: boolean; error?: string }> {
+  const dirName = projectDirName(toCwd)
+  if (dirName.length > 200) return { ok: false, error: "That project's path is too long for Claude Code's chat folders." }
+  const src = (await transcriptIndex()).get(sessionId)
+  if (!src) return { ok: false, error: "This chat's history file was not found." }
+  const root = join(homedir(), '.claude', 'projects')
+  const destDir = join(root, dirName)
+  const sameFolder = dirname(src).toLowerCase() === destDir.toLowerCase()
+  const dest = join(destDir, `${sessionId}.jsonl`)
+  if (!sameFolder && existsSync(dest)) return { ok: false, error: 'That project already has a chat with this id.' }
+
+  // Written next to the destination first, so a failure halfway leaves the original untouched.
+  const part = `${dest}.moving`
+  const pattern = new RegExp(`"cwd":"${escapeRegExp(JSON.stringify(fromCwd).slice(1, -1))}"`, 'gi')
+  const replacement = `"cwd":${JSON.stringify(toCwd)}`
+  try {
+    await fsp.mkdir(destDir, { recursive: true })
+    const out = createWriteStream(part, { encoding: 'utf8' })
+    const lines = createInterface({ input: createReadStream(src, { encoding: 'utf8' }), crlfDelay: Infinity })
+    for await (const line of lines) {
+      if (!out.write(`${line.replace(pattern, replacement)}\n`)) await new Promise((r) => out.once('drain', r))
+    }
+    await new Promise<void>((resolve, reject) => out.end((e?: Error | null) => (e ? reject(e) : resolve())))
+  } catch (e) {
+    await fsp.rm(part, { force: true })
+    return { ok: false, error: `The chat could not be copied: ${(e as Error).message}` }
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const backups = join(homedir(), '.claude', 'chat-backups')
+  await fsp.mkdir(backups, { recursive: true })
+  const side = join(dirname(src), sessionId)
+  try {
+    // A copy of the original first; then the moved chat goes in place; only then does the original go.
+    // A failure at any point leaves the chat whole in at least one place.
+    await fsp.copyFile(src, join(backups, `${sessionId}-moved-${stamp}.jsonl`))
+    if (!sameFolder && existsSync(side)) await fsp.cp(side, join(destDir, sessionId), { recursive: true })
+    await fsp.rename(part, dest)
+    if (!sameFolder) {
+      await fsp.rm(src, { force: true })
+      if (existsSync(side)) await fsp.rename(side, join(backups, `${sessionId}-moved-${stamp}`))
+    }
+  } catch (e) {
+    await fsp.rm(part, { force: true })
+    return { ok: false, error: `The chat could not be moved: ${(e as Error).message}` }
+  }
+  sessionCache = null
+  cwdCache.delete(sessionId)
+  return { ok: true }
 }

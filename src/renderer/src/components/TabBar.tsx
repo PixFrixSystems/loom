@@ -123,7 +123,17 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
             { label: 'Move to a new window', onSelect: () => s.popOut(tab.id) }
           ])
     ]
-    if (tab.kind === 'chat') items.push({ separator: true, label: '' }, { label: 'Rename', onSelect: () => setRenaming(true) })
+    if (tab.kind === 'chat') {
+      items.push({ separator: true, label: '' }, { label: 'Rename', onSelect: () => setRenaming(true) })
+      if (!detached) {
+        items.push({
+          label: 'Move to project',
+          submenu: s.projects
+            .filter((p) => p.id !== tab.projectId)
+            .map((p) => ({ label: p.name, onSelect: () => void s.moveChat({ tabId: tab.id }, p.id) }))
+        })
+      }
+    }
     if (tab.kind === 'file') {
       items.push(
         { separator: true, label: '' },

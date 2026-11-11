@@ -42,6 +42,8 @@ const api = {
   listSessions: (force?: boolean): Promise<SessionSummary[]> => ipcRenderer.invoke('sessions:list', force),
   loadHistory: (sessionId: string): Promise<HistoryResult> => ipcRenderer.invoke('sessions:history', sessionId),
   renameSession: (sessionId: string, title: string): Promise<void> => ipcRenderer.invoke('sessions:rename', sessionId, title),
+  moveSession: (sessionId: string, fromCwd: string, toCwd: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('sessions:move', sessionId, fromCwd, toCwd),
 
   chatOpen: (tabId: string, opts: ChatStartOptions): Promise<void> => ipcRenderer.invoke('chat:open', tabId, opts),
   chatSend: (tabId: string, text: string, images: ImageAttachment[]): Promise<void> =>

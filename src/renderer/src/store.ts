@@ -145,6 +145,8 @@ interface Store extends PersistedState {
   updateTab: (tabId: string, patch: Partial<Tab>) => void
   newChat: (projectId: string | null) => void
   openSession: (session: SessionSummary) => void
+  /** Moves a chat to another project: its history goes with it, and Claude works in the new folder. */
+  moveChat: (ref: { tabId?: string; session?: SessionSummary }, projectId: string) => Promise<void>
   openFile: (path: string, projectId?: string | null) => void
   newTerminal: (projectId: string | null) => void
   openSettings: () => void
@@ -574,6 +576,38 @@ export const useStore = create<Store>((set, get) => {
       const project = get().projects.find((p) => p.id === projectId) ?? null
       const cwd = project?.path ?? get().info?.homeDir ?? 'C:\\'
       get().openTab({ id: uid(), kind: 'chat', projectId: project?.id ?? null, sessionId: null, cwd, title: 'New chat', ...get().chatDefaults() })
+    },
+    moveChat: async (ref, projectId) => {
+      if (POPOUT_TAB) return
+      const project = get().projects.find((p) => p.id === projectId)
+      if (!project) return
+      // A saved chat that isn't open opens first, so the move has somewhere to report back.
+      if (!ref.tabId && ref.session) get().openSession(ref.session)
+      const tab = get().tabs.find(
+        (t): t is ChatTab => t.kind === 'chat' && (ref.tabId ? t.id === ref.tabId : t.sessionId === ref.session?.sessionId)
+      )
+      if (!tab || tab.projectId === project.id) return
+      const note = (text: string, tone: 'info' | 'error' = 'info'): void =>
+        patchChat(tab.id, (c) => ({ items: [...c.items, { kind: 'note', id: uid(), tone, text }] }))
+      const c = get().chat(tab.id)
+      if (get().detached[tab.id]) return note('Bring this chat back to the main window first, then move it.', 'error')
+      if (c.status === 'running' || c.status === 'starting' || c.permissions.length) {
+        return note('Claude is still working in this chat. Move it once the reply is done.', 'error')
+      }
+      if (tab.sessionId) {
+        // Claude Code keeps the chat open between messages; it has to let go of the file first.
+        if (c.opened) {
+          await window.loom.chatClose(tab.id)
+          patchChat(tab.id, () => ({ opened: false, status: 'idle' }))
+        }
+        const r = await window.loom.moveSession(tab.sessionId, tab.cwd, project.path)
+        if (!r.ok) return note(r.error ?? 'The chat could not be moved.', 'error')
+      }
+      get().updateTab(tab.id, { projectId: project.id, cwd: project.path } as Partial<ChatTab>)
+      // Skills and commands can differ per folder: fetch them again for the new one.
+      patchChat(tab.id, () => ({ commands: [] }))
+      note(`Moved to ${project.name}. From the next message Claude works in ${project.path}.`)
+      void get().refreshSessions(true)
     },
     openSession: (session) => {
       if (POPOUT_TAB) return window.loom.mainDo('openSession', [session])

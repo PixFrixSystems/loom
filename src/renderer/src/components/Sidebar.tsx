@@ -99,7 +99,18 @@ function ChatRow({ tab, session }: { tab?: ChatTab; session?: SessionSummary }):
     const items: MenuItem[] = [{ label: 'Open', onSelect: open }]
     if (tab) items.push({ label: 'Close tab', onSelect: () => useStore.getState().closeTab(tab.id) })
     const id = tab?.sessionId ?? session?.sessionId
-    if (id) items.push({ separator: true, label: '' }, { label: 'Copy session ID', onSelect: () => void navigator.clipboard.writeText(id) })
+    const s = useStore.getState()
+    const here = tab?.projectId ?? projectForPath(s.projects, session?.cwd ?? '')?.id ?? null
+    items.push(
+      { separator: true, label: '' },
+      {
+        label: 'Move to project',
+        submenu: s.projects
+          .filter((p) => p.id !== here)
+          .map((p) => ({ label: p.name, onSelect: () => void s.moveChat(tab ? { tabId: tab.id } : { session }, p.id) }))
+      }
+    )
+    if (id) items.push({ label: 'Copy session ID', onSelect: () => void navigator.clipboard.writeText(id) })
     useStore.getState().showMenu(e, items)
   }
   return (
