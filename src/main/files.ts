@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, relative } from 'node:path'
-import type { ConfigFileInfo, DirEntry, FileReadResult, GitStatus } from '@shared/types'
+import type { ConfigFileInfo, DirEntry, FileReadResult, GitStatus, SubFolder } from '@shared/types'
 
 const MAX_EDITABLE_BYTES = 8 * 1024 * 1024
 
@@ -109,6 +109,23 @@ async function remoteOf(dir: string): Promise<string | null> {
   }
   remotes.set(key, { at: Date.now(), url })
   return url
+}
+
+/** The folders directly inside one, leaving out hidden ones and node_modules. Empty if it can't be read. */
+export async function listSubfolders(dir: string): Promise<SubFolder[]> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules')
+    return await Promise.all(
+      dirs.map(async (e) => {
+        const path = join(dir, e.name)
+        const st = await fs.stat(path).catch(() => null)
+        return { name: e.name, path, created: st ? st.birthtimeMs || st.ctimeMs : 0 }
+      })
+    )
+  } catch {
+    return []
+  }
 }
 
 /** Which of these folders exist, in the same order. */

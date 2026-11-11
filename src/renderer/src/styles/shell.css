@@ -216,6 +216,87 @@
   line-height: 1.45;
 }
 
+/* Folders that appeared in a group's watched folder */
+.watch-new {
+  margin: 2px 0 6px;
+  padding: 4px 0 4px 8px;
+  border-left: 2px solid var(--accent-line);
+}
+
+.watch-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding-right: 2px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.watch-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.watch-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.watch-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.watch-row:hover {
+  background: var(--bg-hover);
+}
+
+.watch-row svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+
+.watch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .group.drop-into,
 .loose.drop-into {
   background: var(--accent-soft);

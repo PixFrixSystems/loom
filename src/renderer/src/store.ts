@@ -25,6 +25,7 @@ import {
   type RunTarget,
   type ServerInfo,
   type SessionSummary,
+  type SubFolder,
   type TerminalTab,
   type SlashCommandInfo,
   type Tab,
@@ -108,6 +109,8 @@ interface Store extends PersistedState {
   /** What each project can run, by project id. Missing until detected. */
   runTargets: Record<string, RunTarget[]>
   servers: ServerInfo[]
+  /** Folders that appeared in a group's watched folder and aren't projects yet, by group id */
+  watchNew: Record<string, SubFolder[]>
   /** The image viewer, open on one of a message's images */
   viewer: { images: ImagePreview[]; index: number } | null
   layout: LayoutNode
@@ -137,6 +140,15 @@ interface Store extends PersistedState {
   addGroup: (name?: string) => string
   updateGroup: (id: string, patch: Partial<Group>) => void
   deleteGroup: (id: string) => void
+  /** Starts watching a folder for a group. Folders made in the last day count as new. */
+  watchFolder: (groupId: string, path: string) => Promise<void>
+  unwatchFolder: (groupId: string) => void
+  /** Looks in every watched folder for folders that aren't projects or offered before. */
+  checkWatched: () => Promise<void>
+  /** Adds offered folders to the group as projects */
+  addWatched: (groupId: string, folders: SubFolder[]) => void
+  /** Stops offering these folders */
+  hideWatched: (groupId: string, folders: SubFolder[]) => void
   moveProject: (projectId: string, groupId: string | null, beforeProjectId?: string | null) => void
 
   activate: (tabId: string) => void
@@ -318,6 +330,7 @@ export const useStore = create<Store>((set, get) => {
     groupIcons: {},
     runTargets: {},
     servers: [],
+    watchNew: {},
     viewer: null,
     layout: { kind: 'pane', id: 'main', tabId: null },
     focusedPane: 'main',
@@ -429,6 +442,11 @@ export const useStore = create<Store>((set, get) => {
       setInterval(() => {
         if (document.hasFocus()) void get().refreshAllGit()
       }, 3 * 60_000)
+      // Watched folders: soon after start, every minute while Loom is in front, and on focus (App).
+      setTimeout(() => void get().checkWatched(), 2000)
+      setInterval(() => {
+        if (document.hasFocus()) void get().checkWatched()
+      }, 60_000)
       window.loom.onServers((servers) => set({ servers }))
       void window.loom.serverList().then((servers) => set({ servers }))
       window.loom.onUsage((usage) => set({ usage }))
@@ -469,6 +487,50 @@ export const useStore = create<Store>((set, get) => {
     updateGroup: (id, patch) => {
       set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) }))
       if ('iconPath' in patch) void get().loadGroupIcon(id)
+    },
+    watchFolder: async (groupId, path) => {
+      const now = Date.now()
+      const folders = await window.loom.subfolders(path)
+      // Everything already there counts as seen, except what arrived in the last day (a pull just now, say).
+      const seen = folders.filter((f) => now - f.created > 24 * 60 * 60_000).map((f) => f.name)
+      get().updateGroup(groupId, { watchPath: path, watchSeen: seen })
+      await get().checkWatched()
+    },
+    unwatchFolder: (groupId) => {
+      get().updateGroup(groupId, { watchPath: undefined, watchSeen: undefined })
+      set((s) => {
+        const watchNew = { ...s.watchNew }
+        delete watchNew[groupId]
+        return { watchNew }
+      })
+    },
+    checkWatched: async () => {
+      const watched = get().groups.filter((g) => g.watchPath)
+      const found = await Promise.all(watched.map((g) => window.loom.subfolders(g.watchPath!)))
+      const watchNew: Record<string, SubFolder[]> = {}
+      watched.forEach((g, i) => {
+        const seen = new Set(g.watchSeen ?? [])
+        const fresh = found[i].filter((f) => !seen.has(f.name) && !get().projects.some((p) => normPath(p.path) === normPath(f.path)))
+        if (fresh.length) watchNew[g.id] = fresh.sort((a, b) => a.name.localeCompare(b.name))
+      })
+      set({ watchNew })
+    },
+    addWatched: (groupId, folders) => {
+      for (const f of folders) get().addProject(f.path, groupId)
+      get().hideWatched(groupId, folders)
+    },
+    hideWatched: (groupId, folders) => {
+      const g = get().groups.find((x) => x.id === groupId)
+      if (!g) return
+      const names = new Set(folders.map((f) => f.name))
+      get().updateGroup(groupId, { watchSeen: [...new Set([...(g.watchSeen ?? []), ...names])] })
+      set((s) => {
+        const rest = (s.watchNew[groupId] ?? []).filter((f) => !names.has(f.name))
+        const watchNew = { ...s.watchNew }
+        if (rest.length) watchNew[groupId] = rest
+        else delete watchNew[groupId]
+        return { watchNew }
+      })
     },
     deleteGroup: (id) =>
       set((s) => ({

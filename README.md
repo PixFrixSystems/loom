@@ -47,7 +47,7 @@ See what changed, open a side-by-side diff, stage or throw away changes (Loom ke
 
 ### Projects, files and terminals
 
-Group projects in the sidebar; each one picks up its site's favicon. Open and edit files in the same editor as VS Code (Monaco), find any file with Ctrl+P, and open a terminal (PowerShell, Command Prompt or Git Bash) in any project folder. A chat can move to another project, history and all.
+Group projects in the sidebar; each one picks up its site's favicon. A group can watch a folder: when new folders appear there (after a git pull, say), the group offers them with one click to add. Open and edit files in the same editor as VS Code (Monaco), find any file with Ctrl+P, and open a terminal (PowerShell, Command Prompt or Git Bash) in any project folder. A chat can move to another project, history and all.
 
 ### A short first run
 

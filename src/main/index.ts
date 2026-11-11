@@ -49,7 +49,7 @@ import {
 import { detectProjectIcon, iconDataUrl } from './icons'
 import { fullImage } from './images'
 import { lastUsage, refreshUsage } from './usage'
-import { configFiles, dirsExist, fileMtime, gitStatus, listDir, listProjectFiles, readTextFile, writeTextFile } from './files'
+import { configFiles, dirsExist, fileMtime, gitStatus, listDir, listProjectFiles, listSubfolders, readTextFile, writeTextFile } from './files'
 import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './pty'
 import {
   detectRunTargets,
@@ -264,6 +264,7 @@ function registerIpc(): void {
   ipcMain.handle('claude:auth', () => claudeAuthStatus(settings()))
   ipcMain.handle('claude:program', () => claudeProgram(settings()))
   ipcMain.handle('fs:dirsExist', (_e, paths: string[]) => dirsExist(paths))
+  ipcMain.handle('fs:subfolders', (_e, dir: string) => listSubfolders(dir))
   ipcMain.handle('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
   ipcMain.handle('app:openPath', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('app:openExternal', (_e, url: string) => {

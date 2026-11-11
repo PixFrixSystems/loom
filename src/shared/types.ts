@@ -35,6 +35,18 @@ export interface Group {
   iconProjectId?: string
   /** An image file chosen for the group. */
   iconPath?: string
+  /** A folder the group watches: folders that appear inside it are offered as new projects. */
+  watchPath?: string
+  /** Names of folders in watchPath already offered (added or hidden), so only new ones show. */
+  watchSeen?: string[]
+}
+
+/** A folder directly inside a watched one. */
+export interface SubFolder {
+  name: string
+  path: string
+  /** When it was created, in ms */
+  created: number
 }
 
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions' | 'auto' | 'dontAsk'

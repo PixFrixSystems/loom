@@ -113,7 +113,10 @@ export function App(): ReactNode {
   }, [])
 
   useEffect(() => {
-    const onFocus = (): void => void useStore.getState().refreshSessions()
+    const onFocus = (): void => {
+      void useStore.getState().refreshSessions()
+      void useStore.getState().checkWatched()
+    }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [])

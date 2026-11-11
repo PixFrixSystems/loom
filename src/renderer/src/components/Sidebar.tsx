@@ -9,11 +9,12 @@ import {
   Play,
   Plus,
   Settings,
-  SquareTerminal
+  SquareTerminal,
+  X
 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
-import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary } from '@shared/types'
-import { projectForPath, timeAgo } from '../lib/paths'
+import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary, type SubFolder } from '@shared/types'
+import { baseName, normPath, projectForPath, timeAgo } from '../lib/paths'
 import { useStore, type MenuItem } from '../store'
 import { ProjectMark } from './ProjectMark'
 import { defaultTarget, primaryServer, projectRunItems, ServerMark } from './Servers'
@@ -366,14 +367,28 @@ function GroupBlock({
   const collapsed = group.collapsed === true
   const editing = s.editingGroupId === group.id
   const groupActivity = projects.map((p) => activity[p.id]).find(Boolean) ?? null
+  const fresh = s.watchNew[group.id] ?? []
 
   const menu = (e: React.MouseEvent): void => {
     e.preventDefault()
     e.stopPropagation()
     const withIcons = projects.filter((p) => s.icons[p.id])
     const image = !group.iconProjectId && !!group.iconPath
+    const parent = sharedParent(projects)
+    const watchItem: MenuItem = group.watchPath
+      ? { label: `Stop watching ${baseName(group.watchPath)} for new folders`, onSelect: () => s.unwatchFolder(group.id) }
+      : parent
+        ? { label: `Watch ${baseName(parent)} for new folders`, onSelect: () => void s.watchFolder(group.id, parent) }
+        : {
+            label: 'Watch a folder for new projects…',
+            onSelect: async () => {
+              const path = await window.loom.pickFolder()
+              if (path) void s.watchFolder(group.id, path)
+            }
+          }
     s.showMenu(e, [
       { label: 'Add project folder…', onSelect: () => void s.pickAndAddProject(group.id) },
+      watchItem,
       { label: 'Rename group', onSelect: () => s.set({ editingGroupId: group.id }) },
       {
         label: 'Icon',
@@ -455,6 +470,9 @@ function GroupBlock({
         )}
         <span className="row-end">
           {collapsed ? <ActivityMark activity={groupActivity} /> : null}
+          {collapsed && fresh.length ? (
+            <span className="watch-dot" title={fresh.length === 1 ? '1 new folder to add' : `${fresh.length} new folders to add`} />
+          ) : null}
           <span className="group-count">{projects.length}</span>
           <span className="row-actions">
             <button
@@ -475,6 +493,7 @@ function GroupBlock({
       </div>
       {!collapsed ? (
         <div className="group-projects">
+          {fresh.length ? <NewFolders group={group} folders={fresh} /> : null}
           {projects.map((p) => (
             <ProjectRow key={p.id} project={p} activity={activity[p.id] ?? null} sessions={sessionsByProject.get(p.id) ?? []} />
           ))}
@@ -482,6 +501,40 @@ function GroupBlock({
         </div>
       ) : null}
     </section>
+  )
+}
+
+/** The folder all of a group's projects sit in, when they share one. */
+function sharedParent(projects: Project[]): string | null {
+  const parents = projects.map((p) => p.path.replace(/[\\/]+$/, '').replace(/[\\/][^\\/]+$/, ''))
+  if (!parents.length || !parents[0]) return null
+  return parents.every((x) => normPath(x) === normPath(parents[0])) ? parents[0] : null
+}
+
+/** Folders that appeared in the group's watched folder, each a click away from being a project. */
+function NewFolders({ group, folders }: { group: Group; folders: SubFolder[] }): ReactNode {
+  const s = useStore.getState()
+  const where = baseName(group.watchPath ?? '')
+  return (
+    <div className="watch-new" role="group" aria-label={`New folders in ${where}`}>
+      <div className="watch-head">
+        <span className="watch-title">{folders.length === 1 ? `New in ${where}` : `${folders.length} new in ${where}`}</span>
+        {folders.length > 1 ? (
+          <button className="watch-link" onClick={() => s.addWatched(group.id, folders)}>
+            Add all
+          </button>
+        ) : null}
+        <button className="icon-btn small" title="Not now. They won't be offered again." aria-label="Hide these" onClick={() => s.hideWatched(group.id, folders)}>
+          <X />
+        </button>
+      </div>
+      {folders.map((f) => (
+        <button key={f.path} className="watch-row" title={`Add ${f.path} to ${group.name}`} onClick={() => s.addWatched(group.id, [f])}>
+          <FolderPlus />
+          <span className="watch-name">{f.name}</span>
+        </button>
+      ))}
+    </div>
   )
 }
 
