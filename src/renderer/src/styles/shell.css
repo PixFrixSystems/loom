@@ -1438,6 +1438,11 @@
   background: var(--accent-line);
 }
 
+/* While a divider is dragged, previews let the mouse through so the drag can cross them */
+body.is-resizing webview {
+  pointer-events: none;
+}
+
 /* The pane you're working in, when there is more than one */
 .content.is-split .tab-panel.focused::after,
 .content.is-split .pane-slot.focused::after {

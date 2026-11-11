@@ -3,6 +3,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 import type { LayoutNode, Tab } from '@shared/types'
 import { paneOfTab, panesOf, type Edge, type Pane, type Split } from '../lib/layout'
 import { projectForPath } from '../lib/paths'
+import { useResizing } from '../lib/resizing'
 import { useStore } from '../store'
 import { ChatView } from './ChatView'
 import { FileView } from './FileView'
@@ -104,6 +105,7 @@ function PaneSlot({ pane, multi, focused }: { pane: Pane; multi: boolean; focuse
 function SplitHandle({ split, index }: { split: Split; index: number }): ReactNode {
   const start = useRef<{ pos: number; size: number; sizes: number[] } | null>(null)
   const [dragging, setDragging] = useState(false)
+  useResizing(dragging)
   const row = split.dir === 'row'
   return (
     <div
@@ -130,6 +132,10 @@ function SplitHandle({ split, index }: { split: Split; index: number }): ReactNo
         useStore.getState().resizeSplit(split.id, sizes)
       }}
       onPointerUp={() => {
+        start.current = null
+        setDragging(false)
+      }}
+      onLostPointerCapture={() => {
         start.current = null
         setDragging(false)
       }}

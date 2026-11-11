@@ -8,6 +8,7 @@ import { StatusBar } from './components/StatusBar'
 import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
 import { inFileRow, panesOf } from './lib/layout'
+import { useResizing } from './lib/resizing'
 import { useStore } from './store'
 
 function useShortcuts(): void {
@@ -73,6 +74,7 @@ function useShortcuts(): void {
 function Resizer({ side }: { side: 'left' | 'right' }): ReactNode {
   const start = useRef<{ x: number; w: number } | null>(null)
   const [dragging, setDragging] = useState(false)
+  useResizing(dragging)
   return (
     <div
       className={`resizer resizer-${side}${dragging ? ' dragging' : ''}`}
@@ -91,6 +93,10 @@ function Resizer({ side }: { side: 'left' | 'right' }): ReactNode {
         useStore.getState().set(side === 'left' ? { sidebarWidth: w } : { rightPanelWidth: w })
       }}
       onPointerUp={() => {
+        start.current = null
+        setDragging(false)
+      }}
+      onLostPointerCapture={() => {
         start.current = null
         setDragging(false)
       }}
