@@ -2,6 +2,18 @@
 
 One window for all your projects. Chats, files and terminals from any project share one tab bar, and every Claude chat runs in its own project's folder.
 
+## Set it up
+
+Loom runs on Windows and needs [Node.js](https://nodejs.org) 20 or newer. In this folder:
+
+```
+npm install
+npm run build
+npm start
+```
+
+The first launch adds a Loom shortcut to the desktop and the Start menu, and opens the getting-started steps: signing in to Claude (Loom uses Claude Code's sign-in), adding your projects, and choosing how much Claude may do without asking. They are in Settings if you want them again.
+
 ## Open it
 
 Use the **Loom** shortcut on the desktop or in the Start menu. Loom keeps the Start menu shortcut up to date by itself.
