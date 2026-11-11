@@ -59,7 +59,9 @@ The first launch walks through signing in to Claude, adding projects (it suggest
 
 ## Install
 
-Download `Loom-Setup-<version>.exe` from the [latest release](../../releases/latest) and run it. It installs for your Windows user only (no admin needed), adds Loom to the Start menu and the desktop, and updates itself when a new version comes out.
+Download `Loom-Setup-<version>.exe` from the [latest release](../../releases/latest) and run it. Install it for just you (no admin needed) or everyone on the PC, in the folder you like; it adds Loom to the Start menu and the desktop.
+
+Loom keeps itself up to date. When a new version is out it downloads it in the background and shows a **Restart to update** button in the status bar; Loom reopens in a few seconds with your tabs and chats. Ignore it and the update installs the next time you quit. Settings has the version, Check for updates and What's new.
 
 Loom isn't code-signed yet, so the first time Windows may say "Windows protected your PC". Click **More info**, then **Run anyway**.
 
@@ -123,7 +125,7 @@ npm run dist         # builds the installer into dist/
 
 `smoke:live` leaves two short test chats in Claude's history for this folder. To also check that one of your own saved chats loads, set `LOOM_SMOKE_CHAT="<folder>|<session id>"`. `LOOM_USER_DATA=<folder>` runs a second, separate Loom with its own profile.
 
-To release a version, run `npm version patch` (or `minor`), then `git push --follow-tags`. The Release workflow builds the installer and attaches it to a draft release on GitHub; check it there and publish it. Installed copies pick it up within a few hours.
+To release a version, run `npm version patch` (or `minor`), then `git push --follow-tags`. The Release workflow builds the installer and attaches it to a draft release on GitHub; check it there and publish it. Installed copies find it within a few hours (or at once with Check for updates) and offer Restart to update.
 
 Loom is Electron, React and TypeScript, built with electron-vite and packaged with electron-builder. Chats go through the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), files open in Monaco, and terminals are xterm.js on a native pty.
 

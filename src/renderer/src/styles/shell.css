@@ -1844,6 +1844,23 @@ body.is-resizing webview {
   color: var(--text);
 }
 
+/* A new version has downloaded: the one place the status bar asks for a click */
+.sb-update {
+  height: 20px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sb-update:hover {
+  background: var(--accent-line);
+  color: var(--text);
+}
+
 /* In the sidebar: projects in git. Faded when the repository has no remote. */
 .git-mark {
   display: inline-grid;

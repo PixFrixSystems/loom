@@ -367,6 +367,12 @@
   align-items: flex-start;
 }
 
+.set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .radio-list {
   display: flex;
   flex-direction: column;

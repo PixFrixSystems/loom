@@ -1,4 +1,4 @@
-import { GitBranch, LoaderCircle, RefreshCw } from 'lucide-react'
+import { CircleArrowUp, GitBranch, LoaderCircle, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { UsageLimit, UsageSnapshot } from '@shared/types'
@@ -128,6 +128,22 @@ function UsageMeters(): ReactNode {
   )
 }
 
+/** Shows once a new version has downloaded, like VS Code's Restart to Update. */
+function UpdateButton(): ReactNode {
+  const update = useStore((s) => s.update)
+  if (update?.state !== 'ready') return null
+  return (
+    <button
+      className="sb-item sb-update"
+      title={`Loom ${update.available} has downloaded. Restart to install it; your tabs and chats come back.`}
+      onClick={() => void window.loom.updateInstall()}
+    >
+      <CircleArrowUp />
+      Restart to update
+    </button>
+  )
+}
+
 export function StatusBar(): ReactNode {
   const s = useStore()
   const tab = s.tabs.find((t) => t.id === s.activeTabId)
@@ -170,6 +186,7 @@ export function StatusBar(): ReactNode {
         </button>
       ) : null}
       <span className="sb-spacer" />
+      <UpdateButton />
       {waiting ? (
         <span className="sb-item sb-warn">{waiting === 1 ? '1 chat needs you' : `${waiting} chats need you`}</span>
       ) : null}

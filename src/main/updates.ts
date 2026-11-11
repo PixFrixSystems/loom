@@ -1,21 +1,106 @@
-import { app } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { AppUpdater } from 'electron-updater'
+import type { UpdateStatus } from '@shared/types'
 
-/**
- * The installed app looks for a newer Loom on GitHub Releases shortly after it starts and every
- * few hours, downloads it in the background and installs it the next time Loom quits. Copies
- * built from source update with git instead, so they skip this.
- */
-export function setupUpdates(): void {
-  if (!app.isPackaged || process.env.LOOM_USER_DATA) return
+// The installed app finds new versions on GitHub Releases shortly after it starts and every few
+// hours, downloads them in the background, and then shows a Restart to update button, the way
+// VS Code does. Ignored, the update still installs the next time Loom quits.
+
+let status: UpdateStatus = { enabled: false, version: app.getVersion(), state: 'idle' }
+let updater: AppUpdater | null = null
+let installing = false
+
+function set(patch: Partial<UpdateStatus>): void {
+  status = { ...status, ...patch }
+  for (const w of BrowserWindow.getAllWindows()) if (!w.webContents.isDestroyed()) w.webContents.send('update:status', status)
+}
+
+/** The releases page of the repository this copy was built from, for "What's new". */
+function releasesUrl(): string | null {
+  try {
+    const yml = readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8')
+    const owner = /^owner:\s*(.+)$/m.exec(yml)?.[1]?.trim()
+    const repo = /^repo:\s*(.+)$/m.exec(yml)?.[1]?.trim()
+    return owner && repo ? `https://github.com/${owner}/${repo}/releases` : null
+  } catch {
+    return null
+  }
+}
+
+function failed(e: unknown): void {
+  const text = e instanceof Error ? e.message : String(e)
+  // Nothing released yet counts as being up to date.
+  if (/no published versions/i.test(text)) return set({ state: 'none', checkedAt: Date.now(), error: undefined })
+  const offline = /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|ENETUNREACH|EAI_AGAIN|net::ERR_/i.test(text)
+  set({ state: 'error', error: offline ? "Couldn't reach GitHub. Check the connection and try again." : text.split('\n')[0].slice(0, 200) })
+}
+
+async function check(): Promise<UpdateStatus> {
+  if (!updater || status.state === 'downloading' || status.state === 'ready') return status
+  try {
+    await updater.checkForUpdates()
+  } catch (e) {
+    failed(e)
+  }
+  return status
+}
+
+async function install(opts: { busyChats: () => number; window: () => BrowserWindow | null }): Promise<boolean> {
+  if (!updater || status.state !== 'ready') return false
+  const busy = opts.busyChats()
+  const win = opts.window()
+  if (busy > 0 && win) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question',
+      buttons: ['Restart now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Loom',
+      message: busy === 1 ? 'A chat is still working.' : `${busy} chats are still working.`,
+      detail: 'Restarting stops them. Their conversations are saved, and you can continue them once Loom is back.'
+    })
+    if (response !== 0) return false
+  }
+  installing = true
+  // Silent install, then Loom opens again by itself.
+  updater.quitAndInstall(true, true)
+  return true
+}
+
+/** True while Loom is closing to install an update, so closing doesn't ask about running chats again. */
+export function installingUpdate(): boolean {
+  return installing
+}
+
+export function setupUpdates(opts: { busyChats: () => number; window: () => BrowserWindow | null }): void {
+  ipcMain.handle('update:status', () => status)
+  ipcMain.handle('update:check', () => check())
+  ipcMain.handle('update:install', () => install(opts))
+  ipcMain.handle('update:notes', () => {
+    const url = releasesUrl()
+    if (url) void shell.openExternal(status.available ? `${url}/tag/v${status.available}` : url)
+  })
+
+  // Copies built from source update with git. Scratch profiles (tests) leave updates alone unless asked.
+  if (!app.isPackaged || (process.env.LOOM_USER_DATA && !process.env.LOOM_UPDATES)) return
+  status = { ...status, enabled: true }
   import('electron-updater')
     .then((mod) => {
-      const updater = mod.autoUpdater ?? (mod as unknown as { default: typeof mod }).default.autoUpdater
-      updater.logger = null
-      const check = (): void => {
-        updater.checkForUpdatesAndNotify().catch(() => undefined)
-      }
-      setTimeout(check, 15_000)
-      setInterval(check, 6 * 60 * 60_000)
+      const u = mod.autoUpdater ?? (mod as unknown as { default: typeof mod }).default.autoUpdater
+      updater = u
+      u.logger = null
+      u.autoDownload = true
+      u.autoInstallOnAppQuit = true
+      u.on('checking-for-update', () => set({ state: 'checking', error: undefined }))
+      u.on('update-available', (info) => set({ state: 'downloading', available: info.version, percent: 0 }))
+      u.on('update-not-available', () => set({ state: 'none', checkedAt: Date.now() }))
+      u.on('download-progress', (p) => set({ state: 'downloading', percent: Math.round(p.percent) }))
+      u.on('update-downloaded', (info) => set({ state: 'ready', available: info.version, checkedAt: Date.now() }))
+      u.on('error', failed)
+      setTimeout(() => void check(), 15_000)
+      setInterval(() => void check(), 4 * 60 * 60_000)
     })
-    .catch(() => undefined)
+    .catch(() => set({ enabled: false }))
 }

@@ -26,6 +26,7 @@ import type {
   SlashCommandInfo,
   Tab,
   TabSnapshot,
+  UpdateStatus,
   UsageSnapshot
 } from '@shared/types'
 
@@ -164,6 +165,15 @@ const api = {
   serverDismiss: (id: string): Promise<void> => ipcRenderer.invoke('server:dismiss', id),
   serverLog: (id: string): Promise<{ text: string; end: number } | null> => ipcRenderer.invoke('server:log', id),
   serverWrite: (id: string, data: string): void => ipcRenderer.send('server:write', id, data),
+  updateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:status'),
+  updateCheck: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:check'),
+  updateInstall: (): Promise<boolean> => ipcRenderer.invoke('update:install'),
+  updateNotes: (): Promise<void> => ipcRenderer.invoke('update:notes'),
+  onUpdate: (cb: (status: UpdateStatus) => void): (() => void) => {
+    const listener = (_e: unknown, status: UpdateStatus): void => cb(status)
+    ipcRenderer.on('update:status', listener)
+    return () => ipcRenderer.removeListener('update:status', listener)
+  },
   onServers: (cb: (list: ServerInfo[]) => void): (() => void) => {
     const listener = (_e: unknown, list: ServerInfo[]): void => cb(list)
     ipcRenderer.on('server:update', listener)

@@ -30,6 +30,7 @@ import {
   type SlashCommandInfo,
   type Tab,
   type TabSnapshot,
+  type UpdateStatus,
   type UsageSnapshot
 } from '@shared/types'
 import {
@@ -111,6 +112,8 @@ interface Store extends PersistedState {
   /** What each project can run, by project id. Missing until detected. */
   runTargets: Record<string, RunTarget[]>
   servers: ServerInfo[]
+  /** The installed app's updates: checking, downloading, ready to restart */
+  update: UpdateStatus | null
   /** Folders that appeared in a group's watched folder and aren't projects yet, by group id */
   watchNew: Record<string, SubFolder[]>
   /** The image viewer, open on one of a message's images */
@@ -333,6 +336,7 @@ export const useStore = create<Store>((set, get) => {
     groupIcons: {},
     runTargets: {},
     servers: [],
+    update: null,
     watchNew: {},
     viewer: null,
     layout: { kind: 'pane', id: 'main', tabId: null },
@@ -450,6 +454,8 @@ export const useStore = create<Store>((set, get) => {
       setInterval(() => {
         if (document.hasFocus()) void get().checkWatched()
       }, 60_000)
+      window.loom.onUpdate((update) => set({ update }))
+      void window.loom.updateStatus().then((update) => set({ update }))
       window.loom.onServers((servers) => set({ servers }))
       void window.loom.serverList().then((servers) => set({ servers }))
       window.loom.onUsage((usage) => set({ usage }))

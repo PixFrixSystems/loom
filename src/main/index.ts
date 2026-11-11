@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { setupUpdates } from './updates'
+import { installingUpdate, setupUpdates } from './updates'
 import type {
   ChatStartOptions,
   EffortLevel,
@@ -204,7 +204,7 @@ function createWindow(): void {
 
   win.on('close', (e) => {
     const busy = runningChats()
-    if (busy > 0 && win) {
+    if (busy > 0 && win && !installingUpdate()) {
       const choice = dialog.showMessageBoxSync(win, {
         type: 'question',
         buttons: ['Quit anyway', 'Cancel'],
@@ -412,7 +412,7 @@ app.whenReady().then(() => {
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
-  setupUpdates()
+  setupUpdates({ busyChats: runningChats, window: () => win })
   // Plan limits: shortly after start, then every five minutes while Loom is open.
   setTimeout(() => usageNow(true), 4000)
   setInterval(() => usageNow(false), 5 * 60_000)

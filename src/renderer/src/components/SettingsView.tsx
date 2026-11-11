@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import type { ClaudeSource, LoomSettings, PermissionMode, ShellChoice } from '@shared/types'
+import type { ClaudeSource, LoomSettings, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
+import { timeAgo } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
@@ -14,6 +15,25 @@ function Row({ title, hint, children }: { title: string; hint?: ReactNode; child
       <div className="set-control">{children}</div>
     </div>
   )
+}
+
+/** What the About section says about updates. */
+function updateLine(u: UpdateStatus): string {
+  if (!u.enabled) return 'This copy is built from source. Update it with git pull, then npm run build.'
+  switch (u.state) {
+    case 'checking':
+      return 'Checking for updates…'
+    case 'downloading':
+      return `Downloading Loom ${u.available}${u.percent ? ` (${u.percent}%)` : ''}. A Restart to update button appears when it's ready.`
+    case 'ready':
+      return `Loom ${u.available} is ready. Restart to install it; your tabs and chats come back.`
+    case 'none':
+      return `Loom is up to date.${u.checkedAt ? ` Checked ${timeAgo(u.checkedAt)}.` : ''}`
+    case 'error':
+      return `Couldn't check for updates. ${u.error ?? ''}`.trim()
+    default:
+      return 'Loom looks for updates when it starts and every few hours.'
+  }
 }
 
 export function SettingsView(): ReactNode {
@@ -118,6 +138,34 @@ export function SettingsView(): ReactNode {
             />
           </Row>
         </section>
+
+        {s.update ? (
+          <section className="set-section">
+            <h2>About</h2>
+            <Row title={`Loom ${s.update.version}`} hint={updateLine(s.update)}>
+              {s.update.enabled ? (
+                <div className="set-actions">
+                  {s.update.state === 'ready' ? (
+                    <button className="btn primary" onClick={() => void window.loom.updateInstall()}>
+                      Restart to update
+                    </button>
+                  ) : (
+                    <button
+                      className="btn"
+                      disabled={s.update.state === 'checking' || s.update.state === 'downloading'}
+                      onClick={() => void window.loom.updateCheck()}
+                    >
+                      Check for updates
+                    </button>
+                  )}
+                  <button className="btn ghost" onClick={() => void window.loom.updateNotes()}>
+                    What&apos;s new
+                  </button>
+                </div>
+              ) : null}
+            </Row>
+          </section>
+        ) : null}
 
         <section className="set-section">
           <h2>Keyboard</h2>

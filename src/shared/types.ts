@@ -41,6 +41,20 @@ export interface Group {
   watchSeen?: string[]
 }
 
+/** Where the installed app is with updates. */
+export interface UpdateStatus {
+  /** False for copies built from source, which update with git */
+  enabled: boolean
+  /** The version running now */
+  version: string
+  state: 'idle' | 'checking' | 'none' | 'downloading' | 'ready' | 'error'
+  /** The newer version found */
+  available?: string
+  percent?: number
+  checkedAt?: number
+  error?: string
+}
+
 /** A folder directly inside a watched one. */
 export interface SubFolder {
   name: string
