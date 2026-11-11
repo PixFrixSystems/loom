@@ -31,8 +31,9 @@ function releasesUrl(): string | null {
 
 function failed(e: unknown): void {
   const text = e instanceof Error ? e.message : String(e)
-  // Nothing released yet counts as being up to date.
-  if (/no published versions/i.test(text)) return set({ state: 'none', checkedAt: Date.now(), error: undefined })
+  // Nothing released yet counts as being up to date, and so does a release whose files are still
+  // uploading (GitHub lists a new version's tag a few minutes before its latest.yml is there).
+  if (/no published versions|cannot find latest\.yml/i.test(text)) return set({ state: 'none', checkedAt: Date.now(), error: undefined })
   const offline = /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|ENETUNREACH|EAI_AGAIN|net::ERR_/i.test(text)
   set({ state: 'error', error: offline ? "Couldn't reach GitHub. Check the connection and try again." : text.split('\n')[0].slice(0, 200) })
 }
