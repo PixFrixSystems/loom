@@ -58,17 +58,45 @@ function bundledClaudePath(): string | null {
   }
 }
 
+/**
+ * The claude.exe a package manager's launcher script points at. npm (and pnpm, yarn) put a
+ * claude.cmd on the PATH that runs node_modules\@anthropic-ai\claude-code\bin\claude.exe.
+ */
+function exeBehindShim(cmd: string): string | null {
+  try {
+    const text = readFileSync(cmd, 'utf8')
+    for (const m of text.matchAll(/"([^"]*claude[^"]*\.exe)"/gi)) {
+      const p = m[1].replace(/%~?dp0%?\\?/gi, dirname(cmd) + '\\')
+      if (existsSync(p)) return p
+    }
+  } catch {
+    // unreadable
+  }
+  return null
+}
+
 // Only a found path is kept, so a Claude Code installed while Loom is open is picked up.
 let installedCache: string | null = null
 function installedClaudePath(): string | null {
   if (installedCache && existsSync(installedCache)) return installedCache
-  const candidates = [join(homedir(), '.local', 'bin', 'claude.exe')]
+  const candidates: string[] = []
   try {
     const out = execFileSync('where.exe', ['claude'], { encoding: 'utf8', windowsHide: true, timeout: 4000 })
-    candidates.unshift(...out.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.toLowerCase().endsWith('.exe')))
+    for (const line of out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)) {
+      if (line.toLowerCase().endsWith('.exe')) candidates.push(line)
+      else if (line.toLowerCase().endsWith('.cmd')) {
+        const exe = exeBehindShim(line)
+        if (exe) candidates.push(exe)
+      }
+    }
   } catch {
     // not on PATH
   }
+  // Where the official installer and a global npm install put it, in case PATH is out of date.
+  candidates.push(
+    join(homedir(), '.local', 'bin', 'claude.exe'),
+    join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe')
+  )
   installedCache = candidates.find((p) => existsSync(p)) ?? null
   return installedCache
 }
