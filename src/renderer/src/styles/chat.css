@@ -1346,17 +1346,10 @@
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 
-/* Thinking as it streams: a short window that follows the newest lines */
 .think-time {
   margin-left: 4px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
-}
-
-.tl .thinking-live {
-  max-height: calc(13px * 1.55 * 8);
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .tl-working {

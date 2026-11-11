@@ -185,16 +185,10 @@ let liveThinkingOpen = true
 export function LiveThinking({ text, since }: { text: string; since?: number }): ReactNode {
   const [open, setOpen] = useState(liveThinkingOpen)
   const [, tick] = useState(0)
-  const body = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 1000)
     return () => clearInterval(t)
   }, [])
-  // Follow the newest lines, the way a terminal does.
-  useLayoutEffect(() => {
-    const el = body.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [text, open])
   const secs = since ? Math.max(0, Math.floor((Date.now() - since) / 1000)) : 0
   return (
     <div className={`thinking live${open ? ' open' : ''}`}>
@@ -212,7 +206,7 @@ export function LiveThinking({ text, since }: { text: string; since?: number }):
         {text ? <ChevronRight className="tool-chev" /> : null}
       </button>
       {open && text ? (
-        <div ref={body} className="thinking-body thinking-live selectable">
+        <div className="thinking-body selectable">
           {text}
         </div>
       ) : null}
