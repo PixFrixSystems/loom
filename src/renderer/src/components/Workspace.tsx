@@ -1,4 +1,4 @@
-import { FolderPlus, MessageSquarePlus } from 'lucide-react'
+import { FolderPlus, MessageSquarePlus, X } from 'lucide-react'
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { LayoutNode, Tab } from '@shared/types'
 import { paneOfTab, panesOf, type Edge, type Pane, type Split } from '../lib/layout'
@@ -284,6 +284,17 @@ export function Workspace(): ReactNode {
               onPointerDownCapture={() => pane && useStore.getState().focusPane(pane.id, true)}
             >
               <TabContent tab={t} active={focused} visible={visible} />
+              {multi && visible ? (
+                // With the screen split, each pane closes what it shows from its own corner.
+                <button
+                  className="icon-btn small pane-close"
+                  title={`Close ${t.title}${focused ? ' (Ctrl+W)' : ''}`}
+                  aria-label={`Close ${t.title}`}
+                  onClick={() => useStore.getState().closeTab(t.id)}
+                >
+                  <X />
+                </button>
+              ) : null}
             </div>
           )
         })}

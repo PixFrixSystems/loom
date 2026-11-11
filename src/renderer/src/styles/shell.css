@@ -1724,3 +1724,18 @@
   width: 16px;
   height: 16px;
 }
+
+/* Split panes: a close button in each pane's top-right corner, in the header's row */
+.pane-close {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+}
+
+.content.is-split .tab-panel .chat-head,
+.content.is-split .tab-panel .file-head {
+  padding-right: 38px;
+}
