@@ -1,67 +1,77 @@
-# Loom
+<p align="center">
+  <img src="resources/icon.png" width="84" alt="">
+</p>
 
-One window for all your projects. Chats, files and terminals from any project share one tab bar, and every Claude chat runs in its own project's folder.
+<h1 align="center">Loom</h1>
 
-## Set it up
+<p align="center">
+  One window for all your projects and their Claude Code chats.<br>
+  Chats, files, terminals, dev servers and git from every project, side by side.
+</p>
 
-Loom runs on Windows and needs [Node.js](https://nodejs.org) 20 or newer. In this folder:
+<p align="center">
+  <img src="docs/screenshots/loom.png" alt="Loom with a Claude chat on the left that has just added a dark mode toggle to a small coffee shop site, and the site running in a preview pane on the right">
+</p>
+
+## Why
+
+If you work on several projects with Claude Code, you probably end up with a VS Code window per project, each with its own chat, terminal and dev server, and a lot of Alt+Tab. Loom puts them in one place. Every project sits in a sidebar, every tab (a chat, a file, a terminal, a running site) shares one tab bar no matter which project it belongs to, and every chat runs in its own project's folder.
+
+It is built on the Claude Agent SDK, so it is Claude Code underneath: your sign-in, settings, `CLAUDE.md`, skills, hooks and chat history all carry over. Chats you started in the terminal or in VS Code show up in Loom, and the other way round.
+
+## What it does
+
+### Chats that read like a timeline
+
+Your message, then a thread of Claude's steps: commands and edits show what went in and what came out, reads and searches open on a click, and every step says how long it took. Pick the model, permission mode and effort per chat; new chats start with whatever you picked last. Approve or deny tool use inline, attach images, type `/` for every command and skill Claude has in that folder, and watch a small meter for how full the chat is getting. Any earlier Claude Code chat for a project can be picked up where it left off.
+
+### Run the project and see it beside the chat
+
+Loom reads each project's `package.json` for `dev`, `start`, `serve` and similar scripts and turns them into a Run button in the chat header, using the project's own npm, pnpm, yarn or bun. Running servers are listed in the status bar with restart and stop, and their address opens in a preview pane next to the chat, with phone and tablet widths and developer tools. Quitting Loom stops everything it started.
+
+### Lay it out however you like
+
+<p align="center">
+  <img src="docs/screenshots/grid.png" alt="Four panes at once: the chat, a terminal showing git status, index.html open in the editor, and the site running in a preview">
+</p>
+
+Side by side, top and bottom, three columns or four squares. Drag a tab onto a pane to show it there or onto an edge to split, drag the dividers to resize, and move any tab out to a window of its own for another screen. Chats keep running and terminals keep their output while they move. The layout is saved.
+
+### Git without leaving the chat
+
+<p align="center">
+  <img src="docs/screenshots/git.png" alt="The Git panel listing two changed files, with a side-by-side diff of styles.css next to the chat that made the change">
+</p>
+
+See what changed, open a side-by-side diff, stage or throw away changes (Loom keeps a copy), and commit only the files you select. Write the message yourself or let Claude write it, following the commit rules in your `CLAUDE.md`. Push, pull, switch or start branches and browse recent commits. The sidebar marks which projects are in git and whether anything is waiting to commit, push or pull.
+
+### Projects, files and terminals
+
+Group projects in the sidebar; each one picks up its site's favicon. Open and edit files in the same editor as VS Code (Monaco), find any file with Ctrl+P, and open a terminal (PowerShell, Command Prompt or Git Bash) in any project folder. A chat can move to another project, history and all.
+
+### A short first run
+
+<p align="center">
+  <img src="docs/screenshots/start.png" alt="The Get started page: sign in to Claude, then add projects picked from the folders already used with Claude Code">
+</p>
+
+The first launch walks through signing in to Claude, adding projects (it suggests the folders you have already used with Claude Code), and choosing how much Claude may do without asking. It takes about two minutes and can be skipped.
+
+## Install
+
+You need Windows 11 (10 should work but is untested), [Node.js](https://nodejs.org) 20 or newer, [Git](https://git-scm.com) for the git features, and a Claude account that can use Claude Code. You don't need Claude Code installed separately: Loom runs the copy that comes with the Agent SDK, or your own `claude.exe` if you prefer (Settings).
 
 ```
+git clone https://github.com/panosmg13gr/loom.git
+cd loom
 npm install
 npm run build
 npm start
 ```
 
-The first launch adds a Loom shortcut to the desktop and the Start menu, and opens the getting-started steps: signing in to Claude (Loom uses Claude Code's sign-in), adding your projects, and choosing how much Claude may do without asking. They are in Settings if you want them again.
+The first launch adds a Loom shortcut to the desktop and the Start menu. Use that from then on.
 
-## Open it
-
-Use the **Loom** shortcut on the desktop or in the Start menu. Loom keeps the Start menu shortcut up to date by itself.
-
-## After changing the code
-
-```
-npm run build
-```
-
-Then close and reopen Loom. `npm run dev` runs it with live reload while you work on it.
-
-## Check that it works
-
-```
-npm run smoke        # opens the app against a scratch folder and checks history, files, terminal, quick open
-npm run smoke:live   # also sends two tiny messages to Claude (Haiku) and tests approvals
-```
-
-`smoke:live` leaves two short test chats in Claude's history for this folder (`~/.claude/projects/C--Users-panos-loom`). Delete that folder afterwards if you don't want them.
-
-## Where things live
-
-- Loom's projects, groups, open tabs and settings: `%APPDATA%\Loom\loom-state.json`
-- Chat history stays where Claude Code keeps it: `~/.claude/projects`. Loom reads it and never rewrites it.
-- Chats run through the Claude Code program that ships with the Agent SDK (`node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe`) using your normal Claude sign-in, settings, skills and hooks. Settings can switch to your installed `claude.exe` instead.
-
-## Good to know
-
-- A resumed chat shows its messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
-- Don't continue the same chat in VS Code and Loom at the same time: both write to the same history file.
-- New chats start in "Ask before edits". Change the default in Settings, or per chat from the message box.
-- Effort and Ultracode sit in the message box and can change mid-chat. "Default" effort follows `effortLevel` in your Claude settings. New chats start with whatever you picked last.
-- To move a chat to another project, right-click its tab or its row in the sidebar, then Move to project. Its history moves to that project's folder (the original is kept in `~/.claude/chat-backups`) and Claude works there from the next message.
-- Plan limits in the status bar come from the same source as Claude Code's `/usage`, checked every five minutes and after each reply. Loom also writes them to `~/.claude/usage-cache.json`, so the 80% usage guard works for Loom chats. The SDK marks this call experimental; if it breaks, the meters just stop updating.
-- Split layouts: the grid button in the top bar has ready-made layouts (side by side, top and bottom, three columns, four squares, one large with two stacked) and splits for the pane you're in. Drag a tab onto a pane to show it there, or onto a pane's edge to split it. Drag the lines between panes to resize; double-click one to even them out. Clicking a tab shows it in the selected pane (the one with the green line). The layout is saved.
-- A branch icon at the end of a project's row in the sidebar means it is in git (faded when it has no remote to push to). Hover it for where it is connected, the branch, and what is waiting to commit, push or pull.
-- Git (right panel, or click the branch in the status bar): what changed in the project folder, staged and not. Click a file to select it (Ctrl+click or Shift+click for more) and Commit then commits only those; double-click it for a side-by-side diff. Stage, unstage or throw away (a copy goes to `%APPDATA%\Loom\discarded`, new files to the Recycle Bin). Commit with your own message or "Write with Claude", which follows your CLAUDE.md commit rules. Push, pull (fast-forward only; anything needing a merge is a job for a chat), switch or start branches, and browse recent commits. Works for projects inside a bigger repository, like each PixFrix site.
-- Chats read as a timeline: your message, then a thread of Claude's steps with a dot each (green done, red failed, open ring running). Commands and edits show a box with what went in and what came out; reads and searches open on a click.
-- Typing / lists every command and skill Claude has in that folder, yours marked, even before the chat's first message.
-- The meter next to the send button shows how full the chat is; its tick is where Claude starts summarizing earlier messages.
-- Browser tabs show a site inside Loom: the globe next to a running server opens it beside the chat. Back, forward, reload, phone and tablet widths, developer tools (F12). Sites run sandboxed, with no access to Loom.
-- When tabs don't fit, arrows appear at the ends of the row and the ⌄ button lists them all.
-- A tab can have a window of its own, for another screen: right-click it and choose "Move to a new window", or drag it out of Loom and let go. Chats keep running, terminals keep their shell and output, files keep unsaved edits. Closing that window (or Ctrl+W in it) moves the tab back. In the main window the tab stays listed; clicking it brings its window forward. Moved-out tabs come back to the main window when Loom restarts.
-- Images you send show as thumbnails in the chat, saved chats included; click one for full size, arrow keys for the next.
-- Thinking and tool steps show how long they took, and every reply ends with how long Claude worked on it.
-- Dev servers: Loom reads each project's `package.json` (or a web, site or single app folder inside it) for `dev`, `start`, `serve`, `preview` and similar scripts, using the project's npm, pnpm, yarn or bun. Run starts the one you last picked. Servers run in the background; their address shows in the chat header, the sidebar and the status bar, which also lists every server with restart and stop. Quitting Loom stops them all, including anything they started.
-- Project icons are found automatically (`app/icon.svg`, `public/favicon.*`, and the same inside `web/` or a single app folder). Right-click a project, then Icon, to pick an image or turn it off. Groups have no icon until you give them one: right-click the group, then Icon, to borrow one of its projects' icons or pick an image.
+To update, pull the latest code, run `npm run build` again and reopen Loom.
 
 ## Shortcuts
 
@@ -75,7 +85,40 @@ npm run smoke:live   # also sends two tiny messages to Claude (Haiku) and tests 
 | Split to the right, split down | Ctrl+\, Ctrl+Shift+\ |
 | Move between panes | Ctrl+Alt+arrows |
 | Sidebar | Ctrl+B |
-| Files and Claude panel | Ctrl+Alt+B |
+| Files, Git and Claude panel | Ctrl+Alt+B |
 | Settings | Ctrl+, |
 | Stop Claude | Esc in the message box |
 | Save a file | Ctrl+S |
+
+## Good to know
+
+- **Your data stays where it was.** Chat history stays in `~/.claude/projects`, where Claude Code keeps it. Loom's own state (projects, groups, open tabs, settings) is in `%APPDATA%\Loom\loom-state.json`.
+- **One chat, one app at a time.** Don't continue the same chat in VS Code and Loom at once: both write to the same history file.
+- **Resumed chats** show their messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
+- **Plan limits** in the status bar come from the same source as Claude Code's `/usage`. The SDK marks that call experimental; if it changes, the meter stops updating and nothing else breaks.
+- **Previews are sandboxed.** Sites in a preview pane run with no access to Loom.
+- **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups`.
+- **Throwing away changes** in the Git panel keeps a copy in `%APPDATA%\Loom\discarded`; new files go to the Recycle Bin.
+
+## Working on Loom
+
+```
+npm run dev          # run with live reload
+npm run typecheck
+npm run smoke        # opens the built app with a scratch profile and checks the main features
+npm run smoke:live   # also sends two tiny messages to Claude (Haiku) and tests approvals
+```
+
+`smoke:live` leaves two short test chats in Claude's history for this folder. To also check that one of your own saved chats loads, set `LOOM_SMOKE_CHAT="<folder>|<session id>"`. `LOOM_USER_DATA=<folder>` runs a second, separate Loom with its own profile.
+
+Loom is Electron, React and TypeScript, built with electron-vite. Chats go through the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), files open in Monaco, and terminals are xterm.js on a native pty.
+
+## Status
+
+Loom is a personal tool, shared as it is. It is used every day on Windows 11; other systems are untested. Version 0.1, so expect rough edges.
+
+Loom is an independent project. It is not made by or affiliated with Anthropic. Claude and Claude Code are trademarks of Anthropic.
+
+## License
+
+[MIT](LICENSE)
