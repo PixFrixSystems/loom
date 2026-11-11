@@ -169,7 +169,7 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
             }
           }}
         />
-        <span className="segmented" role="group" aria-label="Page width">
+        <span className="device-switch" role="group" aria-label="Page width">
           {DEVICES.map(({ width, label, Icon }) => (
             <button
               key={label}

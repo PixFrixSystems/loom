@@ -479,7 +479,7 @@
   color: var(--text);
 }
 
-.segmented {
+.device-switch {
   display: inline-flex;
   flex: none;
   gap: 2px;
@@ -488,7 +488,7 @@
   border-radius: var(--radius);
 }
 
-.segmented button {
+.device-switch button {
   display: grid;
   place-items: center;
   width: 24px;
@@ -501,22 +501,22 @@
   transition: background var(--fast) ease, color var(--fast) ease;
 }
 
-.segmented button:hover {
+.device-switch button:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
 
-.segmented button.on {
+.device-switch button.on {
   background: var(--bg-active);
   color: var(--text);
 }
 
-.segmented button:focus-visible {
+.device-switch button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-.segmented svg {
+.device-switch svg {
   width: 13px;
   height: 13px;
 }
@@ -576,7 +576,7 @@
 }
 
 @container (max-width: 460px) {
-  .preview-bar .segmented,
+  .preview-bar .device-switch,
   .preview-bar .preview-devtools {
     display: none;
   }
