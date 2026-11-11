@@ -1,0 +1,64 @@
+/* Code colours in chat, matched to the editor theme */
+.hljs-comment,
+.hljs-quote {
+  color: #8f8a81;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag {
+  color: #c59bd6;
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition {
+  color: #a8c47f;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #d9a86c;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-title.function_ {
+  color: #7fb5c8;
+}
+
+.hljs-type,
+.hljs-built_in,
+.hljs-title.class_ {
+  color: #d6b257;
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-name,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #d88e7a;
+}
+
+.hljs-meta,
+.hljs-tag {
+  color: #919eaf;
+}
+
+.hljs-deletion {
+  color: #e27d6b;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
+}

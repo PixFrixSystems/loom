@@ -1,0 +1,258 @@
+import { Check, ChevronRight, Copy, ImageIcon, TriangleAlert } from 'lucide-react'
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import type { ChatItem, ImagePreview } from '@shared/types'
+import { formatDuration } from '../lib/paths'
+import { useStore } from '../store'
+import { Markdown } from './Markdown'
+
+type ToolItem = Extract<ChatItem, { kind: 'tool' }>
+
+/** Tools whose input and output are worth seeing without a click: commands and edits. */
+const OPEN_BY_DEFAULT = new Set(['Bash', 'PowerShell', 'Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
+
+const TOOL_TITLES: Record<string, string> = {
+  Task: 'Agent',
+  TodoWrite: 'To-dos',
+  ExitPlanMode: 'Plan',
+  AskUserQuestion: 'Question',
+  MultiEdit: 'Edit',
+  NotebookEdit: 'Edit',
+  WebFetch: 'Fetch',
+  WebSearch: 'Web search'
+}
+
+/** The tool's name as the timeline shows it: "Bash", "Read", "playwright: browser click". */
+function toolTitle(name: string): string {
+  if (TOOL_TITLES[name]) return TOOL_TITLES[name]
+  const mcp = name.match(/^mcp__(.+?)__(.+)$/)
+  if (mcp) return `${mcp[1].replace(/^claude_ai_/, '').replace(/[_-]+/g, ' ')}: ${mcp[2].replace(/_/g, ' ')}`
+  return name
+}
+
+/** Re-renders every second while `on`, for live timers. */
+function useTick(on: boolean): void {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!on) return
+    const t = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [on])
+}
+
+/** How long a step took, or has been running. Nothing for steps under a second. */
+function StepTime({ ms, title }: { ms: number | undefined; title: string }): ReactNode {
+  if (ms === undefined || ms < 1000) return null
+  return (
+    <span className="tool-time" title={title}>
+      {formatDuration(ms)}
+    </span>
+  )
+}
+
+function CopyButton({ text }: { text: string }): ReactNode {
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      className="icon-btn small io-copy"
+      title={done ? 'Copied' : 'Copy'}
+      aria-label="Copy"
+      onClick={() => {
+        void navigator.clipboard.writeText(text)
+        setDone(true)
+        setTimeout(() => setDone(false), 1200)
+      }}
+    >
+      {done ? <Check /> : <Copy />}
+    </button>
+  )
+}
+
+/** One part of a tool's box, what went in or what came out. Long text is cut short until you ask. */
+function IoRow({ label, text, lines, tone, copy }: { label: string; text: string; lines: number; tone?: 'err'; copy?: boolean }): ReactNode {
+  const pre = useRef<HTMLPreElement>(null)
+  const [all, setAll] = useState(false)
+  const [cut, setCut] = useState(false)
+  useLayoutEffect(() => {
+    const el = pre.current
+    if (el && !all) setCut(el.scrollHeight > el.clientHeight + 2)
+  }, [text, all])
+  return (
+    <div className={`io-row${tone ? ` io-${tone}` : ''}`}>
+      <span className="io-label">{label}</span>
+      <div className="io-main">
+        <pre ref={pre} className={`io-text selectable${cut && !all ? ' is-cut' : ''}`} style={all ? undefined : { maxHeight: `${lines * 1.5}em` }}>
+          {text}
+        </pre>
+        {cut || all ? (
+          <button className="io-more" onClick={() => setAll((a) => !a)}>
+            {all ? 'Show less' : 'Show all'}
+          </button>
+        ) : null}
+      </div>
+      {copy ? <CopyButton text={text} /> : <span />}
+    </div>
+  )
+}
+
+function DiffView({ before, after }: { before: string; after: string }): ReactNode {
+  return (
+    <div className="diff selectable">
+      {before ? <pre className="diff-del">{before}</pre> : null}
+      {after ? <pre className="diff-add">{after}</pre> : null}
+    </div>
+  )
+}
+
+export const ToolRow = memo(function ToolRow({ item }: { item: ToolItem }): ReactNode {
+  const [open, setOpen] = useState<boolean | null>(null)
+  const running = item.status === 'running'
+  const failed = item.status === 'error'
+  useTick(running && !!item.startedAt)
+  const ms = running ? (item.startedAt ? Date.now() - item.startedAt : undefined) : item.ms
+  // An edit's "updated successfully" adds nothing; its diff says it all, unless it failed.
+  const quietResult = !failed && (!!item.diff || item.name === 'Write')
+  const out = item.result && !quietResult ? item.result : ''
+  const hasBody = !!(item.detail || item.diff || out || (running && OPEN_BY_DEFAULT.has(item.name)))
+  const isOpen = hasBody && (open ?? OPEN_BY_DEFAULT.has(item.name))
+  return (
+    <div className={`tool${isOpen ? ' open' : ''}${failed ? ' failed' : ''}`}>
+      <button className="tool-head" onClick={() => hasBody && setOpen(!isOpen)} aria-expanded={isOpen} disabled={!hasBody}>
+        <span className="tool-name">{toolTitle(item.name)}</span>
+        <span className="tool-summary">
+          {item.filePath ? (
+            <span
+              className="path-link"
+              role="link"
+              title="Open in a tab"
+              onClick={(e) => {
+                e.stopPropagation()
+                useStore.getState().openFile(item.filePath!)
+              }}
+            >
+              {item.summary}
+            </span>
+          ) : (
+            item.summary
+          )}
+        </span>
+        <StepTime ms={ms} title={running ? 'Running for' : 'Took'} />
+        {hasBody ? <ChevronRight className="tool-chev" /> : null}
+      </button>
+      {isOpen ? (
+        <div className="io">
+          {item.detail ? <IoRow label="IN" text={item.detail} lines={3} copy /> : null}
+          {item.diff ? (
+            <div className="io-diff">
+              <DiffView before={item.diff.before} after={item.diff.after} />
+            </div>
+          ) : null}
+          {out ? (
+            <IoRow label={failed ? 'ERROR' : 'OUT'} text={out} lines={item.detail ? 6 : 8} tone={failed ? 'err' : undefined} />
+          ) : running ? (
+            <div className="io-row">
+              <span className="io-label">OUT</span>
+              <span className="io-pending">Running</span>
+              <span />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+})
+
+function Thinking({ text, ms }: { text: string; ms?: number }): ReactNode {
+  const [open, setOpen] = useState(false)
+  const can = !!text.trim()
+  return (
+    <div className={`thinking${open ? ' open' : ''}`}>
+      <button className="think-head" onClick={() => can && setOpen((o) => !o)} aria-expanded={open} disabled={!can}>
+        {ms !== undefined && ms >= 1000 ? `Thought for ${formatDuration(ms)}` : 'Thought'}
+        {can ? <ChevronRight className="tool-chev" /> : null}
+      </button>
+      {open ? <div className="thinking-body selectable">{text}</div> : null}
+    </div>
+  )
+}
+
+function Thumbs({ previews }: { previews: ImagePreview[] }): ReactNode {
+  return (
+    <div className="bubble-thumbs">
+      {previews.map((p, i) => (
+        <button
+          key={i}
+          className="bubble-thumb"
+          title="Open the image"
+          aria-label={`Open image ${i + 1} of ${previews.length}`}
+          onClick={() => useStore.getState().set({ viewer: { images: previews, index: i } })}
+        >
+          {p.thumb ? <img src={p.thumb} alt="" draggable={false} decoding="async" /> : <ImageIcon />}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function Note({ item }: { item: Extract<ChatItem, { kind: 'note' }> }): ReactNode {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`note tone-${item.tone}`}>
+      <div className="note-line">
+        {item.tone === 'error' ? <TriangleAlert /> : null}
+        <span className="selectable">{item.text}</span>
+        {item.detail ? (
+          <button className="note-toggle" onClick={() => setOpen((o) => !o)}>
+            {open ? 'Hide' : item.tone === 'summary' ? 'Show summary' : 'Details'}
+          </button>
+        ) : null}
+      </div>
+      {open && item.detail ? <pre className="note-detail selectable">{item.detail}</pre> : null}
+    </div>
+  )
+}
+
+export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: ChatItem; cwd: string }): ReactNode {
+  switch (item.kind) {
+    case 'user': {
+      const previews = item.previews ?? []
+      const rest = item.images - previews.length
+      return (
+        <div className="msg-user">
+          {previews.length ? <Thumbs previews={previews} /> : null}
+          {item.text || rest > 0 ? (
+            <div className="bubble selectable">
+              {item.text}
+              {rest > 0 ? (
+                <span className="bubble-images">
+                  <ImageIcon /> {rest === 1 ? '1 attachment' : `${rest} attachments`}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )
+    }
+    case 'assistant':
+      return (
+        <div className="msg-assistant">
+          <Markdown text={item.text} cwd={cwd} />
+        </div>
+      )
+    case 'thinking':
+      return <Thinking text={item.text} ms={item.ms} />
+    case 'tool':
+      return <ToolRow item={item} />
+    case 'note':
+      return <Note item={item} />
+    case 'done':
+      return <div className="turn-done">Worked for {formatDuration(item.ms)}</div>
+  }
+})
+
+/** Which dot a step gets on the timeline. */
+export function timelineClass(item: ChatItem): string {
+  if (item.kind === 'tool') return `tl-tool ${item.status === 'running' ? 'tl-run' : item.status === 'error' ? 'tl-err' : 'tl-ok'}`
+  if (item.kind === 'thinking') return 'tl-think'
+  if (item.kind === 'note') return `tl-note${item.tone === 'error' ? ' tl-err' : ''}`
+  return 'tl-text'
+}

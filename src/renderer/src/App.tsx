@@ -1,0 +1,149 @@
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { ImageViewer } from './components/ImageViewer'
+import { ContextMenuHost } from './components/Menu'
+import { QuickOpen } from './components/QuickOpen'
+import { RightPanel } from './components/RightPanel'
+import { Sidebar } from './components/Sidebar'
+import { StatusBar } from './components/StatusBar'
+import { FileBar, TabBar } from './components/TabBar'
+import { Workspace } from './components/Workspace'
+import { panesOf } from './lib/layout'
+import { useStore } from './store'
+
+function useShortcuts(): void {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const s = useStore.getState()
+      const tab = s.tabs.find((t) => t.id === s.activeTabId)
+      const ctrl = e.ctrlKey || e.metaKey
+      if (!ctrl) return
+      const key = e.key.toLowerCase()
+      if (e.code === 'Backslash') {
+        // Ctrl+\ splits to the right, Ctrl+Shift+\ splits down.
+        e.preventDefault()
+        s.splitPane(e.shiftKey ? 'bottom' : 'right')
+      } else if (e.altKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        const list = panesOf(s.layout)
+        if (list.length < 2) return
+        e.preventDefault()
+        const i = list.findIndex((p) => p.id === s.focusedPane)
+        const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : list.length - 1
+        s.focusPane(list[(i + step) % list.length].id)
+      } else if (key === 'tab') {
+        e.preventDefault()
+        if (!s.tabs.length) return
+        const i = s.tabs.findIndex((t) => t.id === s.activeTabId)
+        const next = s.tabs[(i + (e.shiftKey ? s.tabs.length - 1 : 1)) % s.tabs.length]
+        s.activate(next.id)
+      } else if (key === 'w' && !e.shiftKey) {
+        e.preventDefault()
+        if (tab) s.closeTab(tab.id)
+        else if (panesOf(s.layout).length > 1) s.closePane()
+      } else if (key === 't' && !e.shiftKey) {
+        e.preventDefault()
+        s.newChat(tab?.projectId ?? s.projects[0]?.id ?? null)
+      } else if (key === 'p' && !e.shiftKey) {
+        e.preventDefault()
+        s.set({ quickOpen: !s.quickOpen })
+      } else if (key === '`') {
+        e.preventDefault()
+        s.newTerminal(tab?.projectId ?? null)
+      } else if (key === 'b' && e.altKey) {
+        e.preventDefault()
+        s.set({ rightPanelOpen: !s.rightPanelOpen })
+      } else if (key === 'b') {
+        e.preventDefault()
+        s.set({ sidebarOpen: !s.sidebarOpen })
+      } else if (key === ',') {
+        e.preventDefault()
+        s.openSettings()
+      } else if (/^[1-9]$/.test(key) && !e.altKey && !e.shiftKey) {
+        const t = s.tabs[key === '9' ? s.tabs.length - 1 : Number(key) - 1]
+        if (t) {
+          e.preventDefault()
+          s.activate(t.id)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
+}
+
+function Resizer({ side }: { side: 'left' | 'right' }): ReactNode {
+  const start = useRef<{ x: number; w: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  return (
+    <div
+      className={`resizer resizer-${side}${dragging ? ' dragging' : ''}`}
+      role="separator"
+      aria-orientation="vertical"
+      onPointerDown={(e) => {
+        const s = useStore.getState()
+        start.current = { x: e.clientX, w: side === 'left' ? s.sidebarWidth : s.rightPanelWidth }
+        ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+        setDragging(true)
+      }}
+      onPointerMove={(e) => {
+        if (!start.current) return
+        const dx = e.clientX - start.current.x
+        const w = Math.round(Math.max(200, Math.min(520, start.current.w + (side === 'left' ? dx : -dx))))
+        useStore.getState().set(side === 'left' ? { sidebarWidth: w } : { rightPanelWidth: w })
+      }}
+      onPointerUp={() => {
+        start.current = null
+        setDragging(false)
+      }}
+    />
+  )
+}
+
+export function App(): ReactNode {
+  const s = useStore()
+  useShortcuts()
+
+  useEffect(() => {
+    void useStore.getState().init()
+  }, [])
+
+  useEffect(() => {
+    const onFocus = (): void => void useStore.getState().refreshSessions()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
+  if (!s.ready) return <div className="boot" />
+
+  const style = {
+    '--sbw': s.sidebarOpen ? `${s.sidebarWidth}px` : '0px',
+    '--rpw': s.rightPanelOpen ? `${s.rightPanelWidth}px` : '0px',
+    '--filebar': s.tabs.some((t) => t.kind === 'file') ? '32px' : '0px'
+  } as CSSProperties
+
+  return (
+    <div className="app" style={style}>
+      {s.sidebarOpen ? (
+        <>
+          <div className="brand">
+            <span className="brand-name">Loom</span>
+          </div>
+          <Sidebar />
+          <Resizer side="left" />
+        </>
+      ) : null}
+      <TabBar />
+      <FileBar />
+      <Workspace />
+      {s.rightPanelOpen ? (
+        <>
+          <Resizer side="right" />
+          <RightPanel />
+        </>
+      ) : null}
+      <StatusBar />
+      <ContextMenuHost />
+      <ImageViewer />
+      {s.quickOpen ? <QuickOpen /> : null}
+    </div>
+  )
+}
