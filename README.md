@@ -59,7 +59,20 @@ The first launch walks through signing in to Claude, adding projects (it suggest
 
 ## Install
 
-You need Windows 11 (10 should work but is untested), [Node.js](https://nodejs.org) 20 or newer, [Git](https://git-scm.com) for the git features, and a Claude account that can use Claude Code. You don't need Claude Code installed separately: Loom runs the copy that comes with the Agent SDK, or your own `claude.exe` if you prefer (Settings).
+Download `Loom-Setup-<version>.exe` from the [latest release](../../releases/latest) and run it. It installs for your Windows user only (no admin needed), adds Loom to the Start menu and the desktop, and updates itself when a new version comes out.
+
+Loom isn't code-signed yet, so the first time Windows may say "Windows protected your PC". Click **More info**, then **Run anyway**.
+
+You also need:
+
+- **Claude Code**, Anthropic's command-line tool, with a Claude account that can use it. If it isn't on your PC, Loom's first-run steps install it for you with Anthropic's own installer.
+- **[Git](https://git-scm.com)**, for the git features.
+
+Loom is made for Windows 11. Windows 10 should work but is untested.
+
+### Build it yourself
+
+With [Node.js](https://nodejs.org) 20 or newer:
 
 ```
 git clone https://github.com/panosmg13gr/loom.git
@@ -69,9 +82,7 @@ npm run build
 npm start
 ```
 
-The first launch adds a Loom shortcut to the desktop and the Start menu. Use that from then on.
-
-To update, pull the latest code, run `npm run build` again and reopen Loom.
+A copy built this way runs the Claude Code that `npm install` brings along (or your own, in Settings), adds its own Loom shortcut to the desktop and the Start menu on the first launch, and updates with `git pull` and `npm run build`.
 
 ## Shortcuts
 
@@ -107,11 +118,14 @@ npm run dev          # run with live reload
 npm run typecheck
 npm run smoke        # opens the built app with a scratch profile and checks the main features
 npm run smoke:live   # also sends two tiny messages to Claude (Haiku) and tests approvals
+npm run dist         # builds the installer into dist/
 ```
 
 `smoke:live` leaves two short test chats in Claude's history for this folder. To also check that one of your own saved chats loads, set `LOOM_SMOKE_CHAT="<folder>|<session id>"`. `LOOM_USER_DATA=<folder>` runs a second, separate Loom with its own profile.
 
-Loom is Electron, React and TypeScript, built with electron-vite. Chats go through the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), files open in Monaco, and terminals are xterm.js on a native pty.
+To release a version, run `npm version patch` (or `minor`), then `git push --follow-tags`. The Release workflow builds the installer and attaches it to a draft release on GitHub; check it there and publish it. Installed copies pick it up within a few hours.
+
+Loom is Electron, React and TypeScript, built with electron-vite and packaged with electron-builder. Chats go through the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), files open in Monaco, and terminals are xterm.js on a native pty.
 
 ## Status
 

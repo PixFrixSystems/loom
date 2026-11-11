@@ -1,0 +1,50 @@
+# Builds the Windows installer: npm run dist (local, into dist/) or the Release workflow (on a version tag).
+appId: gr.pixfrix.loom
+productName: Loom
+copyright: Copyright (c) 2026 PixFrix
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - out/**
+  - resources/**
+  - package.json
+  # Claude Code itself isn't ours to hand out: the installed app uses the copy on the person's PC.
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+
+# The terminal library loads a native module and starts helper programs, which can't run from inside the archive.
+asarUnpack:
+  - "**/node_modules/@lydell/node-pty*/**"
+
+# node-pty ships ready-made binaries that work with any Electron; nothing to compile.
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+  artifactName: Loom-Setup-${version}.${ext}
+
+# A step-by-step installer: the license, just you or everyone on this PC, where to install, then run Loom.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  license: LICENSE
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Loom
+  uninstallDisplayName: Loom
+  # Uninstalling keeps projects, tabs and settings, in case Loom is installed again.
+  deleteAppDataOnUninstall: false
+
+# The repository comes from package.json or the git remote. Releases start as drafts to check before publishing.
+publish:
+  provider: github
+  releaseType: draft

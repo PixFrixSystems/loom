@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { setupUpdates } from './updates'
 import type {
   ChatStartOptions,
   EffortLevel,
@@ -83,7 +84,10 @@ if (!app.requestSingleInstanceLock()) {
   })
 }
 
-app.setAppUserModelId('gr.pixfrix.loom')
+// The installed app and a copy built from source get separate Windows identities, so Windows
+// never shows one's name or icon on the other's taskbar button, and their shortcuts don't fight.
+const APP_ID = app.isPackaged ? 'gr.pixfrix.loom' : 'gr.pixfrix.loom.source'
+app.setAppUserModelId(APP_ID)
 app.setName('Loom')
 
 /** What every Loom window shares: the frame, the colours, the preload bridge. */
@@ -177,6 +181,16 @@ function createWindow(): void {
     minHeight: 560
   })
   if (bounds.maximized) win.maximize()
+  // A copy built from source runs inside electron.exe. Without this, pinning its window to
+  // Start or the taskbar makes an "Electron" shortcut that opens a blank Electron.
+  if (process.platform === 'win32' && !app.isPackaged) {
+    win.setAppDetails({
+      appId: APP_ID,
+      appIconPath: join(app.getAppPath(), 'resources', 'icon.ico'),
+      relaunchCommand: `"${process.execPath}" "${app.getAppPath()}"`,
+      relaunchDisplayName: 'Loom (source)'
+    })
+  }
 
   win.once('ready-to-show', () => win?.show())
 
@@ -347,27 +361,31 @@ function registerIpc(): void {
   ipcMain.on('server:write', (_e, id: string, data: string) => writeServer(id, data))
 }
 
-const APP_ID = 'gr.pixfrix.loom'
+// Named apart from the installed app's "Loom" shortcut, for people who have both.
+const SHORTCUT = 'Loom (source).lnk'
 
-/** Keeps a Start menu shortcut pointing at this copy of Loom (and adds a desktop one the first time). */
+/**
+ * Keeps a Start menu shortcut pointing at this copy of Loom (and adds a desktop one the first
+ * time). Only for copies built from source: the installer makes and removes its own.
+ */
 function ensureShortcuts(): void {
-  if (process.platform !== 'win32' || isDev || process.env.LOOM_USER_DATA) return
+  if (process.platform !== 'win32' || isDev || app.isPackaged || process.env.LOOM_USER_DATA) return
   try {
     const root = app.getAppPath()
     const opts = {
       target: process.execPath,
-      args: app.isPackaged ? '' : `"${root}"`,
+      args: `"${root}"`,
       cwd: root,
       icon: join(root, 'resources', 'icon.ico'),
       iconIndex: 0,
       appUserModelId: APP_ID,
       description: 'Loom: all your projects and Claude chats in one window'
     }
-    const startMenu = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Loom.lnk')
+    const startMenu = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', SHORTCUT)
     shell.writeShortcutLink(startMenu, existsSync(startMenu) ? 'replace' : 'create', opts)
     const flag = join(app.getPath('userData'), 'shortcuts.json')
     if (!existsSync(flag)) {
-      shell.writeShortcutLink(join(app.getPath('desktop'), 'Loom.lnk'), 'create', opts)
+      shell.writeShortcutLink(join(app.getPath('desktop'), SHORTCUT), 'create', opts)
       writeFileSync(flag, JSON.stringify({ desktopCreated: new Date().toISOString() }))
     }
   } catch (e) {
@@ -393,6 +411,7 @@ app.whenReady().then(() => {
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
+  setupUpdates()
   // Plan limits: shortly after start, then every five minutes while Loom is open.
   setTimeout(() => usageNow(true), 4000)
   setInterval(() => usageNow(false), 5 * 60_000)
