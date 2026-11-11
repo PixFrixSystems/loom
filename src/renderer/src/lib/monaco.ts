@@ -59,7 +59,14 @@ monaco.editor.defineTheme('loom', {
     'scrollbarSlider.background': '#e8e2d621',
     'scrollbarSlider.hoverBackground': '#e8e2d642',
     'scrollbarSlider.activeBackground': '#e8e2d655',
-    'minimap.background': '#1a1c20'
+    'minimap.background': '#1a1c20',
+    'diffEditor.insertedTextBackground': '#93c0782e',
+    'diffEditor.removedTextBackground': '#e27d6b33',
+    'diffEditor.insertedLineBackground': '#93c07814',
+    'diffEditor.removedLineBackground': '#e27d6b17',
+    'diffEditor.diagonalFill': '#2a2d33',
+    'diffEditor.unchangedRegionBackground': '#17191c',
+    'diffEditor.unchangedRegionForeground': '#8f8a81'
   }
 })
 

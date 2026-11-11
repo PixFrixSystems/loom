@@ -157,13 +157,17 @@ export function StatusBar(): ReactNode {
         </span>
       ) : null}
       {git ? (
-        <span className="sb-item" title="Git branch and uncommitted changes in this project">
+        <button
+          className="sb-item sb-git"
+          title="Branch and uncommitted changes. Click to review, commit, push or switch branch"
+          onClick={() => s.set({ rightPanelOpen: true, rightPanelView: 'changes' })}
+        >
           <GitBranch />
           {git.branch ?? 'no branch'}
           {git.changes ? <span className="sb-muted">{git.changes === 1 ? '1 change' : `${git.changes} changes`}</span> : <span className="sb-muted">clean</span>}
           {git.ahead ? <span className="sb-muted">{git.ahead} to push</span> : null}
           {git.behind ? <span className="sb-muted">{git.behind} to pull</span> : null}
-        </span>
+        </button>
       ) : null}
       <span className="sb-spacer" />
       {waiting ? (

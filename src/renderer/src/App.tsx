@@ -7,7 +7,7 @@ import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
-import { panesOf } from './lib/layout'
+import { inFileRow, panesOf } from './lib/layout'
 import { useStore } from './store'
 
 function useShortcuts(): void {
@@ -117,7 +117,7 @@ export function App(): ReactNode {
   const style = {
     '--sbw': s.sidebarOpen ? `${s.sidebarWidth}px` : '0px',
     '--rpw': s.rightPanelOpen ? `${s.rightPanelWidth}px` : '0px',
-    '--filebar': s.tabs.some((t) => t.kind === 'file') ? '32px' : '0px'
+    '--filebar': s.tabs.some(inFileRow) ? '32px' : '0px'
   } as CSSProperties
 
   return (

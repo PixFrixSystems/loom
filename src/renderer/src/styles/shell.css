@@ -1739,3 +1739,21 @@
 .content.is-split .tab-panel .file-head {
   padding-right: 38px;
 }
+
+/* The branch in the status bar opens the Changes panel */
+.sb-git {
+  height: 20px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sb-git:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}

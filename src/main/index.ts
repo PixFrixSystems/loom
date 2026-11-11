@@ -24,8 +24,24 @@ import {
   loadHistory,
   openChat,
   renameSession,
-  runningChats
+  runningChats,
+  writeCommitMessage
 } from './claude'
+import {
+  diffForMessage,
+  gitBranches,
+  gitChanges,
+  gitCommit,
+  gitCommitFiles,
+  gitDiff,
+  gitDiscard,
+  gitLog,
+  gitPull,
+  gitPush,
+  gitStage,
+  gitSwitch,
+  gitUnstage
+} from './git'
 import { detectProjectIcon, iconDataUrl } from './icons'
 import { fullImage } from './images'
 import { lastUsage, refreshUsage } from './usage'
@@ -267,6 +283,24 @@ function registerIpc(): void {
   ipcMain.handle('fs:projectFiles', (_e, root: string) => listProjectFiles(root))
   ipcMain.handle('fs:configFiles', (_e, projectPath: string | null) => configFiles(projectPath))
   ipcMain.handle('git:status', (_e, dir: string) => gitStatus(dir))
+  ipcMain.handle('git:changes', (_e, dir: string) => gitChanges(dir))
+  ipcMain.handle('git:diff', (_e, dir: string, abs: string, commit: string | null) => gitDiff(dir, abs, commit))
+  ipcMain.handle('git:stage', (_e, dir: string, abs: string[]) => gitStage(dir, abs))
+  ipcMain.handle('git:unstage', (_e, dir: string, abs: string[]) => gitUnstage(dir, abs))
+  ipcMain.handle('git:discard', (_e, dir: string, files: { abs: string; untracked: boolean; added: boolean }[]) => gitDiscard(dir, files))
+  ipcMain.handle('git:commit', (_e, dir: string, message: string, stageAll: boolean, only?: string[]) => gitCommit(dir, message, stageAll, only))
+  ipcMain.handle('git:push', (_e, dir: string) => gitPush(dir))
+  ipcMain.handle('git:pull', (_e, dir: string) => gitPull(dir))
+  ipcMain.handle('git:branches', (_e, dir: string) => gitBranches(dir))
+  ipcMain.handle('git:switch', (_e, dir: string, branch: string, create: boolean) => gitSwitch(dir, branch, create))
+  ipcMain.handle('git:log', (_e, dir: string) => gitLog(dir))
+  ipcMain.handle('git:commitFiles', (_e, dir: string, hash: string) => gitCommitFiles(dir, hash))
+  ipcMain.handle('git:writeMessage', async (_e, dir: string, only?: string[]) => {
+    const d = await diffForMessage(dir, only)
+    if (!d) return { error: 'This folder is not in a git repository.' }
+    if (!d.files.trim()) return { error: 'There is nothing to commit.' }
+    return writeCommitMessage(dir, d.files, d.text, settings())
+  })
   ipcMain.handle('project:icon', async (_e, root: string, mode: string, customPath: string | null, others: string[]) => {
     if (mode === 'none') return null
     const path = mode === 'custom' && customPath ? customPath : await detectProjectIcon(root, others)

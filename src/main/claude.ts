@@ -774,3 +774,47 @@ export function liveQuery(): Query | null {
 export function runningChats(): number {
   return [...chats.values()].filter((c) => c.running).length
 }
+
+/**
+ * A commit message for what changed, written by Claude with your CLAUDE.md loaded, so your commit
+ * rules apply. One answer, no tools, nothing saved to your chat history.
+ */
+export async function writeCommitMessage(cwd: string, files: string, diff: string, settings: LoomSettings): Promise<{ message?: string; error?: string }> {
+  const sdk = await loadSdk()
+  const prompt = [
+    'Write the git commit message for the changes below. Follow the commit message rules in your instructions (CLAUDE.md) if there are any.',
+    'Reply with the commit message and nothing else: no explanation, no code fences. Do not use any tools.',
+    '',
+    'Changed files:',
+    files || '(none listed)',
+    '',
+    'Diff:',
+    diff || '(no textual diff, for example only new or binary files)'
+  ].join('\n')
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), 90_000)
+  try {
+    let text = ''
+    for await (const m of sdk.query({
+      prompt,
+      options: {
+        cwd,
+        model: 'sonnet',
+        maxTurns: 1,
+        persistSession: false,
+        abortController: abort,
+        systemPrompt: { type: 'preset', preset: 'claude_code' },
+        pathToClaudeCodeExecutable: executableFor(settings),
+        canUseTool: async () => ({ behavior: 'deny', message: 'Write the message only.' })
+      }
+    })) {
+      if (m.type === 'result' && m.subtype === 'success') text = m.result
+    }
+    const message = text.trim().replace(/^```\w*\n?|\n?```$/g, '').trim()
+    return message ? { message } : { error: 'Claude did not write a message. Try again.' }
+  } catch (e) {
+    return { error: abort.signal.aborted ? 'Claude took too long. Try again.' : (e as Error).message }
+  } finally {
+    clearTimeout(timer)
+  }
+}

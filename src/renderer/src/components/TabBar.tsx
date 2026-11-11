@@ -1,7 +1,7 @@
-import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, FileText, Globe, LoaderCircle, MessageSquare, PanelLeft, PanelRight, Plus, Server, Settings, SquareTerminal, X } from 'lucide-react'
+import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare, Globe, LoaderCircle, MessageSquare, PanelLeft, PanelRight, Plus, Server, Settings, SquareTerminal, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Tab } from '@shared/types'
-import { paneOfTab } from '../lib/layout'
+import { inFileRow, paneOfTab } from '../lib/layout'
 import { useStore, type MenuItem } from '../store'
 import { LayoutButton } from './LayoutMenu'
 import { ProjectMark } from './ProjectMark'
@@ -70,6 +70,7 @@ function showAllTabs(e: React.MouseEvent, list: Tab[]): void {
 function TabIcon({ tab }: { tab: Tab }): ReactNode {
   if (tab.kind === 'chat') return <MessageSquare />
   if (tab.kind === 'file') return <FileText />
+  if (tab.kind === 'diff') return <GitCompare />
   if (tab.kind === 'terminal') return <SquareTerminal />
   if (tab.kind === 'server') return <Server />
   if (tab.kind === 'browser') return <Globe />
@@ -95,7 +96,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
   }, [active])
 
   const running = chat && (chat.status === 'running' || chat.status === 'starting')
-  const sameRow = s.tabs.filter((t) => (t.kind === 'file') === (tab.kind === 'file'))
+  const sameRow = s.tabs.filter((t) => inFileRow(t) === inFileRow(tab))
   const rowIndex = sameRow.findIndex((t) => t.id === tab.id)
   const waiting = chat && chat.permissions.length > 0
 
@@ -104,7 +105,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
     const items: MenuItem[] = [
       { label: 'Close', onSelect: () => s.closeTab(tab.id) },
       {
-        label: tab.kind === 'file' ? 'Close other files' : 'Close other tabs',
+        label: inFileRow(tab) ? 'Close other files' : 'Close other tabs',
         disabled: sameRow.length < 2,
         onSelect: () => sameRow.filter((t) => t.id !== tab.id).forEach((t) => s.closeTab(t.id))
       },
@@ -241,7 +242,7 @@ export function TabBar(): ReactNode {
   const strip = useRef<HTMLDivElement>(null)
   const current = s.tabs.find((t) => t.id === s.activeTabId)
   const projectId = current?.projectId ?? null
-  const rowTabs = s.tabs.filter((t) => t.kind !== 'file')
+  const rowTabs = s.tabs.filter((t) => !inFileRow(t))
   const strip2 = useStrip(strip, rowTabs.length)
   const over = strip2.over
 
@@ -285,7 +286,7 @@ export function TabBar(): ReactNode {
           if (e.target === strip.current) s.newChat(projectId)
         }}
       >
-        {s.tabs.map((t, i) => (t.kind === 'file' ? null : <TabItem key={t.id} tab={t} index={i} />))}
+        {s.tabs.map((t, i) => (inFileRow(t) ? null : <TabItem key={t.id} tab={t} index={i} />))}
         <button className="icon-btn tab-add" title="New tab" onClick={addMenu}>
           <Plus />
         </button>
@@ -314,7 +315,7 @@ export function TabBar(): ReactNode {
 export function FileBar(): ReactNode {
   const tabs = useStore((s) => s.tabs)
   const strip = useRef<HTMLDivElement>(null)
-  const files = tabs.filter((t) => t.kind === 'file')
+  const files = tabs.filter(inFileRow)
   const state = useStrip(strip, files.length)
   const over = state.over
   if (!files.length) return null
@@ -330,7 +331,7 @@ export function FileBar(): ReactNode {
           if (strip.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) strip.current.scrollLeft += e.deltaY
         }}
       >
-        {tabs.map((t, i) => (t.kind === 'file' ? <TabItem key={t.id} tab={t} index={i} compact /> : null))}
+        {tabs.map((t, i) => (inFileRow(t) ? <TabItem key={t.id} tab={t} index={i} compact /> : null))}
       </div>
       <StripArrows strip={strip} state={state} />
       </div>

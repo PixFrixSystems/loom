@@ -96,7 +96,18 @@ export interface ServerTab {
   title: string
 }
 
-export type Tab = ChatTab | FileTab | TerminalTab | SettingsTab | ServerTab | BrowserTab
+/** A file's changes: since the last commit, or in one commit. */
+export interface DiffTab {
+  id: string
+  kind: 'diff'
+  projectId: string | null
+  path: string
+  /** Show this commit's change to the file; none shows uncommitted changes */
+  commit?: string
+  title: string
+}
+
+export type Tab = ChatTab | FileTab | TerminalTab | SettingsTab | ServerTab | BrowserTab | DiffTab
 
 /** A tab's live state, handed from one window to another when it moves. */
 export interface TabSnapshot {
@@ -181,7 +192,7 @@ export interface PersistedState {
   sidebarOpen: boolean
   rightPanelOpen: boolean
   rightPanelWidth: number
-  rightPanelView: 'files' | 'claude'
+  rightPanelView: 'files' | 'changes' | 'claude'
   knownModels: ModelOption[]
 }
 
@@ -355,6 +366,60 @@ export interface GitStatus {
   changes: number
   ahead: number
   behind: number
+}
+
+/** A changed file. `index` and `work` are git's status letters for the staged and unstaged side. */
+export interface GitFile {
+  /** Relative to the repository root, with forward slashes */
+  path: string
+  abs: string
+  index: string
+  work: string
+  staged: boolean
+  unstaged: boolean
+  untracked: boolean
+  conflicted: boolean
+  /** The old name of a renamed file */
+  from?: string
+}
+
+export interface GitChanges {
+  root: string
+  branch: string | null
+  upstream: string | null
+  ahead: number
+  behind: number
+  files: GitFile[]
+}
+
+export interface GitCommit {
+  hash: string
+  short: string
+  subject: string
+  author: string
+  /** epoch ms */
+  at: number
+}
+
+export interface GitCommitFile {
+  path: string
+  abs: string
+  status: string
+}
+
+export interface GitDiffResult {
+  before: string
+  after: string
+  binary?: boolean
+  error?: string
+}
+
+/** What a git command said, for showing when it fails. */
+export interface GitResult {
+  ok: boolean
+  output: string
+  /** Where copies of thrown-away changes were kept */
+  backup?: string
 }
 
 export interface ClaudeInfo {

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ConfigFileInfo, DirEntry, Project } from '@shared/types'
 import { joinPath, shortPath } from '../lib/paths'
 import { useStore } from '../store'
+import { GitPanel } from './GitPanel'
 
 const fileCache = new Map<string, Promise<string[]>>()
 export function projectFileList(root: string, force = false): Promise<string[]> {
@@ -170,12 +171,17 @@ export function RightPanel(): ReactNode {
   const s = useStore()
   const tab = s.tabs.find((t) => t.id === s.activeTabId)
   const project = s.projects.find((p) => p.id === tab?.projectId) ?? null
+  const changeCount = project ? (s.gitChanges[project.id]?.files.length ?? s.git[project.id]?.changes ?? 0) : 0
   return (
     <aside className="rightpanel">
       <div className="pane-head">
         <div className="segmented" role="tablist">
           <button role="tab" aria-selected={s.rightPanelView === 'files'} onClick={() => s.set({ rightPanelView: 'files' })}>
             Files
+          </button>
+          <button role="tab" aria-selected={s.rightPanelView === 'changes'} onClick={() => s.set({ rightPanelView: 'changes' })}>
+            Git
+            {changeCount ? <span className="seg-count">{changeCount}</span> : null}
           </button>
           <button role="tab" aria-selected={s.rightPanelView === 'claude'} onClick={() => s.set({ rightPanelView: 'claude' })}>
             Claude
@@ -190,6 +196,12 @@ export function RightPanel(): ReactNode {
           <FilesPane key={project.id} project={project} />
         ) : (
           <p className="pane-note pad">Open a tab from a project to see its files here.</p>
+        )
+      ) : s.rightPanelView === 'changes' ? (
+        project ? (
+          <GitPanel key={project.id} project={project} />
+        ) : (
+          <p className="pane-note pad">Open a tab from a project to see its changes here.</p>
         )
       ) : (
         <ClaudePane project={project} />

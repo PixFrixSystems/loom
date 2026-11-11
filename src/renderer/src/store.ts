@@ -9,6 +9,8 @@ import {
   type ClaudeInfo,
   type ContextInfo,
   type EffortLevel,
+  type DiffTab,
+  type GitChanges,
   type GitStatus,
   type Group,
   type ImageAttachment,
@@ -96,6 +98,8 @@ interface Store extends PersistedState {
   dirtyFiles: Record<string, boolean>
   sessions: SessionSummary[]
   git: Record<string, GitStatus | null>
+  /** The Changes panel's view of each project: files, branch, upstream */
+  gitChanges: Record<string, GitChanges | null>
   menu: MenuState | null
   icons: Record<string, string | null>
   /** Images chosen for groups, by group id. Groups that borrow a project's icon read `icons`. */
@@ -189,6 +193,9 @@ interface Store extends PersistedState {
 
   refreshSessions: (force?: boolean) => Promise<void>
   refreshGit: (projectId: string) => Promise<void>
+  refreshChanges: (projectId: string) => Promise<void>
+  /** A file's changes in a tab: uncommitted ones, or the ones made in a commit. */
+  openDiff: (projectId: string | null, path: string, commit?: string, commitLabel?: string) => void
   showMenu: (e: { clientX: number; clientY: number }, items: MenuItem[]) => void
 }
 
@@ -292,6 +299,7 @@ export const useStore = create<Store>((set, get) => {
     dirtyFiles: {},
     sessions: [],
     git: {},
+    gitChanges: {},
     menu: null,
     icons: {},
     groupIcons: {},
@@ -373,7 +381,7 @@ export const useStore = create<Store>((set, get) => {
       })
       window.loom.onMainDo((action, args) => {
         const st = get() as unknown as Record<string, (...a: unknown[]) => void>
-        if (['openFile', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice'].includes(action)) st[action](...args)
+        if (['openFile', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice', 'openDiff'].includes(action)) st[action](...args)
       })
       // Server output tabs belong to servers that stopped when Loom last quit.
       const tabs = state.tabs.filter((t) => t.kind !== 'server')
@@ -947,6 +955,21 @@ export const useStore = create<Store>((set, get) => {
       } catch {
         // keep the previous list
       }
+    },
+    refreshChanges: async (projectId) => {
+      const p = get().projects.find((x) => x.id === projectId)
+      if (!p) return
+      const changes = await window.loom.gitChanges(p.path).catch(() => null)
+      set((s) => ({ gitChanges: { ...s.gitChanges, [projectId]: changes } }))
+      void get().refreshGit(projectId)
+    },
+    openDiff: (projectId, path, commit, commitLabel) => {
+      if (POPOUT_TAB) return window.loom.mainDo('openDiff', [projectId, path, commit, commitLabel])
+      const open = get().tabs.find((t) => t.kind === 'diff' && normPath(t.path) === normPath(path) && (t.commit ?? null) === (commit ?? null))
+      if (open) return get().activate(open.id)
+      const name = baseName(path)
+      const tab: DiffTab = { id: uid(), kind: 'diff', projectId, path, commit, title: commit ? `${name} @ ${commitLabel ?? commit.slice(0, 7)}` : `${name} changes` }
+      get().openTab(tab)
     },
     refreshGit: async (projectId) => {
       const p = get().projects.find((x) => x.id === projectId)

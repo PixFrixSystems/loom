@@ -1,6 +1,11 @@
 // The split layout of the work area, as plain functions over the layout tree.
 
-import type { LayoutNode } from '@shared/types'
+import type { LayoutNode, Tab } from '@shared/types'
+
+/** Files and diffs sit in the lower tab row; chats, terminals and the rest in the top one. */
+export function inFileRow(t: Tab): boolean {
+  return t.kind === 'file' || t.kind === 'diff'
+}
 import { uid } from './paths'
 
 export type Pane = Extract<LayoutNode, { kind: 'pane' }>
