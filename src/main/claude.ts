@@ -346,6 +346,7 @@ class ChatSession {
   private abort: AbortController | null = null
   private pending = new Map<string, (r: PermissionResponse) => void>()
   private partial = ''
+  private busy = false
   private thinking = ''
   /** Inside a thinking block: the chat shows "Thinking" from its start, text or not */
   private thinkingOn = false
@@ -391,11 +392,13 @@ class ChatSession {
   }
 
   private setStatus(status: ChatStatus, error?: string): void {
+    this.busy = status === 'starting' || status === 'running'
     this.emit({ type: 'status', status, error })
   }
 
+  /** In the middle of a turn. An open session between turns doesn't count. */
   get running(): boolean {
-    return this.q !== null
+    return this.busy
   }
 
   get query(): Query | null {
@@ -456,6 +459,12 @@ class ChatSession {
   }
 
   private handle(m: SDKMessage): void {
+    // Claude can start a turn by itself, without a message from you: when a background agent
+    // reports back, for example. Its first reply marks the chat as working again.
+    if (!this.busy && (m.type === 'assistant' || m.type === 'stream_event') && !m.parent_tool_use_id) {
+      this.mark = Date.now()
+      this.setStatus('running')
+    }
     switch (m.type) {
       case 'system':
         this.handleSystem(m as Extract<SDKMessage, { type: 'system' }>)

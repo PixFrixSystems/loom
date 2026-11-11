@@ -1072,6 +1072,8 @@ export const useStore = create<Store>((set, get) => {
           patchChat(tabId, (c) => ({
             status: ev.status,
             error: ev.error,
+            // A turn Claude started by itself has no send to time it from.
+            ...(ev.status === 'running' && c.status !== 'running' && c.status !== 'starting' ? { startedAt: Date.now() } : {}),
             // Stopped or done mid-thought: nothing more is coming for the live thinking.
             ...(ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle' ? { thinking: null } : {}),
             items:
