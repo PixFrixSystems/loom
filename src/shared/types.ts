@@ -145,6 +145,10 @@ export interface LoomSettings {
   shell: ShellChoice
   sendWithCtrlEnter: boolean
   defaultPermissionMode: PermissionMode | null
+  /** What new chats start with: the last model, effort and Ultracode setting picked in any chat */
+  defaultModel?: string | null
+  defaultEffort?: EffortLevel | null
+  defaultUltracode?: boolean
   notifyWhenDone: boolean
 }
 

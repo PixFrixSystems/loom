@@ -14,6 +14,7 @@ import {
   type ImageAttachment,
   type ImagePreview,
   type LayoutNode,
+  type LoomSettings,
   type PermissionMode,
   type PermissionRequest,
   type PermissionResponse,
@@ -161,6 +162,10 @@ interface Store extends PersistedState {
   focusPane: (paneId: string, byPointer?: boolean) => void
   /** Fetches the chat's commands and skills before it has started, so the / menu has them all. */
   loadCommands: (tabId: string) => Promise<void>
+  /** Remembers a choice made in a chat's message box, so the next chat starts with it. */
+  rememberChoice: (patch: Partial<LoomSettings>) => void
+  /** The options a new or reopened chat starts with: the ones you picked last. */
+  chatDefaults: () => Pick<ChatTab, 'model' | 'permissionMode' | 'effort' | 'ultracode'>
   /** Opens a project's site in a browser tab, beside what you're working on. */
   openPreview: (projectId: string | null, url?: string, beside?: boolean) => void
   /** Adds a pane beside one (the focused one by default) showing the tab, or the last tab not on screen. */
@@ -368,7 +373,7 @@ export const useStore = create<Store>((set, get) => {
       })
       window.loom.onMainDo((action, args) => {
         const st = get() as unknown as Record<string, (...a: unknown[]) => void>
-        if (['openFile', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview'].includes(action)) st[action](...args)
+        if (['openFile', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice'].includes(action)) st[action](...args)
       })
       // Server output tabs belong to servers that stopped when Loom last quit.
       const tabs = state.tabs.filter((t) => t.kind !== 'server')
@@ -560,7 +565,7 @@ export const useStore = create<Store>((set, get) => {
       if (POPOUT_TAB) return window.loom.mainDo('newChat', [projectId])
       const project = get().projects.find((p) => p.id === projectId) ?? null
       const cwd = project?.path ?? get().info?.homeDir ?? 'C:\\'
-      get().openTab({ id: uid(), kind: 'chat', projectId: project?.id ?? null, sessionId: null, cwd, title: 'New chat' })
+      get().openTab({ id: uid(), kind: 'chat', projectId: project?.id ?? null, sessionId: null, cwd, title: 'New chat', ...get().chatDefaults() })
     },
     openSession: (session) => {
       if (POPOUT_TAB) return window.loom.mainDo('openSession', [session])
@@ -573,7 +578,8 @@ export const useStore = create<Store>((set, get) => {
         projectId: project?.id ?? null,
         sessionId: session.sessionId,
         cwd: session.cwd,
-        title: session.title.length > 60 ? `${session.title.slice(0, 60)}…` : session.title
+        title: session.title.length > 60 ? `${session.title.slice(0, 60)}…` : session.title,
+        ...get().chatDefaults()
       })
     },
     openFile: (path, projectId) => {
@@ -646,21 +652,25 @@ export const useStore = create<Store>((set, get) => {
     },
     interrupt: (tabId) => void window.loom.chatInterrupt(tabId),
     setModel: (tabId, model) => {
+      get().rememberChoice({ defaultModel: model })
       get().updateTab(tabId, { model })
       patchChat(tabId, () => ({ activeModel: model || undefined }))
       if (get().chat(tabId).opened) void window.loom.chatSetModel(tabId, model)
     },
     setMode: (tabId, mode) => {
+      get().rememberChoice({ defaultPermissionMode: mode })
       get().updateTab(tabId, { permissionMode: mode })
       patchChat(tabId, () => ({ permissionMode: mode }))
       if (get().chat(tabId).opened) void window.loom.chatSetMode(tabId, mode)
     },
     setEffort: (tabId, effort) => {
+      get().rememberChoice({ defaultEffort: effort })
       get().updateTab(tabId, { effort } as Partial<ChatTab>)
       const tab = get().tabs.find((t) => t.id === tabId)
       if (get().chat(tabId).opened && tab?.kind === 'chat') void window.loom.chatSetEffort(tabId, effort, tab.ultracode === true)
     },
     setUltracode: (tabId, on) => {
+      get().rememberChoice({ defaultUltracode: on })
       get().updateTab(tabId, { ultracode: on } as Partial<ChatTab>)
       const tab = get().tabs.find((t) => t.id === tabId)
       if (get().chat(tabId).opened && tab?.kind === 'chat') void window.loom.chatSetEffort(tabId, tab.effort ?? null, on)
@@ -676,6 +686,20 @@ export const useStore = create<Store>((set, get) => {
       const path = get().groups.find((g) => g.id === groupId)?.iconPath
       const url = path ? await window.loom.readIcon(path).catch(() => null) : null
       set((s) => ({ groupIcons: { ...s.groupIcons, [groupId]: url } }))
+    },
+    rememberChoice: (patch) => {
+      set((s) => ({ settings: { ...s.settings, ...patch } }))
+      // A popout saves nothing itself: the main window keeps the choice.
+      if (POPOUT_TAB) window.loom.mainDo('rememberChoice', [patch])
+    },
+    chatDefaults: () => {
+      const st = get().settings
+      return {
+        model: st.defaultModel ?? null,
+        permissionMode: st.defaultPermissionMode ?? null,
+        effort: st.defaultEffort ?? null,
+        ultracode: st.defaultUltracode === true
+      }
     },
     loadCommands: async (tabId) => {
       const tab = get().tabs.find((t) => t.id === tabId)

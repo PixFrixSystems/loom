@@ -68,7 +68,10 @@ export function SettingsView(): ReactNode {
               ) : null}
             </div>
           </Row>
-          <Row title="Permission mode for new chats" hint="What Claude may do without asking. Each chat can change it from the message box.">
+          <Row
+            title="Permission mode for new chats"
+            hint="What Claude may do without asking. Picking a mode in any chat's message box changes this too, so new chats start the way you last worked. The same goes for the model, effort and Ultracode."
+          >
             <Dropdown<PermissionMode | 'settings'>
               value={st.defaultPermissionMode ?? 'settings'}
               options={[{ value: 'settings', label: 'Follow my Claude settings', description: 'Uses defaultMode from settings.json' }, ...MODE_OPTIONS]}
