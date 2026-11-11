@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import type { ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
 import { modelName, useStore } from '../store'
-import { ChatItemView, timelineClass } from './ChatItems'
+import { ChatItemView, LiveThinking, timelineClass } from './ChatItems'
 import { Composer } from './Composer'
 import { Markdown } from './Markdown'
 import { PermissionCard } from './PermissionCard'
@@ -76,7 +76,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   useLayoutEffect(() => {
     const el = scroller.current
     if (el && stick.current) el.scrollTop = el.scrollHeight
-  }, [chat.items, chat.partial, chat.permissions.length, busy, shown])
+  }, [chat.items, chat.partial, chat.thinking, chat.permissions.length, busy, shown])
 
   const onScroll = (): void => {
     const el = scroller.current
@@ -153,6 +153,11 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               </div>
             )
           )}
+          {chat.thinking ? (
+            <div className="tl tl-run tl-thinking-live">
+              <LiveThinking text={chat.thinking.text} since={chat.thinking.since} />
+            </div>
+          ) : null}
           {chat.partial ? (
             <div className="tl tl-text">
               <div className="msg-assistant streaming">
@@ -160,7 +165,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               </div>
             </div>
           ) : null}
-          {busy && !chat.partial && !chat.permissions.length ? (
+          {busy && !chat.partial && !chat.thinking && !chat.permissions.length ? (
             <div className="tl tl-run tl-working">
               <Working since={chat.startedAt} />
             </div>

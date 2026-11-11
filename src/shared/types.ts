@@ -330,6 +330,8 @@ export type ChatEvent =
   | { type: 'items'; items: ChatItem[] }
   | { type: 'tool-result'; toolUseId: string; result: string; isError: boolean; ms?: number }
   | { type: 'partial'; text: string }
+  /** Claude's thinking so far, while it is still thinking */
+  | { type: 'thinking-partial'; text: string }
   | { type: 'partial-clear' }
   | { type: 'status'; status: ChatStatus; error?: string }
   | { type: 'session'; sessionId: string; model?: string; permissionMode?: PermissionMode }

@@ -175,6 +175,51 @@ function Thinking({ text, ms }: { text: string; ms?: number }): ReactNode {
   )
 }
 
+// Folding the live thinking holds for the next thought too, until it's opened again.
+let liveThinkingOpen = true
+
+/**
+ * Claude thinking right now, in place of "Claude is working": a timer from the moment it starts,
+ * and the text as its bursts arrive. The finished step replaces it.
+ */
+export function LiveThinking({ text, since }: { text: string; since?: number }): ReactNode {
+  const [open, setOpen] = useState(liveThinkingOpen)
+  const [, tick] = useState(0)
+  const body = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  // Follow the newest lines, the way a terminal does.
+  useLayoutEffect(() => {
+    const el = body.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [text, open])
+  const secs = since ? Math.max(0, Math.floor((Date.now() - since) / 1000)) : 0
+  return (
+    <div className={`thinking live${open ? ' open' : ''}`}>
+      <button
+        className="think-head"
+        aria-expanded={open}
+        disabled={!text}
+        onClick={() => {
+          liveThinkingOpen = !open
+          setOpen(!open)
+        }}
+      >
+        Thinking
+        <span className="think-time">{secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`}</span>
+        {text ? <ChevronRight className="tool-chev" /> : null}
+      </button>
+      {open && text ? (
+        <div ref={body} className="thinking-body thinking-live selectable">
+          {text}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function Thumbs({ previews }: { previews: ImagePreview[] }): ReactNode {
   return (
     <div className="bubble-thumbs">

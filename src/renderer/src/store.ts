@@ -52,6 +52,8 @@ import { baseName, normPath, projectForPath, thumbnailOf, uid } from './lib/path
 export interface ChatRuntime {
   items: ChatItem[]
   partial: string
+  /** Claude thinking right now: since when, and the text so far (it arrives in bursts) */
+  thinking: { text: string; since: number } | null
   status: ChatStatus
   error?: string
   permissions: PermissionRequest[]
@@ -226,6 +228,7 @@ export function newChatRuntime(): ChatRuntime {
   return {
     items: [],
     partial: '',
+    thinking: null,
     status: 'idle',
     permissions: [],
     historyState: 'none',
@@ -1053,13 +1056,18 @@ export const useStore = create<Store>((set, get) => {
         case 'partial':
           patchChat(tabId, () => ({ partial: ev.text }))
           break
+        case 'thinking-partial':
+          patchChat(tabId, (c) => ({ thinking: { text: ev.text, since: c.thinking?.since ?? Date.now() } }))
+          break
         case 'partial-clear':
-          patchChat(tabId, () => ({ partial: '' }))
+          patchChat(tabId, () => ({ partial: '', thinking: null }))
           break
         case 'status':
           patchChat(tabId, (c) => ({
             status: ev.status,
             error: ev.error,
+            // Stopped or done mid-thought: nothing more is coming for the live thinking.
+            ...(ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle' ? { thinking: null } : {}),
             items:
               ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle'
                 ? c.items.map((it) => (it.kind === 'tool' && it.status === 'running' && ev.status !== 'idle' ? { ...it, status: 'done' as const } : it))

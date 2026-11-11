@@ -346,6 +346,9 @@ class ChatSession {
   private abort: AbortController | null = null
   private pending = new Map<string, (r: PermissionResponse) => void>()
   private partial = ''
+  private thinking = ''
+  /** Inside a thinking block: the chat shows "Thinking" from its start, text or not */
+  private thinkingOn = false
   private partialTimer: NodeJS.Timeout | null = null
   /** When the last step happened (prompt sent, message arrived, tool finished): thinking runs from here. */
   private mark = Date.now()
@@ -419,6 +422,9 @@ class ChatSession {
       systemPrompt: { type: 'preset', preset: 'claude_code' },
       abortController: this.abort,
       pathToClaudeCodeExecutable: executableFor(settings),
+      // Run by an app, Claude Code leaves the thinking text out unless asked, so the chat would
+      // only ever show "Thought". This asks for it, the way the VS Code extension shows it.
+      extraArgs: { 'thinking-display': 'summarized' },
       stderr: (data) => {
         this.stderrTail = (this.stderrTail + data).slice(-4000)
       }
@@ -456,10 +462,19 @@ class ChatSession {
         return
       case 'stream_event': {
         if (m.parent_tool_use_id) return
-        const ev = m.event as { type: string; content_block?: { type: string }; delta?: { type: string; text?: string } }
+        const ev = m.event as { type: string; content_block?: { type: string }; delta?: { type: string; text?: string; thinking?: string } }
         if (ev.type === 'content_block_start' && ev.content_block?.type === 'text') this.partial = ''
+        else if (ev.type === 'content_block_start' && ev.content_block?.type === 'thinking') {
+          // Claude Code sends the thinking text in bursts, sometimes all at the end, so say so right away.
+          this.thinking = ''
+          this.thinkingOn = true
+          this.emit({ type: 'thinking-partial', text: '' })
+        }
         else if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
           this.partial += ev.delta.text ?? ''
+          this.schedulePartial()
+        } else if (ev.type === 'content_block_delta' && ev.delta?.type === 'thinking_delta') {
+          this.thinking += ev.delta.thinking ?? ''
           this.schedulePartial()
         }
         return
@@ -572,14 +587,17 @@ class ChatSession {
     this.partialTimer = setTimeout(() => {
       this.partialTimer = null
       if (this.partial) this.emit({ type: 'partial', text: this.partial })
+      if (this.thinkingOn && this.thinking) this.emit({ type: 'thinking-partial', text: this.thinking })
     }, 40)
   }
 
   private clearPartial(): void {
     if (this.partialTimer) clearTimeout(this.partialTimer)
     this.partialTimer = null
-    if (this.partial) this.emit({ type: 'partial-clear' })
+    if (this.partial || this.thinkingOn) this.emit({ type: 'partial-clear' })
     this.partial = ''
+    this.thinking = ''
+    this.thinkingOn = false
   }
 
   private canUseTool: CanUseTool = (toolName, input, { signal, suggestions, decisionReason, blockedPath }) => {
