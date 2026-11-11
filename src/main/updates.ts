@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AppUpdater } from 'electron-updater'
@@ -64,6 +64,14 @@ async function install(opts: { busyChats: () => number; window: () => BrowserWin
     if (response !== 0) return false
   }
   installing = true
+  // The install runs silently for a few seconds with no window open; this says what's going on.
+  if (Notification.isSupported()) {
+    new Notification({
+      title: `Updating Loom to ${status.available}`,
+      body: 'Loom closes, installs the update and opens again by itself in a few seconds.',
+      silent: true
+    }).show()
+  }
   // Silent install, then Loom opens again by itself.
   updater.quitAndInstall(true, true)
   return true
