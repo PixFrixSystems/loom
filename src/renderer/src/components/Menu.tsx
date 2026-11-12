@@ -120,19 +120,25 @@ function MenuList({
           </button>
         )
       )}
-      {sub && items[sub.index]?.submenu ? (
-        <MenuList
-          items={items[sub.index].submenu!}
-          x={sub.x}
-          y={sub.y}
-          onClose={onClose}
-          takeFocus={sub.byKey}
-          onBack={() => {
-            setSub(null)
-            ref.current?.focus()
-          }}
-        />
-      ) : null}
+      {/* A submenu goes straight into the page, not inside this menu: the menu's blurred glass
+          (backdrop-filter) would become the frame its fixed position is measured from, and its
+          scroll area would clip it. Clicks in it still count as inside, by its .menu class. */}
+      {sub && items[sub.index]?.submenu
+        ? createPortal(
+            <MenuList
+              items={items[sub.index].submenu!}
+              x={sub.x}
+              y={sub.y}
+              onClose={onClose}
+              takeFocus={sub.byKey}
+              onBack={() => {
+                setSub(null)
+                ref.current?.focus()
+              }}
+            />,
+            document.body
+          )
+        : null}
     </div>
   )
 }
