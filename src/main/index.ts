@@ -50,7 +50,7 @@ import {
 import { detectProjectIcon, iconDataUrl } from './icons'
 import { fullImage } from './images'
 import { lastUsage, refreshUsage } from './usage'
-import { configFiles, dirsExist, fileMtime, gitStatus, listDir, listProjectFiles, listSubfolders, readTextFile, writeTextFile } from './files'
+import { configFiles, createEntry, dirsExist, fileMtime, gitStatus, listDir, listProjectFiles, listSubfolders, readTextFile, renameEntry, writeTextFile } from './files'
 import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './pty'
 import {
   detectRunTargets,
@@ -267,6 +267,16 @@ function registerIpc(): void {
   ipcMain.handle('fs:dirsExist', (_e, paths: string[]) => dirsExist(paths))
   ipcMain.handle('fs:subfolders', (_e, dir: string) => listSubfolders(dir))
   ipcMain.handle('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
+  ipcMain.handle('fs:create', (_e, path: string, kind: 'file' | 'folder') => createEntry(path, kind))
+  ipcMain.handle('fs:rename', (_e, from: string, to: string) => renameEntry(from, to))
+  ipcMain.handle('fs:trash', async (_e, path: string) => {
+    try {
+      await shell.trashItem(path)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
   ipcMain.handle('app:openPath', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('app:openExternal', (_e, url: string) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url)

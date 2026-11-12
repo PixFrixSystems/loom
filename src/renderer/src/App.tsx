@@ -133,6 +133,7 @@ export function App(): ReactNode {
     const onFocus = (): void => {
       void useStore.getState().refreshSessions()
       void useStore.getState().checkWatched()
+      useStore.getState().bumpTree()
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)

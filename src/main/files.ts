@@ -45,6 +45,53 @@ export async function readTextFile(path: string): Promise<FileReadResult> {
   }
 }
 
+/** Names Windows won't take: reserved characters, control characters, a trailing dot or space. */
+const BAD_NAME = /[<>:"/\\|?*\u0000-\u001f]|^\.{1,2}$|[. ]$/
+
+function nameProblem(path: string): string | null {
+  const name = basename(path)
+  if (!name.trim()) return 'A name is needed.'
+  if (BAD_NAME.test(name)) return `"${name}" can't be used as a name on Windows.`
+  return null
+}
+
+async function exists(path: string): Promise<boolean> {
+  return fs.stat(path).then(
+    () => true,
+    () => false
+  )
+}
+
+/** Creates an empty file or a folder; never replaces something already there. */
+export async function createEntry(path: string, kind: 'file' | 'folder'): Promise<{ ok: boolean; error?: string }> {
+  const problem = nameProblem(path)
+  if (problem) return { ok: false, error: problem }
+  if (await exists(path)) return { ok: false, error: `${basename(path)} already exists there.` }
+  try {
+    if (kind === 'folder') await fs.mkdir(path, { recursive: true })
+    else {
+      await fs.mkdir(dirname(path), { recursive: true })
+      await fs.writeFile(path, '', { flag: 'wx' })
+    }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
+/** Renames a file or folder in place; a change of letter case alone is allowed. */
+export async function renameEntry(from: string, to: string): Promise<{ ok: boolean; error?: string }> {
+  const problem = nameProblem(to)
+  if (problem) return { ok: false, error: problem }
+  if (from.toLowerCase() !== to.toLowerCase() && (await exists(to))) return { ok: false, error: `${basename(to)} already exists there.` }
+  try {
+    await fs.rename(from, to)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
 export async function writeTextFile(path: string, content: string, opts: FileWriteOptions = {}): Promise<FileWriteResult> {
   try {
     if (opts.expectMtime) {
@@ -87,7 +134,12 @@ export async function listProjectFiles(root: string): Promise<string[]> {
   try {
     const out = await run('git', ['-c', 'core.quotepath=false', 'ls-files', '-co', '--exclude-standard', '--', '.'], root, 15000)
     const files = out.split('\n').filter(Boolean)
-    if (files.length) return files.slice(0, 60000).map((f) => f.replace(/\//g, '\\'))
+    if (files.length) {
+      const list = files.slice(0, 60000).map((f) => f.replace(/\//g, '\\'))
+      // Ignored by git, but exactly the files people open by hand.
+      const env = (await fs.readdir(root).catch(() => [] as string[])).filter((n) => /^\.env(\..+)?$/.test(n) && !list.includes(n))
+      return [...env, ...list]
+    }
   } catch {
     // not a git folder: walk it
   }

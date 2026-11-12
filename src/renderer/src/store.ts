@@ -50,7 +50,7 @@ import {
   type Edge,
   type PresetName
 } from './lib/layout'
-import { baseName, normPath, projectForPath, thumbnailOf, uid } from './lib/paths'
+import { baseName, isInside, joinPath, normPath, parentDir, projectForPath, shortPath, thumbnailOf, uid } from './lib/paths'
 
 export interface ChatRuntime {
   items: ChatItem[]
@@ -99,6 +99,8 @@ export interface ConfirmRequest {
   cancel: string
   /** Where keyboard focus starts; the cancel choice when unset */
   focus?: string
+  /** A text box under the message; Enter picks the first choice */
+  input?: { value: string; placeholder?: string; select?: [number, number] }
 }
 
 /**
@@ -165,7 +167,9 @@ interface Store extends PersistedState {
   watchNew: Record<string, SubFolder[]>
   /** The image viewer, open on one of a message's images */
   viewer: { images: ImagePreview[]; index: number } | null
-  confirm: (ConfirmRequest & { resolve: (choice: string) => void }) | null
+  confirm: (ConfirmRequest & { resolve: (choice: string, text?: string) => void }) | null
+  /** Bumped when files may have changed, so open folders in the Files panel read again */
+  treeVersion: number
   toasts: { id: string; text: string }[]
   layout: LayoutNode
   /** The pane you're working in: the tab bar and new tabs act on it. */
@@ -215,7 +219,7 @@ interface Store extends PersistedState {
   /** Moves a chat to another project: its history goes with it, and Claude works in the new folder. */
   moveChat: (ref: { tabId?: string; session?: SessionSummary }, projectId: string) => Promise<void>
   openFile: (path: string, projectId?: string | null) => void
-  newTerminal: (projectId: string | null) => void
+  newTerminal: (projectId: string | null, cwd?: string) => void
   openSettings: () => void
   /** The getting-started steps, in a tab of their own. */
   openStart: () => void
@@ -278,6 +282,12 @@ interface Store extends PersistedState {
   ask: (req: ConfirmRequest) => Promise<string>
   showToast: (text: string) => void
   dismissToast: (id: string) => void
+  /** Asks for a name; null when cancelled or left empty. */
+  askText: (req: { title: string; body?: string; value: string; placeholder?: string; select?: [number, number]; confirm: string }) => Promise<string | null>
+  bumpTree: () => void
+  createEntry: (dir: string, kind: 'file' | 'folder', projectId: string | null) => Promise<void>
+  renameEntry: (path: string) => Promise<void>
+  trashEntry: (path: string, isDir: boolean) => Promise<void>
   /** Closes tabs the way a person asks to: offers to save unsaved files, warns about working chats. */
   requestClose: (tabIds: string[]) => Promise<boolean>
   requestRemoveProject: (id: string) => Promise<void>
@@ -399,6 +409,7 @@ export const useStore = create<Store>((set, get) => {
     viewer: null,
     confirm: null,
     toasts: [],
+    treeVersion: 0,
     layout: { kind: 'pane', id: 'main', tabId: null },
     focusedPane: 'main',
     draggingTab: null,
@@ -794,10 +805,10 @@ export const useStore = create<Store>((set, get) => {
       const project = projectId !== undefined ? get().projects.find((p) => p.id === projectId) : projectForPath(get().projects, path)
       get().openTab({ id: uid(), kind: 'file', projectId: project?.id ?? null, path, title: baseName(path) })
     },
-    newTerminal: (projectId) => {
-      if (POPOUT_TAB) return window.loom.mainDo('newTerminal', [projectId])
+    newTerminal: (projectId, dir) => {
+      if (POPOUT_TAB) return window.loom.mainDo('newTerminal', [projectId, dir])
       const project = get().projects.find((p) => p.id === projectId) ?? null
-      const cwd = project?.path ?? get().info?.homeDir ?? 'C:\\'
+      const cwd = dir ?? project?.path ?? get().info?.homeDir ?? 'C:\\'
       const count = get().tabs.filter((t) => t.kind === 'terminal' && t.projectId === (project?.id ?? null)).length
       get().openTab({ id: uid(), kind: 'terminal', projectId: project?.id ?? null, cwd, title: count ? `Terminal ${count + 1}` : 'Terminal' })
     },
@@ -1185,6 +1196,7 @@ export const useStore = create<Store>((set, get) => {
           patchChat(tabId, () => ({ context: ev.context }))
           break
         case 'turn-done': {
+          get().bumpTree()
           patchChat(tabId, (c) => {
             const now = Date.now()
             const items: ChatItem[] = c.items.map((it) =>
@@ -1263,6 +1275,76 @@ export const useStore = create<Store>((set, get) => {
       setTimeout(() => get().dismissToast(id), 7000)
     },
     dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+    askText: (req) =>
+      new Promise<string | null>((resolve) => {
+        const open = get().confirm
+        if (open) open.resolve(open.cancel)
+        set({
+          confirm: {
+            title: req.title,
+            body: req.body,
+            choices: [
+              { id: 'ok', label: req.confirm, kind: 'primary' },
+              { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+            ],
+            cancel: 'cancel',
+            input: { value: req.value, placeholder: req.placeholder, select: req.select },
+            resolve: (choice, text) => resolve(choice === 'ok' && text?.trim() ? text.trim() : null)
+          }
+        })
+      }),
+    bumpTree: () => set((s) => ({ treeVersion: s.treeVersion + 1 })),
+    createEntry: async (dir, kind, projectId) => {
+      const name = await get().askText({
+        title: kind === 'file' ? 'New file' : 'New folder',
+        body: `In ${shortPath(dir, get().info?.homeDir)}`,
+        value: '',
+        placeholder: kind === 'file' ? 'name.ext' : 'Folder name',
+        confirm: 'Create'
+      })
+      if (!name) return
+      const path = joinPath(dir, name)
+      const r = await window.loom.createEntry(path, kind)
+      if (!r.ok) return get().showToast(r.error ?? `${name} could not be created.`)
+      get().bumpTree()
+      if (kind === 'file') get().openFile(path, projectId)
+    },
+    renameEntry: async (path) => {
+      const name = baseName(path)
+      const dot = name.lastIndexOf('.')
+      const next = await get().askText({ title: `Rename ${name}`, value: name, select: [0, dot > 0 ? dot : name.length], confirm: 'Rename' })
+      if (!next || next === name) return
+      const to = joinPath(parentDir(path), next)
+      const r = await window.loom.renameEntry(path, to)
+      if (!r.ok) return get().showToast(r.error ?? `${name} could not be renamed.`)
+      // Open files follow the rename, inside a renamed folder too.
+      const moved = (p: string): string | null => (normPath(p) === normPath(path) ? to : isInside(p, path) ? to + p.slice(path.length) : null)
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.kind !== 'file') return t
+          const p = moved(t.path)
+          return p ? { ...t, path: p, title: baseName(p) } : t
+        })
+      }))
+      get().bumpTree()
+    },
+    trashEntry: async (path, isDir) => {
+      const name = baseName(path)
+      const choice = await get().ask({
+        title: `Move ${name} to the Recycle Bin?`,
+        body: isDir ? 'Everything inside it goes too. You can restore it from the Recycle Bin.' : 'You can restore it from the Recycle Bin.',
+        choices: [
+          { id: 'trash', label: 'Move to Recycle Bin', kind: 'danger' },
+          { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+        ],
+        cancel: 'cancel'
+      })
+      if (choice !== 'trash') return
+      const r = await window.loom.trashEntry(path)
+      if (!r.ok) return get().showToast(r.error ?? `${name} could not be moved to the Recycle Bin.`)
+      for (const t of get().tabs.filter((t) => t.kind === 'file' && (normPath(t.path) === normPath(path) || isInside(t.path, path)))) get().closeTab(t.id)
+      get().bumpTree()
+    },
     requestClose: async (tabIds) => {
       const pick = (): Tab[] => tabIds.map((id) => get().tabs.find((t) => t.id === id)).filter((t): t is Tab => !!t)
       const dirty = pick().filter((t) => t.kind === 'file' && get().dirtyFiles[t.id] && !get().detached[t.id])

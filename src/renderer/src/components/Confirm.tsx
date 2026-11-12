@@ -9,18 +9,24 @@ import { useStore } from '../store'
 export function ConfirmHost(): ReactNode {
   const c = useStore((s) => s.confirm)
   const box = useRef<HTMLDivElement>(null)
+  const field = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!c) return
     const before = document.activeElement as HTMLElement | null
-    box.current?.querySelector<HTMLButtonElement>(`[data-choice="${c.focus ?? c.cancel}"]`)?.focus()
+    if (c.input && field.current) {
+      field.current.focus()
+      const [a, b] = c.input.select ?? [0, c.input.value.length]
+      field.current.setSelectionRange(a, b)
+    } else box.current?.querySelector<HTMLButtonElement>(`[data-choice="${c.focus ?? c.cancel}"]`)?.focus()
     return () => before?.focus?.({ preventScroll: true })
   }, [c])
 
   if (!c) return null
   const pick = (id: string): void => {
+    const text = field.current?.value
     useStore.setState({ confirm: null })
-    c.resolve(id)
+    c.resolve(id, text)
   }
   const shown = c.items?.slice(0, 6) ?? []
   const more = (c.items?.length ?? 0) - shown.length
@@ -42,8 +48,8 @@ export function ConfirmHost(): ReactNode {
             pick(c.cancel)
           } else if (e.key === 'Tab') {
             // Keep the keyboard inside the question.
-            const buttons = [...(box.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
-            const i = buttons.indexOf(document.activeElement as HTMLButtonElement)
+            const buttons = [...(box.current?.querySelectorAll<HTMLElement>('input, button') ?? [])]
+            const i = buttons.indexOf(document.activeElement as HTMLElement)
             const next = buttons[(i + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length]
             if (next) {
               e.preventDefault()
@@ -59,6 +65,21 @@ export function ConfirmHost(): ReactNode {
           <p id="confirm-body" className="confirm-body">
             {c.body}
           </p>
+        ) : null}
+        {c.input ? (
+          <input
+            ref={field}
+            className="field confirm-input"
+            defaultValue={c.input.value}
+            placeholder={c.input.placeholder}
+            spellCheck={false}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                pick(c.choices[0].id)
+              }
+            }}
+          />
         ) : null}
         {shown.length ? (
           <ul className="confirm-items">

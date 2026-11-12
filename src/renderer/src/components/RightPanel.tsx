@@ -1,8 +1,8 @@
 import { ChevronRight, FilePlus, FileText, Folder, FolderOpen, RefreshCw, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ConfigFileInfo, DirEntry, Project } from '@shared/types'
-import { joinPath, shortPath } from '../lib/paths'
-import { useStore } from '../store'
+import { joinPath, normPath, relPath, shortPath } from '../lib/paths'
+import { useStore, type MenuItem } from '../store'
 import { GitPanel } from './GitPanel'
 
 const fileCache = new Map<string, Promise<string[]>>()
@@ -11,17 +11,69 @@ export function projectFileList(root: string, force = false): Promise<string[]> 
   return fileCache.get(root)!
 }
 
+/** Folders left open, by path: they stay open through refreshes and switching projects. */
+const openFolders = new Set<string>()
+
+/** What a right-click on a file or folder offers. */
+function entryMenu(entry: DirEntry, project: Project, reveal: () => void): MenuItem[] {
+  const s = useStore.getState()
+  const copy = [
+    { label: 'Copy path', onSelect: () => void navigator.clipboard.writeText(entry.path) },
+    { label: 'Copy relative path', onSelect: () => void navigator.clipboard.writeText(relPath(entry.path, project.path)) }
+  ]
+  const change: MenuItem[] = [
+    { separator: true, label: '' },
+    { label: 'Rename…', onSelect: () => void s.renameEntry(entry.path) },
+    { label: 'Delete…', danger: true, onSelect: () => void s.trashEntry(entry.path, entry.isDir) }
+  ]
+  if (!entry.isDir) {
+    return [{ label: 'Open', onSelect: () => s.openFile(entry.path, project.id) }, ...copy, { label: 'Show in File Explorer', onSelect: () => void window.loom.reveal(entry.path) }, ...change]
+  }
+  return [
+    { label: 'New file…', onSelect: () => (reveal(), void s.createEntry(entry.path, 'file', project.id)) },
+    { label: 'New folder…', onSelect: () => (reveal(), void s.createEntry(entry.path, 'folder', project.id)) },
+    { label: 'Refresh', onSelect: () => s.bumpTree() },
+    { separator: true, label: '' },
+    { label: 'Open a terminal here', onSelect: () => s.newTerminal(project.id, entry.path) },
+    { label: 'Show in File Explorer', onSelect: () => void window.loom.openPath(entry.path) },
+    ...copy,
+    ...change
+  ]
+}
+
 function TreeNode({ entry, depth, project }: { entry: DirEntry; depth: number; project: Project }): ReactNode {
-  const [open, setOpen] = useState(false)
+  const key = normPath(entry.path)
+  const [open, setOpenState] = useState(() => openFolders.has(key))
   const [children, setChildren] = useState<DirEntry[] | null>(null)
+  const version = useStore((s) => s.treeVersion)
   const activePath = useStore((s) => {
     const t = s.tabs.find((x) => x.id === s.activeTabId)
     return t?.kind === 'file' ? t.path : null
   })
+  const setOpen = (v: boolean): void => {
+    if (v) openFolders.add(key)
+    else openFolders.delete(key)
+    setOpenState(v)
+  }
 
+  // Read again whenever files may have changed; the old list stays until the new one is in.
   useEffect(() => {
-    if (open && !children) void window.loom.listDir(entry.path).then(setChildren).catch(() => setChildren([]))
-  }, [open, children, entry.path])
+    if (!open || !entry.isDir) return
+    let gone = false
+    window.loom
+      .listDir(entry.path)
+      .then((c) => !gone && setChildren(c))
+      .catch(() => !gone && setChildren([]))
+    return () => {
+      gone = true
+    }
+  }, [open, version, entry.path])
+
+  const menu = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    useStore.getState().showMenu(e, entryMenu(entry, project, () => setOpen(true)))
+  }
 
   if (!entry.isDir) {
     return (
@@ -29,14 +81,7 @@ function TreeNode({ entry, depth, project }: { entry: DirEntry; depth: number; p
         className={`tree-row${activePath === entry.path ? ' active' : ''}`}
         style={{ paddingLeft: 10 + depth * 14 }}
         onClick={() => useStore.getState().openFile(entry.path, project.id)}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          useStore.getState().showMenu(e, [
-            { label: 'Open', onSelect: () => useStore.getState().openFile(entry.path, project.id) },
-            { label: 'Copy path', onSelect: () => void navigator.clipboard.writeText(entry.path) },
-            { label: 'Show in File Explorer', onSelect: () => void window.loom.reveal(entry.path) }
-          ])
-        }}
+        onContextMenu={menu}
         title={entry.path}
       >
         <span className="tree-chev" />
@@ -47,7 +92,7 @@ function TreeNode({ entry, depth, project }: { entry: DirEntry; depth: number; p
   }
   return (
     <>
-      <button className="tree-row" style={{ paddingLeft: 10 + depth * 14 }} onClick={() => setOpen((o) => !o)} aria-expanded={open} title={entry.path}>
+      <button className="tree-row" style={{ paddingLeft: 10 + depth * 14 }} onClick={() => setOpen(!open)} onContextMenu={menu} aria-expanded={open} title={entry.path}>
         <ChevronRight className={`tree-chev${open ? ' open' : ''}`} />
         {open ? <FolderOpen className="tree-icon dir" /> : <Folder className="tree-icon dir" />}
         <span className="tree-name">{entry.name}</span>
@@ -64,11 +109,19 @@ function FilesPane({ project }: { project: Project }): ReactNode {
   const [filter, setFilter] = useState('')
   const [all, setAll] = useState<string[] | null>(null)
   const [version, setVersion] = useState(0)
+  const treeVersion = useStore((s) => s.treeVersion)
 
+  useEffect(() => setRoot(null), [project.path])
   useEffect(() => {
-    setRoot(null)
-    void window.loom.listDir(project.path).then(setRoot).catch(() => setRoot([]))
-  }, [project.path, version])
+    let gone = false
+    window.loom
+      .listDir(project.path)
+      .then((r) => !gone && setRoot(r))
+      .catch(() => !gone && setRoot([]))
+    return () => {
+      gone = true
+    }
+  }, [project.path, version, treeVersion])
 
   useEffect(() => {
     if (filter && !all) void projectFileList(project.path).then(setAll)
@@ -92,12 +145,24 @@ function FilesPane({ project }: { project: Project }): ReactNode {
           onClick={() => {
             void projectFileList(project.path, true)
             setVersion((v) => v + 1)
+            useStore.getState().bumpTree()
           }}
         >
           <RefreshCw />
         </button>
       </div>
-      <div className="pane-scroll">
+      <div
+        className="pane-scroll"
+        onContextMenu={(e) => {
+          if (e.target !== e.currentTarget) return
+          e.preventDefault()
+          useStore.getState().showMenu(e, [
+            { label: 'New file…', onSelect: () => void useStore.getState().createEntry(project.path, 'file', project.id) },
+            { label: 'New folder…', onSelect: () => void useStore.getState().createEntry(project.path, 'folder', project.id) },
+            { label: 'Refresh', onSelect: () => useStore.getState().bumpTree() }
+          ])
+        }}
+      >
         {filter ? (
           !all ? (
             <p className="pane-note">Listing files…</p>

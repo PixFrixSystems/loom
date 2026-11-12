@@ -24,6 +24,13 @@ export function baseName(p: string): string {
   return parts[parts.length - 1] || p
 }
 
+/** The folder a path is in. */
+export function parentDir(p: string): string {
+  const trimmed = p.replace(/[\\/]+$/, '')
+  const i = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'))
+  return i > 0 ? trimmed.slice(0, i) : trimmed
+}
+
 export function joinPath(dir: string, rel: string): string {
   return `${dir.replace(/[\\/]+$/, '')}\\${rel.replace(/^[\\/]+/, '').replace(/\//g, '\\')}`
 }

@@ -29,13 +29,25 @@ export function QuickOpen(): ReactNode {
   const input = useRef<HTMLInputElement>(null)
   const close = (): void => s.set({ quickOpen: false })
 
+  const list = useRef<HTMLDivElement>(null)
+
+  // Back to where the keyboard was when this closes.
   useEffect(() => {
+    const before = document.activeElement as HTMLElement | null
     input.current?.focus()
+    return () => before?.focus?.({ preventScroll: true })
   }, [])
 
+  // The last list right away, then a fresh one: files Claude just made show up too.
   useEffect(() => {
     setFiles(null)
-    if (project) void projectFileList(project.path).then(setFiles)
+    if (!project) return
+    let gone = false
+    void projectFileList(project.path).then((f) => !gone && setFiles(f))
+    void projectFileList(project.path, true).then((f) => !gone && setFiles(f))
+    return () => {
+      gone = true
+    }
   }, [project?.path])
 
   const results = useMemo(() => {
@@ -51,6 +63,9 @@ export function QuickOpen(): ReactNode {
   }, [files, q])
 
   useEffect(() => setIndex(0), [q, projectId])
+  useEffect(() => {
+    list.current?.querySelector('.palette-row.active')?.scrollIntoView({ block: 'nearest' })
+  }, [index])
 
   const choose = (rel: string): void => {
     if (!project) return
@@ -92,7 +107,7 @@ export function QuickOpen(): ReactNode {
             </span>
           ) : null}
         </div>
-        <div className="palette-list" role="listbox">
+        <div ref={list} className="palette-list" role="listbox">
           {!files && project ? <p className="pane-note pad">Listing files…</p> : null}
           {files && !results.length ? <p className="pane-note pad">Nothing matches.</p> : null}
           {results.map((rel, i) => (
@@ -101,7 +116,7 @@ export function QuickOpen(): ReactNode {
               role="option"
               aria-selected={i === index}
               className={`palette-row${i === index ? ' active' : ''}`}
-              onMouseEnter={() => setIndex(i)}
+              onMouseMove={() => i !== index && setIndex(i)}
               onClick={() => choose(rel)}
             >
               <FileText className="tree-icon" />
