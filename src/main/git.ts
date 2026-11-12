@@ -164,6 +164,29 @@ export async function gitUnstage(dir: string, abs: string[]): Promise<GitResult>
   return hasCommits ? r : attempt(['rm', '--cached', '-r', '-q', '--', ...p.rels], p.root)
 }
 
+let pruned = false
+
+/** Copies of discarded files are kept for 30 days. Checked once per run, in the background. */
+async function pruneDiscarded(dir: string): Promise<void> {
+  if (pruned) return
+  pruned = true
+  const cutoff = Date.now() - 30 * 24 * 60 * 60_000
+  let names: string[]
+  try {
+    names = await fs.readdir(dir)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    try {
+      const p = join(dir, name)
+      if ((await fs.stat(p)).mtimeMs < cutoff) await fs.rm(p, { recursive: true, force: true })
+    } catch {
+      // in use or already gone: the next run tries again
+    }
+  }
+}
+
 /**
  * Throws away a file's changes. A copy of each file as it was goes to Loom's "discarded" folder
  * first, and new files go to the Recycle Bin, so nothing is lost for good by a misclick.
@@ -172,14 +195,22 @@ export async function gitDiscard(dir: string, files: { abs: string; untracked: b
   const root = await repoRoot(dir)
   if (!root) return { ok: false, output: 'Not a git repository.' }
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const backup = join(app.getPath('userData'), 'discarded', stamp)
+  const kept = join(app.getPath('userData'), 'discarded')
+  const backup = join(kept, stamp)
+  void pruneDiscarded(kept)
   const notes: string[] = []
   for (const f of files) {
     const rel = toRel(root, f.abs)
     if (existsSync(f.abs)) {
-      const copy = join(backup, rel)
-      await fs.mkdir(dirname(copy), { recursive: true })
-      await fs.copyFile(f.abs, copy).catch(() => undefined)
+      // No copy, no discard: the copy is what makes a misclick recoverable.
+      try {
+        const copy = join(backup, rel)
+        await fs.mkdir(dirname(copy), { recursive: true })
+        await fs.copyFile(f.abs, copy)
+      } catch (e) {
+        notes.push(`${rel}: not discarded, because Loom could not keep a copy of it first (${(e as Error).message})`)
+        continue
+      }
     }
     if (f.untracked || f.added) {
       if (f.added) await attempt(['rm', '--cached', '-q', '--', rel], root)
