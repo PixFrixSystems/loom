@@ -20,7 +20,8 @@ const drafts = new Map<string, string>()
 
 type Side = 'staged' | 'changes'
 type Busy = null | 'commit' | 'push' | 'pull' | 'write' | 'switch' | 'files'
-type Note = { tone: 'ok' | 'err'; text: string; detail?: string }
+/** `swap`: a message to put in the box on request (Claude's, or the one it replaced). */
+type Note = { tone: 'ok' | 'err'; text: string; detail?: string; swap?: { label: string; text: string } }
 
 const keyOf = (side: Side, f: GitFile): string => `${side}:${f.path}`
 
@@ -68,6 +69,8 @@ function FileRow({
       onClick={onClick}
       onDoubleClick={onOpen}
       onKeyDown={(e) => {
+        // Enter on a button inside the row (Stage, Throw away) is that button's.
+        if (e.target !== e.currentTarget) return
         if (e.key === 'Enter') {
           e.preventDefault()
           onOpen()
@@ -115,7 +118,8 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   // Files picked with Ctrl+click and Shift+click, and where a Shift+click range starts.
   const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [anchor, setAnchor] = useState<{ side: Side; index: number } | null>(null)
+  // By file, not by row number: the list refreshes every few seconds and rows move.
+  const [anchor, setAnchor] = useState<{ side: Side; key: string } | null>(null)
   const dir = project.path
   const s = useStore.getState()
   const refresh = (): void => void useStore.getState().refreshChanges(project.id)
@@ -132,18 +136,34 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
     if (historyOpen) void window.loom.gitLog(dir).then(setLog)
   }, [historyOpen, changes?.ahead, changes?.branch])
 
+  // Files committed or dropped since leave the selection, so they aren't picked again if they come
+  // back later; a question about throwing a file away goes when that file has.
+  useEffect(() => {
+    if (!changes) return
+    const present = new Set(changes.files.flatMap((f) => [f.staged ? keyOf('staged', f) : '', f.unstaged ? keyOf('changes', f) : '']).filter(Boolean))
+    setPicked((p) => {
+      const next = new Set([...p].filter((k) => present.has(k)))
+      return next.size === p.size ? p : next
+    })
+    setConfirm((c) => (c === '*' ? (changes.files.length ? c : null) : c && c !== 'picked' && !changes.files.some((f) => f.abs === c) ? null : c))
+  }, [changes])
+
   const setDraft = (v: string): void => {
     setMessage(v)
     drafts.set(project.id, v)
   }
 
   const run = async (kind: Busy, fn: () => Promise<GitResult>, done?: string): Promise<GitResult> => {
+    // Doing something else answers an open "Throw away?" question with no.
+    setConfirm(null)
     setBusy(kind)
     setNote(null)
     setShowDetail(false)
     const r = await fn().catch((e: Error) => ({ ok: false, output: e.message }) as GitResult)
     setBusy(null)
     refresh()
+    // A commit, pull or branch switch changes the history too.
+    if (historyOpen) void window.loom.gitLog(dir).then(setLog)
     if (!r.ok) setNote({ tone: 'err', text: r.output.split('\n').find((l) => l.trim()) ?? 'That did not work.', detail: r.output })
     else if (done) setNote({ tone: 'ok', text: done, detail: r.output || undefined })
     return r
@@ -186,8 +206,9 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
 
   const rowClick = (e: React.MouseEvent | React.KeyboardEvent, side: Side, list: GitFile[], index: number): void => {
     const f = list[index]
-    if (e.shiftKey && anchor?.side === side) {
-      const [from, to] = anchor.index < index ? [anchor.index, index] : [index, anchor.index]
+    const at = anchor?.side === side ? list.findIndex((x) => keyOf(side, x) === anchor.key) : -1
+    if (e.shiftKey && at >= 0) {
+      const [from, to] = at < index ? [at, index] : [index, at]
       const next = new Set(e.ctrlKey || e.metaKey ? picked : [])
       for (let i = from; i <= to; i++) next.add(keyOf(side, list[i]))
       setPicked(next)
@@ -197,12 +218,12 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
       if (next.has(k)) next.delete(k)
       else next.add(k)
       setPicked(next)
-      setAnchor({ side, index })
+      setAnchor({ side, key: k })
     } else {
       // A click selects just this file; a double-click opens it.
       setPicked(new Set([keyOf(side, f)]))
       setConfirm((c) => (c === 'picked' ? null : c))
-      setAnchor({ side, index })
+      setAnchor({ side, key: keyOf(side, f) })
     }
   }
 
@@ -369,12 +390,20 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
                 : 'Claude reads the changes and writes the message, following your commit rules'
             }
             onClick={async () => {
+              const before = message
               setBusy('write')
               setNote(null)
               const r = await window.loom.gitWriteMessage(dir, pickedFiles.length ? pickedPaths : undefined)
               setBusy(null)
-              if (r.message) setDraft(r.message)
-              else setNote({ tone: 'err', text: r.error ?? 'Claude did not write a message.' })
+              if (!r.message) return setNote({ tone: 'err', text: r.error ?? 'Claude did not write a message.' })
+              const now = drafts.get(project.id) ?? ''
+              if (now !== before) {
+                // You typed while Claude wrote: your text stays, Claude's is one click away.
+                setNote({ tone: 'ok', text: "Claude's message is ready. Yours is kept.", swap: { label: "Use Claude's", text: r.message } })
+              } else {
+                setDraft(r.message)
+                if (before.trim()) setNote({ tone: 'ok', text: 'Claude wrote the message.', swap: { label: 'Undo', text: before } })
+              }
             }}
           >
             {busy === 'write' ? <LoaderCircle className="spin" /> : <PenLine />}
@@ -390,6 +419,17 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
       {note ? (
         <div className={`git-note tone-${note.tone}`} role="status">
           <span>{note.text}</span>
+          {note.swap ? (
+            <button
+              className="note-toggle"
+              onClick={() => {
+                setDraft(note.swap!.text)
+                setNote(null)
+              }}
+            >
+              {note.swap.label}
+            </button>
+          ) : null}
           {note.detail && note.detail !== note.text ? (
             <button className="note-toggle" onClick={() => setShowDetail((v) => !v)}>
               {showDetail ? 'Hide' : 'Details'}
