@@ -24,6 +24,18 @@ jobs:
 
       - run: npm run typecheck
 
+      # electron-builder uploads the installer, latest.yml and the blockmap at the same time. When
+      # no release exists yet, each upload makes its own draft and the files end up split across
+      # two (0.1.5 shipped a draft with only the blockmap). One draft made first, they all find it.
+      - name: Make the draft release
+        run: |
+          $version = "$env:GITHUB_REF_NAME".TrimStart('v')
+          gh release view "$env:GITHUB_REF_NAME" *> $null
+          if ($LASTEXITCODE -ne 0) { gh release create "$env:GITHUB_REF_NAME" --draft --title $version --notes '' }
+          exit 0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and upload the installer
         run: npx electron-vite build && npx electron-builder --win --publish always
         env:
