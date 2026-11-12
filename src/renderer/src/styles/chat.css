@@ -2011,3 +2011,120 @@
     transform: scale(0.985);
   }
 }
+
+/* ---------- Agents, from the chat header ---------- */
+/* While sub-agents work: a violet-lit pill with a count; a click lists what each is doing */
+.agents-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  height: 26px;
+  padding: 0 10px 0 9px;
+  border: 0;
+  border-radius: var(--pill);
+  background: rgba(132, 130, 246, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(196, 194, 252, 0.25);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--base) var(--ease-out);
+}
+
+.agents-btn:hover,
+.agents-btn.open {
+  background: rgba(132, 130, 246, 0.2);
+}
+
+@container (max-width: 360px) {
+  .agents-btn-label {
+    display: none;
+  }
+
+  .agents-btn {
+    padding: 0 9px;
+  }
+}
+
+.agents-pop {
+  width: 380px;
+  max-width: calc(100vw - 16px);
+  max-height: 60vh;
+  padding: 10px 12px;
+  cursor: default;
+}
+
+.agents-pop-head {
+  margin-bottom: 4px;
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.agents-pop-item {
+  padding: 8px 0;
+}
+
+.agents-pop-item + .agents-pop-item {
+  border-top: 1px solid var(--line);
+}
+
+.agents-pop-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agents-pop-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 560;
+}
+
+.agents-pop-meta,
+.agents-pop-summary,
+.agents-pop-steps,
+.agents-pop-empty {
+  margin: 3px 0 0 15px;
+  font-size: 12px;
+}
+
+.agents-pop-meta {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.agents-pop-summary {
+  color: var(--text-2);
+}
+
+/* Its latest steps on a thin thread, the newest lit */
+.agents-pop-steps {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 0 0 0 10px;
+  border-left: 1px solid var(--line-strong);
+  list-style: none;
+}
+
+.agents-pop-steps li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+
+.agents-pop-steps li.now {
+  color: var(--text);
+}
+
+.agents-pop-empty {
+  color: var(--text-3);
+}

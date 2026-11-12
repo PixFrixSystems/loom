@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import type { ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
 import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
-import { AgentTasks } from './AgentTasks'
+import { AgentsButton, AgentTasks } from './AgentTasks'
 import { ChatItemView, LiveThinking, rise, timelineClass, useArrivals } from './ChatItems'
 import { Composer, composers } from './Composer'
 import { Markdown } from './Markdown'
@@ -244,6 +244,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         {where ? <span className="chat-head-path">{where}</span> : null}
         <span className="chat-head-spacer" />
         {chat.activeModel ? <span className="chat-head-meta">{modelName(chat.activeModel, knownModels)}</span> : null}
+        <AgentsButton tabId={tab.id} tasks={chat.tasks} />
         <RunControl projectId={tab.projectId} />
         <button className="icon-btn chat-head-tool" title="Open a terminal here" onClick={() => s.newTerminal(tab.projectId)}>
           <SquareTerminal />

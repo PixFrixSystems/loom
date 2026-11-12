@@ -421,6 +421,8 @@ class ChatSession {
   private requests = new Map<string, PermissionRequest>()
   /** Sub-agents and background tasks still running */
   private tasks = new Map<string, AgentTask>()
+  /** The tool call that started each sub-agent, to tell its own messages apart: tool call id to task id */
+  private taskByTool = new Map<string, string>()
   private tasksTimer: NodeJS.Timeout | null = null
   private thinking = ''
   /** Inside a thinking block: the chat shows "Thinking" from its start, text or not */
@@ -629,7 +631,7 @@ class ChatSession {
         return
       }
       case 'assistant': {
-        if (m.parent_tool_use_id) return
+        if (m.parent_tool_use_id) return this.noteAgentStep(m.parent_tool_use_id, m.message.content)
         this.clearPartial()
         const items = assistantItems(m.message.content, m.uuid)
         const model = messageModel(m.message)
@@ -727,9 +729,11 @@ class ChatSession {
         is_backgrounded?: boolean
         ambient?: boolean
         skip_transcript?: boolean
+        tool_use_id?: string
       }
       // Housekeeping tasks (watchers and the like) aren't work the person started.
       if (t.ambient || t.skip_transcript) return
+      if (t.tool_use_id) this.taskByTool.set(t.tool_use_id, t.task_id)
       this.tasks.set(t.task_id, {
         id: t.task_id,
         description: t.description || t.subagent_type || 'Background task',
@@ -766,6 +770,30 @@ class ChatSession {
       const r = m as { attempt: number; max_retries: number; error: string }
       this.emit({ type: 'items', items: [{ kind: 'note', id: m.uuid, tone: 'info', text: `${errorText(r.error)} Retrying (${r.attempt} of ${r.max_retries}).` }] })
     }
+  }
+
+  /**
+   * A sub-agent's own message: its tool calls and what it says become its latest steps, so the
+   * chat can show what each agent is doing while it works.
+   */
+  private noteAgentStep(toolUseId: string, content: unknown): void {
+    const taskId = this.taskByTool.get(toolUseId)
+    const task = taskId ? this.tasks.get(taskId) : undefined
+    if (!task || !Array.isArray(content)) return
+    const added: { text: string; at: number }[] = []
+    for (const block of content as { type?: string; name?: string; input?: unknown; text?: string }[]) {
+      if (block.type === 'tool_use' && block.name) {
+        const view = describeTool(block.name, block.input)
+        // Paths inside the chat's folder read shorter: "Read src/app.ts", not the whole path.
+        const summary = view.summary.split(`${this.opts.cwd.replace(/[\\/]+$/, '')}\\`).join('')
+        added.push({ text: `${block.name} ${summary}`.trim().slice(0, 160), at: Date.now() })
+      } else if (block.type === 'text' && block.text?.trim()) {
+        added.push({ text: truncate(block.text.trim().split('\n')[0], 160), at: Date.now() })
+      }
+    }
+    if (!added.length) return
+    this.tasks.set(task.id, { ...task, steps: [...(task.steps ?? []), ...added].slice(-8) })
+    this.sendTasks()
   }
 
   private async loadCapabilities(): Promise<void> {

@@ -64,6 +64,8 @@ export interface AgentTask {
   toolUses?: number
   /** One line on what it is doing, when Claude Code reports one */
   summary?: string
+  /** Its latest steps, oldest first: "Read src/app.ts", "Bash Run the tests" */
+  steps?: { text: string; at: number }[]
 }
 
 /** Where the installed app is with updates. */
