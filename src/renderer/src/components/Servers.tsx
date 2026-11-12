@@ -67,7 +67,11 @@ export function ServerControls({
   return (
     <span className="srv-controls">
       {server.status === 'running' && server.url ? (
-        <button className="srv-link" title={`Open ${server.url} in the browser`} onClick={() => openUrl(server.url)}>
+        <button
+          className="srv-link"
+          title={`Open ${server.url} in the browser${server.adopted ? `\nThis server was already running; Loom didn't start it` : ''}`}
+          onClick={() => openUrl(server.url)}
+        >
           <span className="srv-dot" aria-hidden="true" />
           {hostOf(server.url)}
         </button>

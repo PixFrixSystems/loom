@@ -174,6 +174,10 @@ interface Server {
   stopping: boolean
   restarting: boolean
   timer: ReturnType<typeof setTimeout> | null
+  /** The process of a server Loom found already running for this project, and shows instead */
+  adopted: number | null
+  /** Looks every few seconds whether an adopted server is still there */
+  watch: ReturnType<typeof setInterval> | null
 }
 
 const servers = new Map<string, Server>()
@@ -377,6 +381,71 @@ function fresh(s: Server): Partial<ServerInfo> {
   return { status: 'starting', url: null, exitCode: null, reason: null, needsInstall: false, installing: !!s.install, startedAt: Date.now() }
 }
 
+// ---------- A server that was already running ----------
+
+/**
+ * Next.js refuses to start a second dev server for a project and names the one that runs:
+ * "Another next dev server is already running." then its Local address, PID and folder. The
+ * address of the run that was refused comes before that line, so only what follows it counts.
+ */
+function alreadyRunning(output: string, cwd: string): { url: string; pid: number } | null {
+  const text = output.replace(ANSI, '')
+  const at = text.search(/Another next dev server is already running/i)
+  if (at < 0) return null
+  const after = text.slice(at)
+  const url = after.match(/Local:\s+(https?:\/\/\S+)/i)?.[1]?.replace(/[.,;]+$/, '')
+  const pid = Number(after.match(/PID:\s+(\d+)/i)?.[1])
+  const dir = after.match(/Dir:\s+(.+)/i)?.[1]?.trim()
+  const same = (a: string, b: string): boolean => a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase()
+  if (!url || !pid || (dir && !same(dir, cwd))) return null
+  return { url, pid }
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    // EPERM: it's there, just not ours to signal.
+    return (e as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/** Shows the server that was already running instead of the run that was refused, while it lasts. */
+function adopt(s: Server, found: { url: string; pid: number }): void {
+  s.adopted = found.pid
+  note(s, `This project's dev server was already running at ${found.url} (process ${found.pid}), so Loom shows that one.`)
+  note(s, "Loom didn't start it, so its output isn't here, and quitting Loom leaves it running. Stop ends it; Restart starts it again in Loom.")
+  setInfo(s, { status: 'running', url: found.url, exitCode: null, reason: null, needsInstall: false, adopted: true })
+  if (s.watch) clearInterval(s.watch)
+  s.watch = setInterval(() => {
+    if (s.adopted !== found.pid || alive(found.pid)) return
+    unwatch(s)
+    note(s, 'The server that was already running has stopped.')
+    setInfo(s, { status: 'stopped', url: null, adopted: false })
+  }, 4000)
+}
+
+function unwatch(s: Server): void {
+  s.adopted = null
+  if (s.watch) clearInterval(s.watch)
+  s.watch = null
+}
+
+/** Ends an adopted server and what it started; resolves once it's gone (or after a few seconds). */
+function endAdopted(pid: number): Promise<void> {
+  return new Promise((resolve) => {
+    const k = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true })
+    const done = (): void => {
+      clearTimeout(t)
+      resolve()
+    }
+    const t = setTimeout(done, 5000)
+    k.on('error', done)
+    k.on('exit', () => setTimeout(done, 300))
+  })
+}
+
 function exited(s: Server, proc: ChildProcess, code: number): void {
   if (s.proc !== proc) return
   s.proc = null
@@ -411,6 +480,8 @@ function exited(s: Server, proc: ChildProcess, code: number): void {
     setInfo(s, { status: 'exited', exitCode: code, installing: false, needsInstall: false, reason: reason ?? `${step.command} failed` })
     return
   }
+  const found = code === 0 ? null : alreadyRunning(stepOutput(s), s.info.target.cwd)
+  if (found && alive(found.pid)) return adopt(s, found)
   const pm = s.info.target.command.match(PM_RUN)?.[1]
   const { reason, needsInstall } = code === 0 ? { reason: null, needsInstall: false } : explain(stepOutput(s), pm)
   note(s, `Exited with code ${code}`)
@@ -430,7 +501,7 @@ export async function startServer(projectId: string, target: RunTarget, install 
   const id = `${projectId}|${target.id}`
   const step = install ? await installStep(target) : null
   const prev = servers.get(id)
-  if (prev?.proc) return { ...prev.info }
+  if (prev?.proc || prev?.adopted) return { ...prev.info }
   const s: Server = {
     info: { id, projectId, target, status: 'starting', url: null, exitCode: null, startedAt: Date.now(), installing: !!step },
     proc: null,
@@ -441,7 +512,9 @@ export async function startServer(projectId: string, target: RunTarget, install 
     scan: '',
     stopping: false,
     restarting: false,
-    timer: null
+    timer: null,
+    adopted: null,
+    watch: null
   }
   servers.set(id, s)
   launch(s)
@@ -452,6 +525,16 @@ export async function startServer(projectId: string, target: RunTarget, install 
 export function stopServer(id: string): void {
   const s = servers.get(id)
   if (!s) return
+  if (s.adopted) {
+    const pid = s.adopted
+    unwatch(s)
+    setInfo(s, { status: 'stopping' })
+    void endAdopted(pid).then(() => {
+      note(s, 'Stopped')
+      setInfo(s, { status: 'stopped', url: null, adopted: false })
+    })
+    return
+  }
   if (!s.proc) {
     setInfo(s, { status: 'stopped' })
     return
@@ -466,6 +549,13 @@ export function stopServer(id: string): void {
 export async function restartServer(id: string, install = false): Promise<void> {
   const s = servers.get(id)
   if (!s) return
+  // One that was already running: end it, then start it again in Loom, which then owns it.
+  if (s.adopted) {
+    const pid = s.adopted
+    unwatch(s)
+    setInfo(s, { status: 'starting', url: null, adopted: false })
+    await endAdopted(pid)
+  }
   if (!s.proc) {
     const step = install ? await installStep(s.info.target) : null
     if (s.proc) return
@@ -504,11 +594,13 @@ export function writeServer(id: string, data: string): void {
 /**
  * On quit: nothing Loom started may outlive it. One taskkill for every server, with a time limit,
  * so a stalled one can't keep Loom from quitting. A server caught mid-restart is not started again.
+ * Servers Loom only found running are left as they were.
  */
 export function killAllServers(): void {
   const pids: string[] = []
   for (const s of servers.values()) {
     s.restarting = false
+    if (s.watch) clearInterval(s.watch)
     if (!s.proc) continue
     s.stopping = true
     if (s.proc.pid) pids.push('/PID', String(s.proc.pid))

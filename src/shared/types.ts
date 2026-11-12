@@ -214,6 +214,8 @@ export interface ServerInfo {
   needsInstall?: boolean
   /** Installing the project's packages first, before running it */
   installing?: boolean
+  /** A server for this project that was already running when Loom tried to start one: Loom shows it, but didn't start it */
+  adopted?: boolean
 }
 
 /** How to install a Node project's packages: the command, and the folder it runs in. */
