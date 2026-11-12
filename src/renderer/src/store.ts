@@ -1243,9 +1243,10 @@ export const useStore = create<Store>((set, get) => {
             const items = [...c.items]
             const now = new Date().toISOString()
             for (const raw of ev.items) {
-              // Live messages get the time they arrived, as saved ones carry theirs.
-              const item = (raw.kind === 'user' || raw.kind === 'assistant') && !raw.ts ? { ...raw, ts: now } : raw
-              const at = items.findIndex((x) => x.id === item.id)
+              // Live steps get the time they arrived, as saved ones carry theirs. One sent again
+              // (a step updated in place) keeps the time it first had.
+              const at = items.findIndex((x) => x.id === raw.id)
+              const item = raw.ts ? raw : { ...raw, ts: items[at]?.ts ?? now }
               if (at >= 0) items[at] = item
               else items.push(item)
             }
@@ -1322,7 +1323,7 @@ export const useStore = create<Store>((set, get) => {
                 ? { ...it, status: 'done' as const, ms: it.startedAt ? now - it.startedAt : undefined }
                 : it
             )
-            if (ev.durationMs && ev.durationMs >= 1000) items.push({ kind: 'done', id: uid(), ms: ev.durationMs })
+            if (ev.durationMs && ev.durationMs >= 1000) items.push({ kind: 'done', id: uid(), ms: ev.durationMs, ts: new Date(now).toISOString() })
             return { unread: get().activeTabId !== tabId, items }
           })
           const tab = get().tabs.find((t) => t.id === tabId)

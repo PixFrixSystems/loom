@@ -14,6 +14,10 @@ import { RunControl } from './Servers'
 const PAGE = 200
 
 const CLOCK = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' })
+/** A step's exact time: seconds matter when a minute holds a dozen steps. Other days add the date. */
+const STEP_TODAY = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+const STEP_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' })
+const STEP_YEAR = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' })
 
 /**
  * Text that changes many times a second, passed on at most every `ms`. A long reply being written
@@ -42,6 +46,25 @@ function clock(ts?: string): string | null {
   if (!ts) return null
   const d = new Date(ts)
   return Number.isNaN(d.getTime()) ? null : CLOCK.format(d)
+}
+
+function stepClock(ts?: string): string | null {
+  if (!ts) return null
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return null
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) return STEP_TODAY.format(d)
+  return (d.getFullYear() === now.getFullYear() ? STEP_DAY : STEP_YEAR).format(d)
+}
+
+/** When a step happened, shown after the pointer has rested on it for a moment. */
+function HoverTime({ ts }: { ts?: string }): ReactNode {
+  const label = stepClock(ts)
+  return label ? (
+    <time className="step-clock" dateTime={ts}>
+      {label}
+    </time>
+  ) : null
 }
 
 function Working({ since }: { since?: number }): ReactNode {
@@ -225,11 +248,15 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
                 <ChatItemView item={item} cwd={tab.cwd} />
               </div>
             ) : item.kind === 'done' ? (
-              <ChatItemView key={item.id} item={item} cwd={tab.cwd} />
+              <div key={item.id} className="turn-end">
+                <ChatItemView item={item} cwd={tab.cwd} />
+                <HoverTime ts={item.ts} />
+              </div>
             ) : (
               <div key={item.id} className={`tl ${timelineClass(item)}${time ? ' has-time' : ''}`}>
                 {time ? <div className="turn-time">{time}</div> : null}
                 <ChatItemView item={item} cwd={tab.cwd} />
+                <HoverTime ts={item.ts} />
               </div>
             )
           )}

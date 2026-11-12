@@ -302,14 +302,16 @@ export interface ImagePreview {
   ref?: string
 }
 
+/** Every item may carry `ts`, when it happened (ISO): saved ones have it, live ones get it as they arrive. */
 export type ChatItem =
   | { kind: 'user'; id: string; text: string; images: number; previews?: ImagePreview[]; ts?: string }
   | { kind: 'assistant'; id: string; text: string; ts?: string }
   /** ms: how long Claude thought, when known */
-  | { kind: 'thinking'; id: string; text: string; ms?: number }
+  | { kind: 'thinking'; id: string; text: string; ms?: number; ts?: string }
   | {
       kind: 'tool'
       id: string
+      ts?: string
       name: string
       summary: string
       detail?: string
@@ -323,9 +325,9 @@ export type ChatItem =
       /** How long it took, once finished */
       ms?: number
     }
-  | { kind: 'note'; id: string; text: string; tone: 'info' | 'error' | 'summary'; detail?: string }
+  | { kind: 'note'; id: string; text: string; tone: 'info' | 'error' | 'summary'; detail?: string; ts?: string }
   /** The end of a turn: how long Claude worked on it */
-  | { kind: 'done'; id: string; ms: number }
+  | { kind: 'done'; id: string; ms: number; ts?: string }
 
 export type ChatStatus = 'idle' | 'starting' | 'running' | 'stopped' | 'error'
 

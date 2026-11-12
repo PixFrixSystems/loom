@@ -1384,6 +1384,44 @@
   --dot-y: 33px;
 }
 
+/* A step's time: a small tag just above its dot, after the pointer rests on the step for a
+   moment. It leaves at once. */
+.step-clock {
+  position: absolute;
+  z-index: 2;
+  left: -4px;
+  bottom: calc(100% - var(--dot-y) + 11px);
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.tl:hover > .step-clock,
+.turn-end:hover > .step-clock {
+  opacity: 1;
+  transition: opacity 150ms ease 700ms;
+}
+
+/* After "Worked for 2m", on the same line */
+.turn-end {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.turn-end > .step-clock {
+  position: static;
+}
+
 .tl-tool {
   --dot-y: 13px;
 }

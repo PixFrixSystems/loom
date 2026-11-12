@@ -249,11 +249,11 @@ export function assistantItems(content: unknown, idBase: string, ts?: string): C
       if (text.trim()) items.push({ kind: 'assistant', id: `${idBase}:${i}`, text, ts })
     } else if (block.type === 'thinking') {
       const text = str(block.thinking)
-      if (text.trim()) items.push({ kind: 'thinking', id: `${idBase}:${i}`, text: truncate(text, MAX_DETAIL) })
+      if (text.trim()) items.push({ kind: 'thinking', id: `${idBase}:${i}`, text: truncate(text, MAX_DETAIL), ts })
     } else if (block.type === 'tool_use') {
       const name = str(block.name)
       const view = describeTool(name, block.input)
-      items.push({ kind: 'tool', id: str(block.id) || `${idBase}:${i}`, name, status: 'running', ...view })
+      items.push({ kind: 'tool', id: str(block.id) || `${idBase}:${i}`, name, status: 'running', ...view, ts })
     }
   })
   return items
@@ -282,7 +282,9 @@ export function historyToItems(messages: HistoryMessage[]): ChatItem[] {
   let turnEnd = NaN
   let model = ''
   const endTurn = (): void => {
-    if (turnEnd - turnStart >= 1000) items.push({ kind: 'done', id: `done:${turnStart}`, ms: turnEnd - turnStart })
+    if (turnEnd - turnStart >= 1000) {
+      items.push({ kind: 'done', id: `done:${turnStart}`, ms: turnEnd - turnStart, ts: new Date(turnEnd).toISOString() })
+    }
     turnStart = NaN
     turnEnd = NaN
   }
@@ -294,7 +296,7 @@ export function historyToItems(messages: HistoryMessage[]): ChatItem[] {
       // A reply from another model than the one before: say so above it.
       const from = messageModel(msg)
       if (from) {
-        if (model && from !== model) items.push(modelNote(from, m.uuid))
+        if (model && from !== model) items.push({ ...modelNote(from, m.uuid), ts: m.timestamp })
         model = from
       }
       for (const item of assistantItems(msg.content, m.uuid, m.timestamp)) {
@@ -323,7 +325,8 @@ export function historyToItems(messages: HistoryMessage[]): ChatItem[] {
         endTurn()
         turnStart = at
       }
-      if (item) items.push(item)
+      // Notes made from user-side messages (Interrupted, a command's output) keep their time too.
+      if (item) items.push(item.ts || !m.timestamp ? item : { ...item, ts: m.timestamp })
     }
     if (!Number.isNaN(at)) {
       prev = at
