@@ -216,7 +216,15 @@ function createWindow(): void {
     })
   }
 
-  win.once('ready-to-show', () => win?.show())
+  win.once('ready-to-show', () => {
+    win?.show()
+    // After an update the installer starts Loom again with --updated. Windows can leave a window
+    // shown by a process the installer started behind the others, so it is brought to the front.
+    if (process.argv.includes('--updated')) {
+      win?.moveTop()
+      win?.focus()
+    }
+  })
 
   const rememberBounds = (): void => {
     if (!win) return
