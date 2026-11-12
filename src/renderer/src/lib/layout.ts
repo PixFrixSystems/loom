@@ -71,11 +71,13 @@ export function splitPane(node: LayoutNode, paneId: string, edge: Edge, added: P
     }
     const i = n.children.findIndex((c) => c.kind === 'pane' && c.id === paneId)
     if (i >= 0 && n.dir === dir) {
-      const half = n.sizes[i] / 2
+      // An equal share for the new pane, given up by all the others in proportion: splitting the
+      // same row again gives thirds, then quarters, not 50/25/12.5.
+      const share = 1 / (n.children.length + 1)
       const children = [...n.children]
-      const sizes = [...n.sizes]
+      const sizes = n.sizes.map((s) => s * (1 - share))
       children.splice(before ? i : i + 1, 0, added)
-      sizes.splice(i, 1, half, half)
+      sizes.splice(before ? i : i + 1, 0, share)
       return { ...n, children, sizes }
     }
     return { ...n, children: n.children.map(walk) }
@@ -104,7 +106,12 @@ export function removePane(node: LayoutNode, paneId: string): LayoutNode {
 
 export function setSizes(node: LayoutNode, splitId: string, sizes: number[]): LayoutNode {
   if (node.kind === 'pane') return node
-  if (node.id === splitId) return { ...node, sizes }
+  if (node.id === splitId) {
+    // Never a negative or vanishing pane, and the shares always add up to the whole.
+    const clean = sizes.map((s) => (Number.isFinite(s) && s > 0.02 ? s : 0.02))
+    const total = clean.reduce((a, b) => a + b, 0)
+    return { ...node, sizes: clean.map((s) => s / total) }
+  }
   return { ...node, children: node.children.map((c) => setSizes(c, splitId, sizes)) }
 }
 

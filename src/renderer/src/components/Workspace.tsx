@@ -122,9 +122,10 @@ function SplitHandle({ split, index }: { split: Split; index: number }): ReactNo
         const st = start.current
         if (!st || st.size <= 0) return
         const delta = ((row ? e.clientX : e.clientY) - st.pos) / st.size
-        const min = Math.min(0.45, 160 / st.size)
         const a = st.sizes[index - 1]
         const b = st.sizes[index]
+        // Each pane keeps about 160px, unless the two together are too small for that.
+        const min = Math.min(0.45, 160 / st.size, (a + b) / 2)
         const d = Math.max(min - a, Math.min(b - min, delta))
         const sizes = [...st.sizes]
         sizes[index - 1] = a + d
