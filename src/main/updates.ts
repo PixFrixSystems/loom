@@ -49,19 +49,27 @@ async function check(): Promise<UpdateStatus> {
   return status
 }
 
-async function install(opts: { busyChats: () => number; window: () => BrowserWindow | null }): Promise<boolean> {
+interface InstallDeps {
+  busyChats: () => number
+  /** Files with unsaved edits in any Loom window */
+  unsaved: () => string[]
+  explain: (busy: number, unsaved: string[], doing: string) => { message: string; detail: string }
+  window: () => BrowserWindow | null
+}
+
+async function install(opts: InstallDeps): Promise<boolean> {
   if (!updater || status.state !== 'ready') return false
   const busy = opts.busyChats()
+  const unsaved = opts.unsaved()
   const win = opts.window()
-  if (busy > 0 && win) {
+  if ((busy > 0 || unsaved.length) && win) {
     const { response } = await dialog.showMessageBox(win, {
       type: 'question',
       buttons: ['Restart now', 'Later'],
-      defaultId: 0,
+      defaultId: unsaved.length ? 1 : 0,
       cancelId: 1,
       title: 'Loom',
-      message: busy === 1 ? 'A chat is still working.' : `${busy} chats are still working.`,
-      detail: 'Restarting stops them. Their conversations are saved, and you can continue them once Loom is back.'
+      ...opts.explain(busy, unsaved, 'Restarting')
     })
     if (response !== 0) return false
   }
@@ -85,7 +93,7 @@ export function installingUpdate(): boolean {
   return installing
 }
 
-export function setupUpdates(opts: { busyChats: () => number; window: () => BrowserWindow | null }): void {
+export function setupUpdates(opts: InstallDeps): void {
   ipcMain.handle('update:status', () => status)
   ipcMain.handle('update:check', () => check())
   ipcMain.handle('update:install', () => install(opts))

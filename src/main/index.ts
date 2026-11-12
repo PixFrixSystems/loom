@@ -236,15 +236,15 @@ function createWindow(): void {
 
   win.on('close', (e) => {
     const busy = runningChats()
-    if (busy > 0 && win && !installingUpdate()) {
+    const unsaved = unsavedFiles()
+    if ((busy > 0 || unsaved.length) && win && !installingUpdate()) {
       const choice = dialog.showMessageBoxSync(win, {
         type: 'question',
         buttons: ['Quit anyway', 'Cancel'],
         defaultId: 1,
         cancelId: 1,
         title: 'Loom',
-        message: busy === 1 ? 'A chat is still running.' : `${busy} chats are still running.`,
-        detail: 'Quitting stops them. Their conversations are saved and you can continue them later.'
+        ...whatQuittingLoses(busy, unsaved, 'Quitting')
       })
       if (choice === 1) e.preventDefault()
     }
@@ -258,6 +258,27 @@ function createWindow(): void {
 
   guardNavigation(win)
   loadRenderer(win)
+}
+
+// Files with unsaved edits, as each Loom window last reported them (popped-out ones too).
+const unsavedByWindow = new Map<number, string[]>()
+function unsavedFiles(): string[] {
+  return [...unsavedByWindow.values()].flat()
+}
+
+/** What closing Loom would cost, for the question asked before quitting or restarting. */
+function whatQuittingLoses(busy: number, unsaved: string[], doing: string): { message: string; detail: string } {
+  const files = unsaved.length === 1 ? `${unsaved[0]} has unsaved changes.` : unsaved.length ? `${unsaved.length} files have unsaved changes.` : ''
+  const chats = busy === 1 ? 'A chat is still working.' : busy ? `${busy} chats are still working.` : ''
+  return {
+    message: [files, chats].filter(Boolean).join(' '),
+    detail: [
+      unsaved.length ? `${doing} loses those changes.` : '',
+      busy ? `${doing} stops ${busy === 1 ? 'it' : 'them'}; the conversations are saved and you can continue them later.` : ''
+    ]
+      .filter(Boolean)
+      .join(' ')
+  }
 }
 
 function notify(title: string, body: string): void {
@@ -276,6 +297,12 @@ function usageNow(force = false): void {
 }
 
 function registerIpc(): void {
+  ipcMain.on('app:unsaved', (e, names: string[]) => {
+    const id = e.sender.id
+    if (!unsavedByWindow.has(id)) e.sender.once('destroyed', () => unsavedByWindow.delete(id))
+    if (names.length) unsavedByWindow.set(id, names)
+    else unsavedByWindow.set(id, [])
+  })
   ipcMain.handle('state:load', () => state)
   ipcMain.on('state:save', (_e, next: PersistedState) => {
     state = next
@@ -463,7 +490,7 @@ app.whenReady().then(() => {
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
-  setupUpdates({ busyChats: runningChats, window: () => win })
+  setupUpdates({ busyChats: runningChats, unsaved: unsavedFiles, explain: whatQuittingLoses, window: () => win })
   // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With
   // no chat running, each reading starts a Claude Code process, so a Loom left in the background
   // doesn't poll; it also reads them after every reply and when asked.

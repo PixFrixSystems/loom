@@ -98,6 +98,26 @@ function clearLive(tabId: string, which: 'all' | 'thinking' = 'all'): void {
   })
 }
 
+/**
+ * Keeps the main process told which files have unsaved edits in this window, so quitting or
+ * restarting for an update can say so first.
+ */
+function reportUnsaved(get: () => { tabs: Tab[]; dirtyFiles: Record<string, boolean> }): void {
+  let last = ''
+  const send = (): void => {
+    const s = get()
+    const names = s.tabs.filter((t) => t.kind === 'file' && s.dirtyFiles[t.id]).map((t) => t.title)
+    const key = names.join('\n')
+    if (key === last) return
+    last = key
+    window.loom.reportUnsaved(names)
+  }
+  send()
+  useStore.subscribe((s, prev) => {
+    if (s.dirtyFiles !== prev.dirtyFiles || s.tabs !== prev.tabs) send()
+  })
+}
+
 /** A chat with nothing in it yet; a shared value, so selectors that fall back to it stay stable. */
 export const EMPTY_CHAT: ChatRuntime = Object.freeze(newChatRuntime()) as ChatRuntime
 
@@ -483,6 +503,7 @@ export const useStore = create<Store>((set, get) => {
           ready: true
         })
         window.loom.popoutReady()
+        reportUnsaved(get)
         let sent = tab
         let sentChat = ''
         useStore.subscribe((st) => {
@@ -563,6 +584,7 @@ export const useStore = create<Store>((set, get) => {
         if (timer) clearTimeout(timer)
         timer = setTimeout(() => window.loom.saveState(pickPersisted(get())), 250)
       })
+      reportUnsaved(get)
       // A change made just before closing (a tab closed, a divider moved) is sent now, not lost.
       window.addEventListener('beforeunload', () => {
         if (!timer) return
