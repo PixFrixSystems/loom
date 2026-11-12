@@ -1990,3 +1990,79 @@ button.row:disabled {
   text-indent: 0.2em;
 }
 
+/* Linking from inside the page: the camera, full screen, until it sees Loom's code */
+.scan-note {
+  max-width: 52ch;
+  margin-top: 14px;
+  color: var(--text-3);
+  font-size: 15px;
+}
+
+.scanner {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #000;
+  color: var(--text);
+}
+
+.scanner:focus {
+  outline: none;
+}
+
+.scanner::backdrop {
+  background: #000;
+}
+
+.scanner-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.scanner-view video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Where to hold the code: a clear square, everything round it dimmed */
+.scanner-frame {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  width: min(68vw, 46vh, 340px);
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  box-shadow: 0 0 0 200vmax rgba(4, 5, 10, 0.55);
+  translate: -50% -50%;
+}
+
+.scanner-foot {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px calc(24px + env(safe-area-inset-bottom));
+  background: linear-gradient(rgba(4, 5, 10, 0), rgba(4, 5, 10, 0.82) 34%);
+  text-align: center;
+}
+
+.scanner-foot p {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.45;
+}

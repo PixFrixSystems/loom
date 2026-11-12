@@ -1,10 +1,11 @@
 // The page anyone can open at remote.loom.baby: how to link a phone, and what it says while it links.
 // It wears the website's look (loom.baby): the same header and footer, type and lit sheets.
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import wordmark from '@renderer/assets/brand/loom-wordmark.webp'
 import wordmark2x from '@renderer/assets/brand/loom-wordmark@2x.webp'
-import type { PairError } from './link'
+import { isHomeScreenApp, type PairError } from './link'
+import { Scanner } from './Scanner'
 import { useApp } from './state'
 
 const SITE = 'https://loom.baby'
@@ -217,6 +218,7 @@ const WHY: Record<PairError, string> = {
 
 export function LinkScreen(): ReactNode {
   const phase = useApp((s) => s.phase)
+  const [scanning, setScanning] = useState(false)
   if (phase.at === 'linking' && phase.digits) {
     // Scanning only asks. Loom shows the same digits on the PC, where the link is allowed or refused.
     return (
@@ -269,6 +271,23 @@ export function LinkScreen(): ReactNode {
               {note}
             </p>
           ) : null}
+          <div className="actions">
+            <button className="btn primary" onClick={() => setScanning(true)}>
+              Scan the code
+            </button>
+          </div>
+          {/* A copy on the Home Screen keeps its own storage: a code opened by the Camera app links Safari, not it. */}
+          {isHomeScreenApp() ? <p className="scan-note">Scan from here, not with the Camera app: that would link Safari instead of this app.</p> : null}
+          {/* Handing the code over as the address is what the Camera app does: linking starts from there. */}
+          {scanning ? (
+            <Scanner
+              onCode={(hash) => {
+                setScanning(false)
+                location.hash = hash
+              }}
+              onClose={() => setScanning(false)}
+            />
+          ) : null}
         </div>
         <section className="pane" aria-labelledby="how-title">
           <div className="pane-inner">
@@ -282,7 +301,7 @@ export function LinkScreen(): ReactNode {
                 <span>Go to Settings, then Phone access.</span>
               </li>
               <li>
-                <span>Choose Link a phone, and scan the code with this phone&apos;s camera.</span>
+                <span>Choose Link a phone, and scan the code: with Scan the code above, or with this phone&apos;s camera.</span>
               </li>
             </ol>
             <p className="notice">

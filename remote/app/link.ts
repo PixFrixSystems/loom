@@ -103,7 +103,12 @@ function relayUrl(room: string, device: string): string {
   return `${location.origin.replace(/^http/, 'ws')}/v1/room/${room}?role=phone&device=${device}`
 }
 
-/** What Loom's settings call this phone: the device and its browser. */
+/** This page running as an app from the Home Screen, with storage of its own, apart from the browser's. */
+export function isHomeScreenApp(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
+}
+
+/** What Loom's settings call this phone: the device, and its browser or "Home Screen". */
 function deviceName(): string {
   const ua = navigator.userAgent
   const device = /iPhone/.test(ua)
@@ -120,6 +125,7 @@ function deviceName(): string {
             ? 'Mac'
             : 'Device'
   const browser = /Edg(e|A|iOS)?\//.test(ua) ? 'Edge' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : ''
+  if (isHomeScreenApp()) return `${device}, Home Screen`
   return browser ? `${device}, ${browser}` : device
 }
 
