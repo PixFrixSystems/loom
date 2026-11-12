@@ -1374,6 +1374,13 @@
   background: var(--warn);
 }
 
+.history-cut {
+  margin: 0 0 12px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-align: center;
+}
+
 /* Agents Claude started, while they run */
 .tl-agents {
   --dot-y: 12px;

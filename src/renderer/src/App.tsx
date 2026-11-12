@@ -145,8 +145,9 @@ export function App(): ReactNode {
   if (!s.ready) return <div className="boot" />
 
   const style = {
-    '--sbw': s.sidebarOpen ? `${s.sidebarWidth}px` : '0px',
-    '--rpw': s.rightPanelOpen ? `${s.rightPanelWidth}px` : '0px',
+    // Never so wide together that the work area is squeezed out in a narrow window.
+    '--sbw': s.sidebarOpen ? `min(${s.sidebarWidth}px, 30vw)` : '0px',
+    '--rpw': s.rightPanelOpen ? `min(${s.rightPanelWidth}px, 35vw)` : '0px',
     '--filebar': s.tabs.some(inFileRow) ? '32px' : '0px'
   } as CSSProperties
 

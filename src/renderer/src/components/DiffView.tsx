@@ -59,7 +59,8 @@ export function DiffView({ tab, visible = true }: { tab: DiffTab; active: boolea
       ed.setModel({ original: models.current.before, modified: models.current.after })
       editor.current = ed
     }
-    setState(r.before === r.after ? 'same' : 'ready')
+    // Line endings alone (a CRLF checkout) aren't a change worth showing.
+    setState(r.before.replace(/\r\n/g, '\n') === r.after.replace(/\r\n/g, '\n') ? 'same' : 'ready')
   }, [dir, tab.path, tab.commit])
 
   useEffect(() => {

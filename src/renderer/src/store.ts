@@ -563,6 +563,13 @@ export const useStore = create<Store>((set, get) => {
         if (timer) clearTimeout(timer)
         timer = setTimeout(() => window.loom.saveState(pickPersisted(get())), 250)
       })
+      // A change made just before closing (a tab closed, a divider moved) is sent now, not lost.
+      window.addEventListener('beforeunload', () => {
+        if (!timer) return
+        clearTimeout(timer)
+        timer = null
+        window.loom.saveState(pickPersisted(get()))
+      })
       void get().refreshSessions(true)
       for (const p of get().projects) void get().loadIcon(p.id)
       for (const g of get().groups) void get().loadGroupIcon(g.id)
@@ -876,6 +883,8 @@ export const useStore = create<Store>((set, get) => {
       get().openTab({ id: uid(), kind: 'start', projectId: null, title: 'Get started' })
     },
     openLoginTerminal: async () => {
+      const open = get().tabs.find((t) => t.kind === 'terminal' && t.title === 'Sign in to Claude')
+      if (open) return get().activate(open.id)
       const exe = await window.loom.claudeProgram()
       const shell = get().settings.shell
       const run =
@@ -897,6 +906,9 @@ export const useStore = create<Store>((set, get) => {
       get().splitPane('right', tab.id)
     },
     openInstallTerminal: () => {
+      // Pressed again: the terminal already open comes forward instead of a second one.
+      const open = get().tabs.find((t) => t.kind === 'terminal' && t.title === 'Install Claude Code')
+      if (open) return get().activate(open.id)
       // Anthropic's own installer, as its docs give it for each shell.
       const shell = get().settings.shell
       const ps = 'irm https://claude.ai/install.ps1 | iex'

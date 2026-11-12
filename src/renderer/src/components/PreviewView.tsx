@@ -47,6 +47,7 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
   const [first] = useState(tab.url)
   const [address, setAddress] = useState(tab.url)
   const [editing, setEditing] = useState(false)
+  const editingRef = useRef(false)
   const [nav, setNav] = useState({ back: false, forward: false })
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState<string | null>(null)
@@ -62,7 +63,8 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
     const sync = (): void => {
       if (!ready.current) return
       const url = el.getURL()
-      setAddress(url)
+      // Not while you're typing an address: a reload would replace what you typed.
+      if (!editingRef.current) setAddress(url)
       setNav({ back: el.canGoBack(), forward: el.canGoForward() })
       if (url && url !== 'about:blank') update(tab.id, { url } as Partial<BrowserTab>)
     }
@@ -157,9 +159,13 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
           aria-label="Address"
           onFocus={(e) => {
             setEditing(true)
+            editingRef.current = true
             requestAnimationFrame(() => e.target.select())
           }}
-          onBlur={() => setEditing(false)}
+          onBlur={() => {
+            setEditing(false)
+            editingRef.current = false
+          }}
           onChange={(e) => setAddress(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') go(toUrl(address))
@@ -212,7 +218,7 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
                   <Play /> Run {target.script}
                 </button>
               ) : null}
-              <button className="btn ghost" onClick={() => go(address)}>
+              <button className="btn ghost" onClick={() => go(toUrl(address))}>
                 <RotateCw /> Try again
               </button>
             </span>

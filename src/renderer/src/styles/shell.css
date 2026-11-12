@@ -857,6 +857,14 @@
 }
 
 /* ---------- Menus and dropdowns ---------- */
+/* Menus and the image viewer can sit over the title bar, which would otherwise swallow the mouse. */
+.menu,
+.viewer,
+.toasts,
+.confirm-backdrop {
+  -webkit-app-region: no-drag;
+}
+
 .menu {
   position: fixed;
   z-index: 1000;

@@ -2,7 +2,7 @@ import { ArrowDown, FolderOpen, LoaderCircle, SquareTerminal } from 'lucide-reac
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
-import { EMPTY_CHAT, modelName, useLive, useStore } from '../store'
+import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
 import { AgentTasks } from './AgentTasks'
 import { ChatItemView, LiveThinking, timelineClass } from './ChatItems'
 import { Composer } from './Composer'
@@ -162,9 +162,12 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         <button className="icon-btn" title="Open a terminal here" onClick={() => s.newTerminal(tab.projectId)}>
           <SquareTerminal />
         </button>
-        <button className="icon-btn" title="Show files" onClick={() => s.set({ rightPanelOpen: true, rightPanelView: 'files' })}>
-          <FolderOpen />
-        </button>
+        {/* A chat in a window of its own has no side panel to show files in. */}
+        {!POPOUT_TAB ? (
+          <button className="icon-btn" title="Show files" onClick={() => s.set({ rightPanelOpen: true, rightPanelView: 'files' })}>
+            <FolderOpen />
+          </button>
+        ) : null}
       </div>
 
       <div
@@ -182,6 +185,11 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
             </div>
           ) : null}
           {chat.historyState === 'error' ? <div className="note tone-error"><div className="note-line">This conversation could not be loaded. {chat.error}</div></div> : null}
+          {chat.historyState === 'loaded' && chat.historyTotal > chat.items.length && hidden === 0 ? (
+            <p className="history-cut">
+              This chat is long: it shows its last {chat.items.length.toLocaleString()} of {chat.historyTotal.toLocaleString()} steps. The rest stays in its history file.
+            </p>
+          ) : null}
           {hidden > 0 ? (
             <button
               className="load-earlier"

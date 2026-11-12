@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import type { ClaudeSource, LoomSettings, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
 import { timeAgo } from '../lib/paths'
 import { useStore } from '../store'
@@ -40,6 +40,10 @@ export function SettingsView(): ReactNode {
   const s = useStore()
   const st = s.settings
   const info = s.info
+  // Look again for Claude Code each time Settings opens: it may have been installed since.
+  useEffect(() => {
+    void window.loom.claudeInfo().then((next) => useStore.getState().set({ info: next }))
+  }, [])
   const update = (patch: Partial<LoomSettings>): void => s.set({ settings: { ...st, ...patch } })
 
   // The installed Loom app has no bundled copy; there "bundled" quietly means the installed one.
@@ -120,12 +124,16 @@ export function SettingsView(): ReactNode {
         </section>
 
         <section className="set-section">
-          <h2>Terminal</h2>
-          <Row title="Getting started" hint="The first-launch steps: signing in to Claude, adding projects, and how much Claude does without asking.">
+          <h2>Getting started</h2>
+          <Row title="The first-launch steps" hint="Signing in to Claude, adding projects, and how much Claude does without asking.">
             <button className="btn" onClick={() => s.openStart()}>
               Show the steps
             </button>
           </Row>
+        </section>
+
+        <section className="set-section">
+          <h2>Terminal</h2>
           <Row title="Shell" hint="Used for new terminal tabs.">
             <Dropdown<ShellChoice>
               value={st.shell}

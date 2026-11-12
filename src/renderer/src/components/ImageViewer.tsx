@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../store'
 
@@ -9,7 +9,8 @@ export function ImageViewer(): ReactNode {
   const [src, setSrc] = useState<string | null>(null)
   const current = viewer ? viewer.images[viewer.index] : undefined
 
-  useEffect(() => {
+  // Before the frame is drawn, so the previous image never flashes up first.
+  useLayoutEffect(() => {
     if (!current) return
     let gone = false
     setSrc(current.full ?? current.thumb)
