@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noEmit": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@shared/*": ["../src/shared/*"],
+      "@renderer/*": ["../src/renderer/src/*"]
+    }
+  },
+  "include": ["app/**/*", "../src/shared/**/*"]
+}

@@ -14,7 +14,12 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "smoke": "node scripts/smoke.mjs",
     "smoke:live": "node scripts/smoke.mjs --live",
-    "dist": "electron-vite build && electron-builder --win --publish never"
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "remote:types": "wrangler types remote/worker/runtime.d.ts --config remote/wrangler.jsonc",
+    "remote:typecheck": "npm run remote:types && tsc --noEmit -p remote/tsconfig.worker.json && tsc --noEmit -p remote/tsconfig.json",
+    "remote:build": "vite build --config remote/vite.config.mts",
+    "remote:dev": "npm run remote:build && wrangler dev --config remote/wrangler.jsonc --port 8787",
+    "remote:deploy": "npm run remote:build && wrangler deploy --config remote/wrangler.jsonc"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.322",
@@ -37,6 +42,7 @@
     "lucide-react": "^1.72.0",
     "monaco-editor": "^0.57.0",
     "playwright-core": "^1.65.0",
+    "qrcode-generator": "^2.0.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
@@ -44,6 +50,7 @@
     "remark-gfm": "^4.0.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
+    "wrangler": "^4.161.0",
     "zustand": "^5.1.0"
   }
 }

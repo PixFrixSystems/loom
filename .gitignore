@@ -3,3 +3,9 @@ out/
 dist/
 *.log
 *.tsbuildinfo
+
+# Phone access (remote.loom.baby): the built page, wrangler's local state, generated types
+remote/dist/
+remote/.wrangler/
+.wrangler/
+remote/worker/runtime.d.ts
