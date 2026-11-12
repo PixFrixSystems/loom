@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { installingUpdate, setupUpdates } from './updates'
@@ -110,6 +110,17 @@ function windowOptions(): BrowserWindowConstructorOptions {
       webviewTag: true
     }
   }
+}
+
+/**
+ * Electron's default menu comes with a browser's shortcuts, all live even with no menu bar shown:
+ * Ctrl+R reloaded Loom and lost unsaved edits and drafts, Ctrl+Shift+I opened DevTools on Loom,
+ * Ctrl+W closed the window. Loom keeps only zoom; the window draws its own title bar, so no menu
+ * bar appears. Running from source (dev) keeps the default menu, reload and DevTools included.
+ */
+function installMenu(): void {
+  if (isDev) return
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'View', submenu: [{ role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }] }]))
 }
 
 const APP_KEYS = ['w', 't', 'p', 'tab', '\\', '1', '2', '3', '4', '5', '6', '7', '8', '9']
@@ -421,6 +432,7 @@ app.whenReady().then(() => {
       })
     })
   }
+  installMenu()
   registerIpc()
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
