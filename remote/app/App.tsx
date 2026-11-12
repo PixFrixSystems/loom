@@ -3,17 +3,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import type { UsageLimit } from '@shared/types'
 import type { RemoteChatSummary, RemoteProject } from '@shared/remote'
 import { timeAgo } from '@renderer/lib/paths'
-import wordmark from '@renderer/assets/brand/loom-wordmark.webp'
-import wordmark2x from '@renderer/assets/brand/loom-wordmark@2x.webp'
 import { Ask } from './Asks'
-import type { PairError } from './link'
+import { LinkScreen, Wordmark } from './LinkPage'
 import { Picks } from './Picks'
 import { go, useApp, type PhoneChat } from './state'
 import { LiveThought, Markdown, Step, useTick } from './Steps'
-
-function Wordmark(): ReactNode {
-  return <img className="wordmark" src={wordmark} srcSet={`${wordmark2x} 2x`} width={114} height={32} alt="Loom" />
-}
 
 /** A project's mark: its own icon when Loom found one, else its initial on its colour. */
 function Tile({ project }: { project: RemoteProject | null | undefined }): ReactNode {
@@ -24,59 +18,6 @@ function Tile({ project }: { project: RemoteProject | null | undefined }): React
     <span className="tile" style={{ background: `var(--t-${project.color})` }} aria-hidden="true">
       {project.name.trim()[0]?.toUpperCase() ?? ''}
     </span>
-  )
-}
-
-// ---------- Linking ----------
-
-const WHY: Record<PairError, string> = {
-  expired: 'That code has expired or was already used. In Loom, choose Link a phone to show a new one.',
-  full: 'Loom already has as many phones linked as it takes. Remove one in Settings, Phone access, then try again.',
-  version: "This page and the Loom on your PC don't match. Update Loom, then link again.",
-  timeout: "Loom on your PC didn't answer. Check that it is open and online, then show a new code.",
-  'bad-link': "That link isn't a Loom code. Scan the one Loom shows in Settings, Phone access."
-}
-
-function LinkScreen(): ReactNode {
-  const phase = useApp((s) => s.phase)
-  if (phase.at === 'linking') {
-    return (
-      <main className="pair">
-        <Wordmark />
-        <h1>Linking this phone</h1>
-        <p className="lede">
-          <span className="live-dot" /> {phase.pcOff ? 'Waiting for Loom on your PC. Keep it open, with the code on screen.' : 'Talking to Loom on your PC.'}
-        </p>
-      </main>
-    )
-  }
-  const note =
-    phase.at === 'link-failed'
-      ? WHY[phase.why]
-      : phase.at === 'unlinked' && phase.note === 'removed'
-        ? 'This phone was removed in Loom, so it is no longer linked.'
-        : phase.at === 'unlinked' && phase.note === 'forgotten'
-          ? 'This phone is no longer linked.'
-          : null
-  return (
-    <main className="pair">
-      <Wordmark />
-      <h1>Link this phone to Loom</h1>
-      <p className="lede">Your chats stay on your PC. This phone connects to it, so you can follow them, send messages and answer Claude from anywhere.</p>
-      {note ? (
-        <p className="alert" role="alert">
-          {note}
-        </p>
-      ) : null}
-      <ol className="how">
-        <li>Open Loom on your PC.</li>
-        <li>Go to Settings, then Phone access.</li>
-        <li>Choose Link a phone, and scan the code with this phone&apos;s camera.</li>
-      </ol>
-      <p className="fine">
-        Loom is a free app for Windows. <a href="https://loom.baby">Get it at loom.baby</a>
-      </p>
-    </main>
   )
 }
 
