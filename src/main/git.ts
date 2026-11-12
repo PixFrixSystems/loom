@@ -193,6 +193,25 @@ export async function gitDiscard(dir: string, files: { abs: string; untracked: b
 }
 
 /**
+ * What is staged outside the project folder, when the project is one folder of a bigger repository
+ * (the panel lists only the project, but a plain commit takes the whole index). Both names of a
+ * rename count: moving a file in from elsewhere also deletes it there. Null when git can't say.
+ */
+async function stagedOutside(root: string, dir: string): Promise<string[] | null> {
+  if (!toRel(root, dir)) return []
+  try {
+    const list = (out: string): string[] => out.split('\0').filter(Boolean)
+    const all = list(await git(['diff', '--cached', '--name-only', '--no-renames', '-z'], root))
+    if (!all.length) return []
+    // Git itself says which of them are in the project folder, whatever the case or form of its path.
+    const inside = new Set(list(await git(['diff', '--cached', '--name-only', '--no-renames', '-z', '--', '.'], dir)))
+    return all.filter((p) => !inside.has(p))
+  } catch {
+    return null
+  }
+}
+
+/**
  * Commits what is staged; with `stageAll`, everything changed in the project folder first; with
  * `only`, just those files as they are now, leaving anything else that was staged staged.
  */
@@ -211,9 +230,23 @@ export async function gitCommit(dir: string, message: string, stageAll: boolean,
       if (!r.ok) return r
     }
     args = ['commit', '-F', '-', '--only', '--', ...rels]
-  } else if (stageAll) {
-    const r = await attempt(['add', '-A', '--', '.'], dir)
-    if (!r.ok) return r
+  } else {
+    const outside = await stagedOutside(root, dir)
+    if (outside === null) return { ok: false, output: 'Could not check what is staged in this repository.' }
+    if (outside.length) {
+      const names = outside.length > 5 ? `${outside.slice(0, 5).join(', ')} and ${outside.length - 5} more` : outside.join(', ')
+      const one = outside.length === 1
+      return {
+        ok: false,
+        output:
+          `Not committed: ${names} ${one ? 'is' : 'are'} staged outside this project and would go into the commit too.\n` +
+          `Unstage ${one ? 'it' : 'them'} or commit ${one ? 'it' : 'them'} from ${one ? 'its' : 'their'} own project first, or select the files to commit here.`
+      }
+    }
+    if (stageAll) {
+      const r = await attempt(['add', '-A', '--', '.'], dir)
+      if (!r.ok) return r
+    }
   }
   // The message goes in on stdin so new lines and quotes survive as typed.
   return new Promise((resolve) => {
