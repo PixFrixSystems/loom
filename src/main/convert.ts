@@ -142,6 +142,25 @@ function stripTags(text: string): string {
     .trim()
 }
 
+/** "claude-fable-5-2" as "Fable 5.2", "claude-haiku-4-5-20251001" as "Haiku 4.5". */
+export function prettyModel(id: string): string {
+  const parts = id.replace(/^claude-/, '').replace(/\[.*\]$/, '').replace(/-\d{8}$/, '').split('-')
+  const name = parts.find((p) => /[a-z]/i.test(p))
+  if (!name) return id
+  const version = parts.filter((p) => /^\d+$/.test(p)).join('.')
+  return `${name[0].toUpperCase()}${name.slice(1)}${version ? ` ${version}` : ''}`
+}
+
+/** The model a saved or live assistant message came from, when it is a real Claude model. */
+export function messageModel(message: unknown): string | null {
+  const model = (message as { model?: unknown } | null)?.model
+  return typeof model === 'string' && model.startsWith('claude-') ? model : null
+}
+
+export function modelNote(model: string, id: string): ChatItem {
+  return { kind: 'note', id: `model:${id}`, tone: 'info', text: `Switched to ${prettyModel(model)}` }
+}
+
 function tagValue(text: string, tag: string): string {
   return text.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`))?.[1]?.trim() ?? ''
 }
@@ -261,6 +280,7 @@ export function historyToItems(messages: HistoryMessage[]): ChatItem[] {
   let prev = NaN
   let turnStart = NaN
   let turnEnd = NaN
+  let model = ''
   const endTurn = (): void => {
     if (turnEnd - turnStart >= 1000) items.push({ kind: 'done', id: `done:${turnStart}`, ms: turnEnd - turnStart })
     turnStart = NaN
@@ -271,6 +291,12 @@ export function historyToItems(messages: HistoryMessage[]): ChatItem[] {
     const msg = (m.message ?? {}) as Json
     const at = m.timestamp ? Date.parse(m.timestamp) : NaN
     if (m.type === 'assistant') {
+      // A reply from another model than the one before: say so above it.
+      const from = messageModel(msg)
+      if (from) {
+        if (model && from !== model) items.push(modelNote(from, m.uuid))
+        model = from
+      }
       for (const item of assistantItems(msg.content, m.uuid, m.timestamp)) {
         if (item.kind === 'thinking' && at - prev > 0) item.ms = at - prev
         if (item.kind === 'tool') {

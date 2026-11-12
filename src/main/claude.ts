@@ -36,7 +36,7 @@ import type {
   SessionSummary,
   SlashCommandInfo
 } from '@shared/types'
-import { assistantItems, describeTool, historyToItems, parseUserContent, truncate } from './convert'
+import { assistantItems, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
 import { fillThumbnails } from './images'
 
 type Sdk = typeof import('@anthropic-ai/claude-agent-sdk')
@@ -312,11 +312,23 @@ export function commandsFor(cwd: string, settings: LoomSettings): Promise<SlashC
   return list
 }
 
+/** The model of each chat's last reply in its saved history. */
+const lastModels = new Map<string, string>()
+
 export async function loadHistory(sessionId: string): Promise<HistoryResult> {
   try {
     const sdk = await loadSdk()
     const messages = await sdk.getSessionMessages(sessionId, { includeSystemMessages: false })
     const items = historyToItems(messages as Parameters<typeof historyToItems>[0])
+    // The model of the last reply, so the next one can say if it comes from another.
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i] as { type: string; parent_tool_use_id?: string | null; message?: unknown }
+      const model = m.type === 'assistant' && !m.parent_tool_use_id ? messageModel(m.message) : null
+      if (model) {
+        lastModels.set(sessionId, model)
+        break
+      }
+    }
     const total = items.length
     const shown = total > HISTORY_LIMIT ? items.slice(-HISTORY_LIMIT) : items
     fillThumbnails(shown)
@@ -381,6 +393,8 @@ class ChatSession {
   private partial = ''
   private busy = false
   private status: ChatStatus = 'idle'
+  /** The model of the last reply, to notice when the next comes from another */
+  private lastModel: string | null = null
   /** Set by Stop, so the turn's end reads as stopped rather than as an error */
   private stopRequested = false
   /** Questions waiting for an answer, re-sent to a window that takes the chat over */
@@ -560,6 +574,13 @@ class ChatSession {
         if (m.parent_tool_use_id) return
         this.clearPartial()
         const items = assistantItems(m.message.content, m.uuid)
+        const model = messageModel(m.message)
+        if (model) {
+          const before = this.lastModel ?? (this.sessionId ? lastModels.get(this.sessionId) : undefined) ?? null
+          if (before && before !== model) items.unshift(modelNote(model, m.uuid))
+          this.lastModel = model
+          if (this.sessionId) lastModels.set(this.sessionId, model)
+        }
         const now = Date.now()
         for (const it of items) {
           if (it.kind === 'thinking') it.ms = now - this.mark
