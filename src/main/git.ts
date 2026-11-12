@@ -32,19 +32,22 @@ async function attempt(args: string[], cwd: string, timeout = 120000): Promise<G
   }
 }
 
-const roots = new Map<string, string | null>()
+const roots = new Map<string, { root: string | null; at: number }>()
 
 /** The repository a folder belongs to, or null when it isn't in one. */
 export async function repoRoot(dir: string): Promise<string | null> {
   const key = dir.toLowerCase()
-  if (roots.has(key)) return roots.get(key)!
+  const known = roots.get(key)
+  // A repository is remembered; "not a repository" only for a few seconds, so a folder that gets
+  // a git init or a clone shows up without restarting Loom.
+  if (known && (known.root || Date.now() - known.at < 5000)) return known.root
   let root: string | null = null
   try {
     root = (await git(['rev-parse', '--show-toplevel'], dir, 8000)).trim().replace(/\//g, '\\')
   } catch {
     root = null
   }
-  roots.set(key, root)
+  roots.set(key, { root, at: Date.now() })
   return root
 }
 
