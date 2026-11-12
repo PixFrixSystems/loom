@@ -51,7 +51,7 @@ Group projects in the sidebar; each one picks up its site's favicon. A group can
 
 ### Your chats on your phone
 
-Link a phone in Settings, Phone access: Loom shows a QR code, the phone scans it, and from then on [remote.loom.baby](https://remote.loom.baby) on that phone shows the chats open in Loom. Follow a chat as Claude writes, send messages, stop it, and answer its approvals, questions and plans, from anywhere. Loom has to be running on the PC, which still does all the work.
+Link a phone in Settings, Phone access: Loom shows a QR code, the phone scans it, and Loom asks you on the PC whether to let it in, with the same four digits on both screens. From then on [remote.loom.baby](https://remote.loom.baby) on that phone shows your projects and their chats. Follow a chat as Claude writes, send messages and pictures, stop it, pick its model and effort, and answer its approvals, questions and plans, from anywhere. Loom has to be running on the PC, which still does all the work. The page can be added to the phone's Home Screen; that copy keeps its own storage, so link it with the Scan the code button inside it rather than with the Camera app.
 
 The phone and the PC talk through a small relay, and everything between them is encrypted with a key only the two hold: the relay passes sealed messages along and cannot read them. Phone access is off until you link a phone, each phone can be removed in Settings, and the status bar says when one is connected.
 
