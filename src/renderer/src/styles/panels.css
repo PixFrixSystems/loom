@@ -1791,3 +1791,21 @@
 .start-actions[hidden] {
   display: none;
 }
+
+/* Ctrl+P: chats above files, each under a quiet heading */
+.palette-group {
+  padding: 8px 10px 4px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.palette-group:first-child {
+  padding-top: 4px;
+}
+
+.palette-chat-where {
+  flex: none;
+  max-width: 45%;
+  font-family: var(--font-ui);
+}

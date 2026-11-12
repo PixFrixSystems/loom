@@ -1,6 +1,7 @@
-import { FileText } from 'lucide-react'
+import { FileText, MessageSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { joinPath } from '../lib/paths'
+import type { SessionSummary } from '@shared/types'
+import { joinPath, projectForPath, timeAgo } from '../lib/paths'
 import { useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 import { projectFileList } from './RightPanel'
@@ -31,6 +32,32 @@ function lit(name: string, q: string): ReactNode {
       {name.slice(at + q.length)}
     </>
   )
+}
+
+/** A chat Ctrl+P can open: one open in a tab, or one saved in Claude Code's history. */
+interface ChatHit {
+  key: string
+  title: string
+  projectId: string | null
+  projectName: string
+  when: number
+  tabId?: string
+  session?: SessionSummary
+}
+
+/** How well a chat matches: by its title first, then by its project's name ("loom" finds Loom's chats). */
+function chatScore(c: ChatHit, q: string): number {
+  const title = c.title.toLowerCase()
+  if (title.startsWith(q)) return 80
+  if (title.includes(q)) return 60
+  // Only whole runs of what you typed: loose letter-by-letter matches find too many chats.
+  if (c.projectName.toLowerCase().includes(q)) return 40
+  return -1
+}
+
+/** The last folder of a path, for chats from folders that aren't projects. */
+function folderName(path: string): string {
+  return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? path
 }
 
 export function QuickOpen(): ReactNode {
@@ -66,6 +93,42 @@ export function QuickOpen(): ReactNode {
     }
   }, [project?.path])
 
+  // Saved chats, freshly listed: a chat from a minute ago is findable too.
+  useEffect(() => {
+    void s.refreshSessions()
+  }, [])
+
+  // Every chat Loom knows of: open tabs, then saved ones not open, newest first.
+  const allChats = useMemo(() => {
+    const out: ChatHit[] = []
+    const openIds = new Set<string>()
+    for (const t of s.tabs) {
+      if (t.kind !== 'chat') continue
+      if (t.sessionId) openIds.add(t.sessionId)
+      const p = s.projects.find((x) => x.id === t.projectId)
+      const saved = t.sessionId ? s.sessions.find((x) => x.sessionId === t.sessionId) : undefined
+      out.push({ key: `tab:${t.id}`, title: t.title, projectId: t.projectId, projectName: p?.name ?? folderName(t.cwd), when: saved?.lastModified ?? Date.now(), tabId: t.id })
+    }
+    for (const x of s.sessions) {
+      if (openIds.has(x.sessionId)) continue
+      const p = projectForPath(s.projects, x.cwd)
+      out.push({ key: `s:${x.sessionId}`, title: x.title, projectId: p?.id ?? null, projectName: p?.name ?? folderName(x.cwd), when: x.lastModified, session: x })
+    }
+    return out.sort((a, b) => b.when - a.when)
+  }, [s.tabs, s.sessions, s.projects])
+
+  const chatResults = useMemo(() => {
+    const query = q.trim().toLowerCase()
+    // Nothing typed: this project's latest few chats, above its files.
+    if (!query) return allChats.filter((c) => c.projectId === projectId).slice(0, 5)
+    return allChats
+      .map((c) => ({ c, sc: chatScore(c, query) }))
+      .filter((x) => x.sc >= 0)
+      .sort((a, b) => b.sc - a.sc || b.c.when - a.c.when)
+      .slice(0, 12)
+      .map((x) => x.c)
+  }, [allChats, q, projectId])
+
   const results = useMemo(() => {
     if (!files) return []
     const query = q.trim().toLowerCase().replace(/\//g, '\\')
@@ -78,6 +141,12 @@ export function QuickOpen(): ReactNode {
       .map((x) => x.f)
   }, [files, q])
 
+  // One list for the keyboard: the chats, then the files.
+  const rows: ({ kind: 'chat'; chat: ChatHit } | { kind: 'file'; rel: string })[] = [
+    ...chatResults.map((chat) => ({ kind: 'chat' as const, chat })),
+    ...results.map((rel) => ({ kind: 'file' as const, rel }))
+  ]
+
   useEffect(() => setIndex(0), [q, projectId])
   useEffect(() => {
     list.current?.querySelector('.palette-row.active')?.scrollIntoView({ block: 'nearest' })
@@ -88,26 +157,37 @@ export function QuickOpen(): ReactNode {
     s.openFile(joinPath(project.path, rel), project.id)
     close()
   }
+  const openChat = (c: ChatHit): void => {
+    if (c.tabId) s.activate(c.tabId)
+    else if (c.session) s.openSession(c.session)
+    close()
+  }
+  const pick = (i: number): void => {
+    const row = rows[i]
+    if (!row) return
+    if (row.kind === 'chat') openChat(row.chat)
+    else choose(row.rel)
+  }
 
   return (
     <div className="palette-backdrop" onMouseDown={close}>
-      <div className="palette" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="Open a file">
+      <div className="palette" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="Open a chat or a file">
         <div className="palette-input">
           <input
             ref={input}
             className="field"
-            placeholder={project ? `Open a file in ${project.name}` : 'Add a project first'}
+            placeholder={project ? `Open a chat, or a file in ${project.name}` : 'Open a chat'}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') close()
               else if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setIndex((i) => Math.min(i + 1, results.length - 1))
+                setIndex((i) => Math.min(i + 1, rows.length - 1))
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault()
                 setIndex((i) => Math.max(i - 1, 0))
-              } else if (e.key === 'Enter' && results[index]) choose(results[index])
+              } else if (e.key === 'Enter') pick(index)
               else if (e.key === 'Tab' && s.projects.length > 1) {
                 e.preventDefault()
                 const i = s.projects.findIndex((p) => p.id === projectId)
@@ -124,9 +204,30 @@ export function QuickOpen(): ReactNode {
           ) : null}
         </div>
         <div ref={list} className="palette-list" role="listbox">
+          {chatResults.length ? <div className="palette-group">Chats</div> : null}
+          {chatResults.map((c, i) => (
+            <button
+              key={c.key}
+              role="option"
+              aria-selected={i === index}
+              className={`palette-row${i === index ? ' active' : ''}`}
+              onMouseMove={() => i !== index && setIndex(i)}
+              onClick={() => openChat(c)}
+            >
+              <MessageSquare className="tree-icon" />
+              <span className="tree-name">{lit(c.title, needle)}</span>
+              <span className="tree-dir palette-chat-where">
+                {c.projectName ? `${c.projectName}, ` : ''}
+                {c.tabId ? 'open' : timeAgo(c.when)}
+              </span>
+            </button>
+          ))}
+          {chatResults.length && (results.length || !files) ? <div className="palette-group">Files</div> : null}
           {!files && project ? <p className="pane-note pad">Listing files…</p> : null}
-          {files && !results.length ? <p className="pane-note pad">Nothing matches.</p> : null}
-          {results.map((rel, i) => (
+          {files && !results.length && !chatResults.length ? <p className="pane-note pad">Nothing matches.</p> : null}
+          {results.map((rel, fi) => {
+            const i = chatResults.length + fi
+            return (
             <button
               key={rel}
               role="option"
@@ -139,7 +240,8 @@ export function QuickOpen(): ReactNode {
               <span className="tree-name">{lit(rel.slice(rel.lastIndexOf('\\') + 1), needle)}</span>
               <span className="tree-dir">{rel.includes('\\') ? rel.slice(0, rel.lastIndexOf('\\')) : ''}</span>
             </button>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>
