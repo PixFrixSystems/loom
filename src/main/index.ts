@@ -68,6 +68,7 @@ import {
   writeServer
 } from './servers'
 import { closeAllPopouts, setupPopouts } from './popouts'
+import { cancelLogin, loginState, startLogin, submitLoginCode } from './login'
 import { emptyState, flushBounds, flushState, loadBounds, loadState, saveBounds, saveState } from './state'
 
 const isDev = !app.isPackaged && !!process.env.ELECTRON_RENDERER_URL
@@ -338,8 +339,12 @@ function registerIpc(): void {
     if (r.ok) accountChanged()
     return r
   })
-  // Signed in as someone else (a sign-in finished in its terminal): chats and limits follow.
+  // Signed in as someone else: chats and limits follow.
   ipcMain.on('claude:accountChanged', () => accountChanged())
+  ipcMain.handle('login:start', () => startLogin(claudeProgram(settings()), accountChanged))
+  ipcMain.handle('login:state', () => loginState())
+  ipcMain.on('login:code', (_e, code: string) => submitLoginCode(code))
+  ipcMain.on('login:cancel', () => cancelLogin())
   ipcMain.handle('claude:program', () => claudeProgram(settings()))
   ipcMain.handle('fs:dirsExist', (_e, paths: string[]) => dirsExist(paths))
   ipcMain.handle('fs:subfolders', (_e, dir: string) => listSubfolders(dir))
@@ -552,6 +557,7 @@ app.on('before-quit', (e) => {
       closeAllChats()
       killAllTerminals()
       killAllServers()
+      cancelLogin()
     } catch (err) {
       console.error('[quit]', err)
     } finally {

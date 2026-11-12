@@ -6,6 +6,7 @@ import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
 import { account } from './Onboarding'
+import { SignInPanel } from './SignIn'
 
 /**
  * Who Loom chats as: the Claude Code sign-in on this PC. Sign out, or switch to another account
@@ -30,18 +31,6 @@ function AccountRow(): ReactNode {
   useEffect(() => {
     void check()
   }, [])
-  // Waiting for a sign-in to finish in its terminal.
-  useEffect(() => {
-    if (busy !== 'waiting') return
-    const t = setInterval(() => {
-      void check().then((a) => a.loggedIn && setBusy(null))
-    }, 3000)
-    const stop = setTimeout(() => setBusy(null), 5 * 60_000)
-    return () => {
-      clearInterval(t)
-      clearTimeout(stop)
-    }
-  }, [busy])
 
   const signOut = async (): Promise<boolean> => {
     setBusy('out')
@@ -51,10 +40,7 @@ function AccountRow(): ReactNode {
     if (!r.ok) s.showToast(`Couldn't sign out: ${r.error ?? 'Claude Code did not answer.'}`)
     return r.ok
   }
-  const signIn = (): void => {
-    setBusy('waiting')
-    void s.openLoginTerminal()
-  }
+  const signIn = (): void => setBusy('waiting')
 
   const hint =
     auth === null
@@ -63,12 +49,18 @@ function AccountRow(): ReactNode {
         ? "Claude Code isn't installed on this PC, so there is no account yet. Get started below installs it."
         : auth.loggedIn
           ? `${account(auth)} Chats, plan limits and Claude Code in your terminals all use this account.`
-          : busy === 'waiting'
-            ? 'Finish signing in in the terminal and your browser; this updates by itself.'
-            : 'Not signed in. Chats need a Claude account.'
+          : 'Not signed in. Chats need a Claude account.'
   return (
     <Row title="Account" hint={hint}>
-      <div className="set-actions">
+      {busy === 'waiting' ? (
+        <SignInPanel
+          onEnd={() => {
+            setBusy(null)
+            void check()
+          }}
+        />
+      ) : null}
+      <div className="set-actions" hidden={busy === 'waiting'}>
         {auth?.loggedIn ? (
           <>
             <button

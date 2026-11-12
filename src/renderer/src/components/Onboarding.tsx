@@ -5,6 +5,7 @@ import { normPath, projectForPath, timeAgo } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { ProjectMark } from './ProjectMark'
+import { SignInPanel } from './SignIn'
 
 const PLANS: Record<string, string> = { max: 'Max', pro: 'Pro', team: 'Team', enterprise: 'Enterprise', free: 'Free' }
 
@@ -178,16 +179,15 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
               <>
                 <p>Loom chats through Claude Code and uses its sign-in. This PC isn&apos;t signed in yet.</p>
                 {signingIn ? (
-                  <p className="start-hint">A terminal opened beside this. Finish signing in in your browser; this step turns green by itself.</p>
-                ) : null}
-                <div className="start-actions">
-                  <button
-                    className="btn primary"
-                    onClick={() => {
-                      setSigningIn(true)
-                      void s.openLoginTerminal()
+                  <SignInPanel
+                    onEnd={() => {
+                      setSigningIn(false)
+                      void check()
                     }}
-                  >
+                  />
+                ) : null}
+                <div className="start-actions" hidden={signingIn}>
+                  <button className="btn primary" onClick={() => setSigningIn(true)}>
                     <LogIn /> Sign in
                   </button>
                   <button className="btn ghost" disabled={checking} onClick={() => void check()}>

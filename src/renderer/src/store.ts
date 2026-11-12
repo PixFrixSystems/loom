@@ -273,8 +273,6 @@ interface Store extends PersistedState {
   openSettings: () => void
   /** The getting-started steps, in a tab of their own. */
   openStart: () => void
-  /** Opens a terminal beside the steps running `claude auth login`. */
-  openLoginTerminal: () => Promise<void>
   /** Runs Anthropic's Claude Code installer in a terminal beside the getting-started steps. */
   openInstallTerminal: () => void
 
@@ -909,29 +907,6 @@ export const useStore = create<Store>((set, get) => {
       const open = get().tabs.find((t) => t.kind === 'start')
       if (open) return get().activate(open.id)
       get().openTab({ id: uid(), kind: 'start', projectId: null, title: 'Get started' })
-    },
-    openLoginTerminal: async () => {
-      const open = get().tabs.find((t) => t.kind === 'terminal' && t.title === 'Sign in to Claude')
-      if (open) return get().activate(open.id)
-      const exe = await window.loom.claudeProgram()
-      const shell = get().settings.shell
-      const run =
-        shell === 'powershell'
-          ? `& "${exe}" auth login`
-          : shell === 'gitbash'
-            ? `"${exe.replace(/\\/g, '/')}" auth login`
-            : `"${exe}" auth login`
-      const tab: TerminalTab = {
-        id: uid(),
-        kind: 'terminal',
-        projectId: null,
-        cwd: get().info?.homeDir ?? 'C:\\',
-        title: 'Sign in to Claude',
-        run
-      }
-      set((s) => ({ tabs: [...s.tabs, tab] }))
-      // Beside the steps, so both stay in view while the browser does the signing in.
-      get().splitPane('right', tab.id)
     },
     openInstallTerminal: () => {
       // Pressed again: the terminal already open comes forward instead of a second one.

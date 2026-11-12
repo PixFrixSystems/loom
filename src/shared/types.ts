@@ -545,6 +545,15 @@ export interface ClaudeInfo {
 }
 
 /** Whether Claude Code is signed in on this PC, from `claude auth status`. */
+/** Signing in to Claude, as Loom shows it */
+export interface LoginState {
+  status: 'idle' | 'waiting' | 'done' | 'failed'
+  /** The sign-in page, once Claude Code has said where it is */
+  url?: string
+  /** Why it failed */
+  message?: string
+}
+
 export interface AuthStatus {
   loggedIn: boolean
   email?: string

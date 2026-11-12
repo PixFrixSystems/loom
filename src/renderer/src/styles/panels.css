@@ -1722,3 +1722,72 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ---------- Signing in to Claude, without a terminal ---------- */
+.signin {
+  display: grid;
+  gap: 10px;
+  max-width: 460px;
+  margin-top: 2px;
+}
+
+.signin-status,
+.signin-fail,
+.signin-hint {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.signin-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-2);
+}
+
+.signin-status svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  color: var(--light);
+}
+
+.signin-fail {
+  color: var(--danger);
+}
+
+.signin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signin-code {
+  display: grid;
+  gap: 6px;
+}
+
+.signin-code label,
+.signin-hint {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.signin-row {
+  display: flex;
+  gap: 8px;
+}
+
+.signin-row .field {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-code);
+  font-size: 12px;
+}
+
+/* Their buttons step aside while a sign-in runs */
+.set-actions[hidden],
+.start-actions[hidden] {
+  display: none;
+}
