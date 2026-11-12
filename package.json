@@ -1,7 +1,7 @@
 {
   "name": "loom",
   "productName": "Loom",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "One window for all your projects and Claude chats",
   "private": true,
   "main": "out/main/index.js",
