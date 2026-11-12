@@ -79,6 +79,9 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   const [focusKey, setFocusKey] = useState(0)
   /** The scroll height before "Show earlier messages", to keep your place after they're added above. */
   const grownFrom = useRef<number | null>(null)
+  /** The content's height at the last change, and when it last got shorter while you were scrolled up */
+  const lastHeight = useRef(0)
+  const shrankAt = useRef(0)
 
   useEffect(() => {
     if (shown && tab.sessionId && chat.historyState === 'none') void s.loadHistory(tab.id)
@@ -115,6 +118,10 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   useLayoutEffect(() => {
     const el = scroller.current
     if (!el) return
+    // A finished reply replaces the one being written, and for a moment the chat is shorter: the
+    // browser then pulls the view to the bottom on its own. That isn't you scrolling down.
+    if (!stick.current && el.scrollHeight < lastHeight.current) shrankAt.current = Date.now()
+    lastHeight.current = el.scrollHeight
     if (grownFrom.current !== null) {
       // Earlier messages went in above: stay on what you were reading.
       el.scrollTop += el.scrollHeight - grownFrom.current
@@ -132,8 +139,8 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     const el = scroller.current
     if (!el) return
     const left = el.scrollHeight - el.scrollTop - el.clientHeight
-    // Only reaching the very bottom follows new output again.
-    if (left < 4) stick.current = true
+    // Only reaching the very bottom yourself follows new output again.
+    if (left < 4 && Date.now() - shrankAt.current > 400) stick.current = true
     const near = left < 80
     if (near !== atBottom) setAtBottom(near)
   }
