@@ -57,6 +57,7 @@ import {
   dismissServer,
   killAllServers,
   listServers,
+  missingPackages,
   restartServer,
   serverLog,
   startServer,
@@ -430,9 +431,10 @@ function registerIpc(): void {
   // Dev servers
   ipcMain.handle('run:detect', (_e, root: string, others: string[]) => detectRunTargets(root, others))
   ipcMain.handle('server:list', () => listServers())
-  ipcMain.handle('server:start', (_e, projectId: string, target: RunTarget) => startServer(projectId, target))
+  ipcMain.handle('server:start', (_e, projectId: string, target: RunTarget, install?: boolean) => startServer(projectId, target, !!install))
+  ipcMain.handle('server:missingPackages', (_e, target: RunTarget) => missingPackages(target))
   ipcMain.handle('server:stop', (_e, id: string) => stopServer(id))
-  ipcMain.handle('server:restart', (_e, id: string) => restartServer(id))
+  ipcMain.handle('server:restart', (_e, id: string, install?: boolean) => restartServer(id, !!install))
   ipcMain.handle('server:dismiss', (_e, id: string) => dismissServer(id))
   ipcMain.handle('server:log', (_e, id: string) => serverLog(id))
   ipcMain.on('server:write', (_e, id: string, data: string) => writeServer(id, data))

@@ -1,4 +1,4 @@
-import { ChevronDown, Globe, LoaderCircle, Play, RotateCw, ScrollText, Server, Square, X } from 'lucide-react'
+import { ChevronDown, Download, Globe, LoaderCircle, Play, RotateCw, ScrollText, Server, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { Project, RunTarget, ServerInfo } from '@shared/types'
@@ -27,7 +27,7 @@ function runTitle(t: RunTarget): string {
 }
 
 function stateText(x: ServerInfo): string {
-  if (x.status === 'starting') return 'Starting'
+  if (x.status === 'starting') return x.installing ? 'Installing dependencies' : 'Starting'
   if (x.status === 'stopping') return 'Stopping'
   if (x.status === 'running') return x.url ? hostOf(x.url) : 'Running'
   if (x.status === 'exited') return x.exitCode === 0 ? 'Finished' : `Exited, code ${x.exitCode}`
@@ -52,14 +52,18 @@ export function defaultTarget(project: Project, targets: RunTarget[] | undefined
 export function ServerControls({
   server,
   output = true,
-  dismiss = false
+  dismiss = false,
+  reason = true
 }: {
   server: ServerInfo
   output?: boolean
   dismiss?: boolean
+  /** Say why it ended next to its state; off where the reason has a line of its own */
+  reason?: boolean
 }): ReactNode {
   const s = useStore.getState()
   const live = isLive(server)
+  const why = failed(server) ? server.reason : null
   return (
     <span className="srv-controls">
       {server.status === 'running' && server.url ? (
@@ -68,9 +72,10 @@ export function ServerControls({
           {hostOf(server.url)}
         </button>
       ) : (
-        <span className={`srv-state${failed(server) ? ' is-failed' : ''}`} role="status">
+        <span className={`srv-state${failed(server) ? ' is-failed' : ''}`} role="status" title={why ?? undefined}>
           {server.status === 'starting' || server.status === 'stopping' ? <LoaderCircle className="spin" /> : null}
-          {stateText(server)}
+          {why && reason ? `${stateText(server)}:` : stateText(server)}
+          {why && reason ? <span className="srv-reason">{why}</span> : null}
         </span>
       )}
       {server.status === 'running' && server.url ? (
@@ -94,6 +99,16 @@ export function ServerControls({
         </>
       ) : (
         <>
+          {server.needsInstall ? (
+            <button
+              className="run-btn"
+              title={`Install the dependencies, then run ${server.target.command}`}
+              onClick={() => s.restartServer(server.id, true)}
+            >
+              <Download />
+              Install and run
+            </button>
+          ) : null}
           <button className="icon-btn small" title={`Run ${server.target.command} again`} onClick={() => s.restartServer(server.id)}>
             <Play />
           </button>
@@ -174,7 +189,11 @@ export function ServerMark({ projectId }: { projectId: string }): ReactNode {
   }
   if (failed(server)) {
     return (
-      <button className="srv-port is-failed" title={`${server.target.command} exited with code ${server.exitCode}. Show output`} onClick={open}>
+      <button
+        className="srv-port is-failed"
+        title={`${server.target.command} exited with code ${server.exitCode}${server.reason ? `: ${server.reason}` : ''}. Show output`}
+        onClick={open}
+      >
         exited
       </button>
     )
@@ -200,6 +219,7 @@ export function projectRunItems(project: Project): MenuItem[] {
           { label: single ? 'Stop the server' : 'Stop', onSelect: () => s.stopServer(x.id) }
         ]
       : [
+          ...(x.needsInstall ? [{ label: 'Install dependencies and run', onSelect: () => s.restartServer(x.id, true) }] : []),
           { label: single ? 'Show server output' : 'Show output', onSelect: () => s.showServerOutput(x.id) },
           { label: `Run ${x.target.command} again`, onSelect: () => s.restartServer(x.id) }
         ]
@@ -263,8 +283,13 @@ function ServersPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => v
                 {x.target.command}
                 {x.target.where ? ` in ${x.target.where}` : ''}
               </span>
+              {failed(x) && x.reason ? (
+                <span className="srv-row-why" title={x.reason}>
+                  {x.reason}
+                </span>
+              ) : null}
             </div>
-            <ServerControls server={x} dismiss />
+            <ServerControls server={x} dismiss reason={false} />
           </div>
         )
       })}
@@ -296,7 +321,7 @@ export function ServersStatus(): ReactNode {
     <>
       <button
         className={`sb-usage sb-servers${bad ? ' is-failed' : ''}`}
-        title="Dev servers"
+        title={one && failed(one) && one.reason ? `Dev servers. ${one.reason}` : 'Dev servers'}
         aria-expanded={!!anchor}
         onClick={(e) => setAnchor(anchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())}
       >

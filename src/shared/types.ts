@@ -208,6 +208,20 @@ export interface ServerInfo {
   url: string | null
   exitCode: number | null
   startedAt: number
+  /** Why it ended: something Loom recognised in its output, or the output's last error line */
+  reason?: string | null
+  /** It ended because the project's packages aren't installed, so installing them is the fix */
+  needsInstall?: boolean
+  /** Installing the project's packages first, before running it */
+  installing?: boolean
+}
+
+/** How to install a Node project's packages: the command, and the folder it runs in. */
+export interface InstallStep {
+  /** e.g. "npm install" */
+  command: string
+  /** The project's folder, or the workspace root it belongs to */
+  cwd: string
 }
 
 export type ClaudeSource = 'bundled' | 'installed' | 'custom'

@@ -18,6 +18,7 @@ import type {
   EffortLevel,
   HistoryResult,
   ImageAttachment,
+  InstallStep,
   PermissionMode,
   PermissionResponse,
   PersistedState,
@@ -173,9 +174,12 @@ const api = {
 
   detectRun: (root: string, others: string[]): Promise<RunTarget[]> => ipcRenderer.invoke('run:detect', root, others),
   serverList: (): Promise<ServerInfo[]> => ipcRenderer.invoke('server:list'),
-  serverStart: (projectId: string, target: RunTarget): Promise<ServerInfo> => ipcRenderer.invoke('server:start', projectId, target),
+  serverStart: (projectId: string, target: RunTarget, install?: boolean): Promise<ServerInfo> =>
+    ipcRenderer.invoke('server:start', projectId, target, install),
+  /** How to install a target's packages when it lists some that were never installed, else null */
+  serverMissingPackages: (target: RunTarget): Promise<InstallStep | null> => ipcRenderer.invoke('server:missingPackages', target),
   serverStop: (id: string): Promise<void> => ipcRenderer.invoke('server:stop', id),
-  serverRestart: (id: string): Promise<void> => ipcRenderer.invoke('server:restart', id),
+  serverRestart: (id: string, install?: boolean): Promise<void> => ipcRenderer.invoke('server:restart', id, install),
   serverDismiss: (id: string): Promise<void> => ipcRenderer.invoke('server:dismiss', id),
   serverLog: (id: string): Promise<{ text: string; end: number } | null> => ipcRenderer.invoke('server:log', id),
   serverWrite: (id: string, data: string): void => ipcRenderer.send('server:write', id, data),

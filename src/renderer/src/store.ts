@@ -308,7 +308,8 @@ interface Store extends PersistedState {
   /** Starts the given target, or the project's usual one. */
   runProject: (projectId: string, targetId?: string) => Promise<void>
   stopServer: (serverId: string) => void
-  restartServer: (serverId: string) => void
+  /** Runs a server again; `install` installs its project's dependencies first. */
+  restartServer: (serverId: string, install?: boolean) => void
   dismissServer: (serverId: string) => void
   showServerOutput: (serverId: string) => void
   refreshUsage: (force?: boolean) => Promise<void>
@@ -1186,11 +1187,30 @@ export const useStore = create<Store>((set, get) => {
         targets.find((t) => t.id === targetId) ?? targets.find((t) => t.id === p.runTargetId) ?? targets[0]
       if (!target) return
       if (targetId && targetId !== p.runTargetId) get().updateProject(projectId, { runTargetId: targetId })
-      const info = await window.loom.serverStart(projectId, target)
+      // A fresh clone has no node_modules yet, so running it would only stop at once. Offer to install first.
+      const missing = await window.loom.serverMissingPackages(target)
+      let install = false
+      if (missing) {
+        const elsewhere = normPath(missing.cwd) !== normPath(target.cwd) ? ` in ${missing.cwd}` : ''
+        const choice = await get().ask({
+          title: 'Dependencies are not installed',
+          body: `${p.name} lists packages it needs, but they were never installed here, so ${target.command} would stop at once. Install and run runs ${missing.command}${elsewhere} first, which can take a minute or two.`,
+          choices: [
+            { id: 'install', label: 'Install and run', kind: 'primary' },
+            { id: 'run', label: 'Run anyway', kind: 'ghost' },
+            { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+          ],
+          cancel: 'cancel',
+          focus: 'install'
+        })
+        if (choice === 'cancel') return
+        install = choice === 'install'
+      }
+      const info = await window.loom.serverStart(projectId, target, install)
       set((s) => ({ servers: s.servers.some((x) => x.id === info.id) ? s.servers : [...s.servers, info] }))
     },
     stopServer: (serverId) => void window.loom.serverStop(serverId),
-    restartServer: (serverId) => void window.loom.serverRestart(serverId),
+    restartServer: (serverId, install) => void window.loom.serverRestart(serverId, install),
     dismissServer: (serverId) => void window.loom.serverDismiss(serverId),
     showServerOutput: (serverId) => {
       if (POPOUT_TAB) return window.loom.mainDo('showServerOutput', [serverId])
