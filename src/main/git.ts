@@ -8,7 +8,9 @@ import { existsSync, promises as fs } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import type { GitChanges, GitCommit, GitCommitFile, GitDiffResult, GitFile, GitResult } from '@shared/types'
 
-const ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' } as Record<string, string>
+// Paths are passed as they are, never as patterns: a Next.js folder like app\[id] would otherwise
+// also match folders named i and d, and discarding one file could throw away another.
+const ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_LITERAL_PATHSPECS: '1' } as Record<string, string>
 delete ENV.ELECTRON_RUN_AS_NODE
 const MAX_DIFF_BYTES = 2 * 1024 * 1024
 
