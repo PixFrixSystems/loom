@@ -130,6 +130,14 @@ const APP_KEYS = ['w', 't', 'p', 'tab', '\\', '1', '2', '3', '4', '5', '6', '7',
  * open new windows go to the real browser, and Loom's shortcuts still work while the page has focus.
  */
 function lockDownPreviews(): void {
+  // Electron grants a page every permission it asks for unless told otherwise: camera, microphone,
+  // location, notifications, reading the clipboard, opening other apps through their own links.
+  // A site under development gets none of that; going full screen and copying still work.
+  const allowed = new Set(['fullscreen', 'clipboard-sanitized-write'])
+  const preview = session.fromPartition('persist:loom-preview')
+  preview.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed.has(permission)))
+  preview.setPermissionCheckHandler((_wc, permission) => allowed.has(permission))
+
   app.on('web-contents-created', (_e, contents) => {
     contents.on('will-attach-webview', (e, prefs, params) => {
       delete (prefs as { preload?: string }).preload
