@@ -42,6 +42,14 @@ export interface Group {
 }
 
 /** A sub-agent or background task Claude started, while it runs. */
+/** What the main window needs to know about a chat living in its own window. */
+export interface PopoutChatState {
+  status: ChatStatus
+  permissions: PermissionRequest[]
+  tasks: AgentTask[]
+  unread: boolean
+}
+
 export interface AgentTask {
   id: string
   description: string

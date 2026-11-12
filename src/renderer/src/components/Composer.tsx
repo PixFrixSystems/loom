@@ -202,7 +202,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   }
 
   const submit = (): void => {
-    if (!text.trim() && !images.length) return
+    if ((!text.trim() && !images.length) || chat.moving) return
     void s.send(tab.id, text, images)
     setText('')
     s.setAttachments(tab.id, [])
@@ -300,7 +300,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
         className="composer-input selectable"
         rows={1}
         value={text}
-        placeholder={busy ? 'Add to the conversation. Esc stops Claude' : 'Ask Claude to work in this folder'}
+        placeholder={chat.moving ? 'Moving this chat to another project' : busy ? 'Add to the conversation. Esc stops Claude' : 'Ask Claude to work in this folder'}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={() => commands.length && setCmdDismissed(true)}
@@ -378,7 +378,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
             <Square />
           </button>
         ) : null}
-        <button className="send" title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'} disabled={!text.trim() && !images.length} onClick={submit}>
+        <button className="send" title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'} disabled={(!text.trim() && !images.length) || chat.moving} onClick={submit}>
           <ArrowUp />
         </button>
       </div>

@@ -72,6 +72,8 @@ export interface ChatRuntime {
   tasks: AgentTask[]
   /** Images waiting in the message box */
   attachments: ImageAttachment[]
+  /** Being moved to another project: no messages until it's done */
+  moving?: boolean
 }
 
 /**
@@ -478,11 +480,22 @@ export const useStore = create<Store>((set, get) => {
         })
         window.loom.popoutReady()
         let sent = tab
+        let sentChat = ''
         useStore.subscribe((st) => {
           const now = st.tabs[0]
           if (now && now !== sent) {
             sent = now
             window.loom.popoutTab(now)
+          }
+          // The main window keeps showing this chat's tab, sidebar row and status: keep them true.
+          const c = now && st.chats[now.id]
+          if (c) {
+            const state = { status: c.status, permissions: c.permissions, tasks: c.tasks, unread: c.unread }
+            const key = JSON.stringify([state.status, state.permissions.map((p) => p.requestId), state.tasks.map((t) => [t.id, t.toolUses]), state.unread])
+            if (key !== sentChat) {
+              sentChat = key
+              window.loom.popoutChatState(now.id, state)
+            }
           }
         })
         if (tab.projectId) {
@@ -494,6 +507,9 @@ export const useStore = create<Store>((set, get) => {
         return
       }
       window.loom.onPopoutTab((tab) => set((st) => ({ tabs: st.tabs.map((t) => (t.id === tab.id ? tab : t)) })))
+      window.loom.onPopoutChatState((tabId, state) => {
+        if (get().detached[tabId]) patchChat(tabId, () => state)
+      })
       window.loom.onPopoutReturned((tabId, snapshot) => {
         const st = get()
         if (!st.tabs.some((t) => t.id === tabId)) return
@@ -791,18 +807,25 @@ export const useStore = create<Store>((set, get) => {
       const note = (text: string, tone: 'info' | 'error' = 'info'): void =>
         patchChat(tab.id, (c) => ({ items: [...c.items, { kind: 'note', id: uid(), tone, text }] }))
       const c = get().chat(tab.id)
-      if (get().detached[tab.id]) return note('Bring this chat back to the main window first, then move it.', 'error')
-      if (c.status === 'running' || c.status === 'starting' || c.permissions.length) {
+      if (get().detached[tab.id]) return get().showToast('Bring this chat back to the main window first, then move it.')
+      if (chatBusy(c)) {
         return note('Claude is still working in this chat. Move it once the reply is done.', 'error')
       }
-      if (tab.sessionId) {
-        // Claude Code keeps the chat open between messages; it has to let go of the file first.
+      // No messages while the history file moves: one would land in the old folder.
+      patchChat(tab.id, () => ({ moving: true }))
+      try {
+        // Claude Code keeps the chat open between messages; it has to let go of it first, and a
+        // chat that opened without getting an id yet would otherwise go on in the old folder.
         if (c.opened) {
           await window.loom.chatClose(tab.id)
           patchChat(tab.id, () => ({ opened: false, status: 'idle' }))
         }
-        const r = await window.loom.moveSession(tab.sessionId, tab.cwd, project.path)
-        if (!r.ok) return note(r.error ?? 'The chat could not be moved.', 'error')
+        if (tab.sessionId) {
+          const r = await window.loom.moveSession(tab.sessionId, tab.cwd, project.path)
+          if (!r.ok) return note(r.error ?? 'The chat could not be moved.', 'error')
+        }
+      } finally {
+        patchChat(tab.id, () => ({ moving: false }))
       }
       get().updateTab(tab.id, { projectId: project.id, cwd: project.path } as Partial<ChatTab>)
       // Skills and commands can differ per folder: fetch them again for the new one.

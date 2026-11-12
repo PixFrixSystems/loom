@@ -148,11 +148,19 @@ export function setupPopouts(deps: Deps): void {
     deps.main()?.webContents.send('popout:tab', tab)
   })
 
-  // Opening a file or a new chat from a popout happens in the main window.
+  // How a popped-out chat is doing, for the main window's tab, sidebar and status bar.
+  ipcMain.on('popout:chat-state', (_e, tabId: string, state: unknown) => {
+    const main = deps.main()
+    if (main && !main.isDestroyed()) main.webContents.send('popout:chat-state', tabId, state)
+  })
+
+  // Opening a file or a new chat from a popout happens in the main window, which comes forward.
+  // Remembering a choice made there doesn't: the person is still typing in the popout.
   ipcMain.on('popout:main-do', (_e, action: string, args: unknown[]) => {
     const main = deps.main()
     if (!main || main.isDestroyed()) return
     main.webContents.send('main:do', action, args)
+    if (action === 'rememberChoice') return
     if (main.isMinimized()) main.restore()
     main.focus()
   })

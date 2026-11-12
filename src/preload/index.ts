@@ -21,6 +21,7 @@ import type {
   PermissionMode,
   PermissionResponse,
   PersistedState,
+  PopoutChatState,
   RunTarget,
   ServerInfo,
   SessionSummary,
@@ -151,6 +152,12 @@ const api = {
     const listener = (_e: unknown, tabId: string, snapshot: TabSnapshot | null): void => cb(tabId, snapshot)
     ipcRenderer.on('popout:returned', listener)
     return () => ipcRenderer.removeListener('popout:returned', listener)
+  },
+  popoutChatState: (tabId: string, state: PopoutChatState): void => ipcRenderer.send('popout:chat-state', tabId, state),
+  onPopoutChatState: (cb: (tabId: string, state: PopoutChatState) => void): (() => void) => {
+    const listener = (_e: unknown, tabId: string, state: PopoutChatState): void => cb(tabId, state)
+    ipcRenderer.on('popout:chat-state', listener)
+    return () => ipcRenderer.removeListener('popout:chat-state', listener)
   },
   onPopoutTab: (cb: (tab: Tab) => void): (() => void) => {
     const listener = (_e: unknown, tab: Tab): void => cb(tab)
