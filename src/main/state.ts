@@ -1,20 +1,53 @@
 import { app, screen } from 'electron'
-import { promises as fs, readFileSync } from 'node:fs'
+import { copyFileSync, promises as fs, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_MODELS, DEFAULT_SETTINGS, type PersistedState } from '@shared/types'
 
 const FILE = 'loom-state.json'
+const BACKUP = 'loom-state.bak.json'
 
 function statePath(): string {
   return join(app.getPath('userData'), FILE)
 }
 
-/** Writes a temporary file and renames it over the real one, so a reader never sees half a file. */
-async function writeAtomic(target: string, text: string): Promise<void> {
+/**
+ * Writes a temporary file, makes sure it is on disk, then renames it over the real one: a crash
+ * or power cut leaves the old version or the new one, never half of one. With `backup`, the
+ * version being replaced is kept under that name.
+ */
+async function writeAtomic(target: string, text: string, backup?: string): Promise<void> {
   const tmp = `${target}.tmp`
   await fs.mkdir(app.getPath('userData'), { recursive: true })
-  await fs.writeFile(tmp, text, 'utf8')
+  const fh = await fs.open(tmp, 'w')
+  try {
+    await fh.writeFile(text, 'utf8')
+    await fh.sync()
+  } finally {
+    await fh.close()
+  }
+  if (backup) await keepPrevious(target, backup)
   await fs.rename(tmp, target)
+}
+
+/**
+ * Keeps the file about to be replaced as a backup. A hard link, so it costs no extra writing on
+ * every save; a copy on a drive without hard links. Never in the way of the save itself.
+ */
+async function keepPrevious(file: string, backup: string): Promise<void> {
+  const tmp = `${backup}.tmp`
+  try {
+    await fs.rm(tmp, { force: true })
+    try {
+      await fs.link(file, tmp)
+    } catch (e) {
+      // Nothing saved yet: the backup there (if any) stays.
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return
+      await fs.copyFile(file, tmp)
+    }
+    await fs.rename(tmp, backup)
+  } catch (e) {
+    console.error('[state] could not keep a backup', e)
+  }
 }
 
 export function emptyState(): PersistedState {
@@ -34,17 +67,59 @@ export function emptyState(): PersistedState {
   }
 }
 
+function parseState(text: string): PersistedState {
+  const raw = JSON.parse(text) as Partial<PersistedState> | null
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('not a Loom state object')
+  const base = emptyState()
+  return {
+    ...base,
+    ...raw,
+    settings: { ...base.settings, ...(raw.settings ?? {}) },
+    knownModels: raw.knownModels?.length ? raw.knownModels : base.knownModels
+  }
+}
+
 export function loadState(): PersistedState {
+  const file = statePath()
+  let text: string
   try {
-    const raw = JSON.parse(readFileSync(statePath(), 'utf8')) as Partial<PersistedState>
-    const base = emptyState()
-    return {
-      ...base,
-      ...raw,
-      settings: { ...base.settings, ...(raw.settings ?? {}) },
-      knownModels: raw.knownModels?.length ? raw.knownModels : base.knownModels
-    }
+    text = readFileSync(file, 'utf8')
+  } catch (e) {
+    // No file yet is a first run. Any other failure is not, and must not be treated like one.
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return emptyState()
+    return recover(file, e)
+  }
+  try {
+    return parseState(text)
+  } catch (e) {
+    return recover(file, e)
+  }
+}
+
+/**
+ * The state file is there but unusable. Starting empty would let the first save overwrite it and
+ * lose every project, group and tab, so it is moved aside first, then the backup is tried.
+ */
+function recover(file: string, why: unknown): PersistedState {
+  const aside = join(app.getPath('userData'), `loom-state.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
+  let kept = true
+  try {
+    renameSync(file, aside)
   } catch {
+    try {
+      copyFileSync(file, aside)
+    } catch {
+      kept = false
+    }
+  }
+  console.error(`[state] ${file} could not be read (${(why as Error).message}).`, kept ? `Moved it to ${aside}.` : 'Could not move it aside either.')
+  const backup = join(app.getPath('userData'), BACKUP)
+  try {
+    const state = parseState(readFileSync(backup, 'utf8'))
+    console.error(`[state] Loaded ${backup} instead.`)
+    return state
+  } catch (e) {
+    console.error(`[state] No usable backup either (${(e as Error).message}). Starting with an empty state.`)
     return emptyState()
   }
 }
@@ -54,7 +129,7 @@ let timer: NodeJS.Timeout | null = null
 let writing: Promise<void> = Promise.resolve()
 
 function writeNow(state: PersistedState): Promise<void> {
-  return writeAtomic(statePath(), JSON.stringify(state, null, 2))
+  return writeAtomic(statePath(), JSON.stringify(state, null, 2), join(app.getPath('userData'), BACKUP))
 }
 
 export function saveState(state: PersistedState): void {
