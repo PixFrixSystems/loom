@@ -347,6 +347,9 @@ export async function renameSession(sessionId: string, title: string): Promise<v
 
 // ---------- Live chats ----------
 
+/** A chat left alone this long gives back its Claude Code process; the next message resumes it. LOOM_IDLE_RELEASE_MS shortens it for tests. */
+const IDLE_RELEASE_MS = Number(process.env.LOOM_IDLE_RELEASE_MS) || 30 * 60_000
+
 class InputQueue implements AsyncIterable<SDKUserMessage> {
   private items: SDKUserMessage[] = []
   private waiters: ((r: IteratorResult<SDKUserMessage>) => void)[] = []
@@ -412,6 +415,10 @@ class ChatSession {
   private toolStarts = new Map<string, number>()
   private stderrTail = ''
   private closed = false
+  /** Counts down while the chat is idle, to give back its Claude Code process */
+  private idleTimer: NodeJS.Timeout | null = null
+  /** Processes ended for being idle: their end is no news, and the chat carries on without them */
+  private released = new WeakSet<Query>()
   sessionId: string | null
 
   constructor(
@@ -458,7 +465,36 @@ class ChatSession {
   private setStatus(status: ChatStatus, error?: string): void {
     this.busy = status === 'starting' || status === 'running'
     this.status = status
+    if (this.idleTimer) clearTimeout(this.idleTimer)
+    this.idleTimer = status === 'idle' ? setTimeout(() => this.release(), IDLE_RELEASE_MS) : null
     this.emit({ type: 'status', status, error })
+  }
+
+  /**
+   * Ends Claude Code's process, and the MCP servers it started, for a chat nobody has used in a
+   * while, to give their memory back. The chat looks the same; the next message starts Claude
+   * Code again and resumes the conversation by its session id.
+   */
+  private release(): void {
+    this.idleTimer = null
+    const q = this.q
+    if (!q || this.closed || !this.sessionId) return
+    // Working again, or sub-agents still at it: look again later.
+    if (this.running || this.requests.size) {
+      this.idleTimer = setTimeout(() => this.release(), IDLE_RELEASE_MS)
+      return
+    }
+    this.released.add(q)
+    this.abort?.abort()
+    this.queue?.close()
+    try {
+      q.close()
+    } catch {
+      // already gone
+    }
+    this.q = null
+    this.queue = null
+    this.abort = null
   }
 
   /**
@@ -525,7 +561,7 @@ class ChatSession {
     try {
       for await (const message of q) this.handle(message)
     } catch (e) {
-      if (!this.closed) {
+      if (!this.closed && !this.released.has(q)) {
         failure = executableFor(this.settings()) ? (e as Error).message || 'Claude stopped unexpectedly' : MISSING_CLAUDE
         this.onTurnDone(this.tabId, failure)
         const tail = this.stderrTail.trim().split(/\r?\n/).slice(-6).join('\n')
@@ -537,9 +573,12 @@ class ChatSession {
         this.queue = null
         this.abort = null
       }
-      this.rejectPending('The chat stopped.')
-      this.clearPartial()
-      if (!this.closed) this.setStatus(failure ? 'error' : 'stopped', failure)
+      // A process given back for being idle may end after the next message started a new one.
+      if (!this.released.has(q)) {
+        this.rejectPending('The chat stopped.')
+        this.clearPartial()
+        if (!this.closed) this.setStatus(failure ? 'error' : 'stopped', failure)
+      }
     }
   }
 
@@ -936,6 +975,7 @@ class ChatSession {
 
   close(): void {
     this.closed = true
+    if (this.idleTimer) clearTimeout(this.idleTimer)
     this.rejectPending('The chat was closed.')
     this.abort?.abort()
     this.queue?.close()
