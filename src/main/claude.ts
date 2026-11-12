@@ -147,6 +147,17 @@ export function claudeAuthStatus(settings: LoomSettings): Promise<AuthStatus> {
   })
 }
 
+/** Signs Claude Code out on this PC, the same as `claude auth logout` in a terminal. */
+export function claudeLogout(settings: LoomSettings): Promise<{ ok: boolean; error?: string }> {
+  const exe = executableFor(settings)
+  if (!exe) return Promise.resolve({ ok: false, error: MISSING_CLAUDE })
+  return new Promise((resolve) => {
+    execFile(exe, ['auth', 'logout'], { windowsHide: true, timeout: 20000 }, (err, _stdout, stderr) => {
+      resolve(err ? { ok: false, error: (String(stderr).trim() || err.message).slice(0, 400) } : { ok: true })
+    })
+  })
+}
+
 /**
  * The claude.exe chats run with. "bundled" means the copy that npm install brings along; the
  * installed Loom app ships without it (it isn't ours to hand out), so there it falls back to
@@ -480,7 +491,7 @@ class ChatSession {
    * while, to give their memory back. The chat looks the same; the next message starts Claude
    * Code again and resumes the conversation by its session id.
    */
-  private release(): void {
+  release(): void {
     this.idleTimer = null
     const q = this.q
     if (!q || this.closed || !this.sessionId) return
@@ -1048,6 +1059,14 @@ export function getChat(tabId: string): ChatSession | undefined {
 export function closeChat(tabId: string): void {
   chats.get(tabId)?.close()
   chats.delete(tabId)
+}
+
+/**
+ * After the account changes: chats between turns let go of Claude Code, so their next message
+ * starts it again signed in as the new account. Chats mid-turn finish first and follow later.
+ */
+export function releaseIdleChats(): void {
+  for (const c of chats.values()) c.release()
 }
 
 export function closeAllChats(): void {

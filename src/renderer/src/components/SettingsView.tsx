@@ -1,9 +1,122 @@
-import { useEffect, type ReactNode } from 'react'
-import type { ClaudeSource, LoomSettings, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
+import { LogIn, LogOut, RefreshCw } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import type { AuthStatus, ClaudeSource, LoomSettings, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
 import { timeAgo } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
+import { account } from './Onboarding'
+
+/**
+ * Who Loom chats as: the Claude Code sign-in on this PC. Sign out, or switch to another account
+ * through the same sign-in terminal Get started uses. While a sign-in runs, it looks every few
+ * seconds for the account to change.
+ */
+/** The account last seen signed in, kept while Settings closes for a sign-in and opens again. */
+let lastAccount: string | null = null
+
+function AccountRow(): ReactNode {
+  const s = useStore.getState()
+  const [auth, setAuth] = useState<AuthStatus | null>(null)
+  const [busy, setBusy] = useState<'out' | 'waiting' | null>(null)
+  const check = async (): Promise<AuthStatus> => {
+    const a = await window.loom.authStatus().catch((e: Error) => ({ loggedIn: false, error: e.message }) as AuthStatus)
+    const key = a.loggedIn ? (a.email ?? 'signed in') : null
+    if (lastAccount !== null && key && key !== lastAccount) window.loom.accountChanged()
+    if (key) lastAccount = key
+    setAuth(a)
+    return a
+  }
+  useEffect(() => {
+    void check()
+  }, [])
+  // Waiting for a sign-in to finish in its terminal.
+  useEffect(() => {
+    if (busy !== 'waiting') return
+    const t = setInterval(() => {
+      void check().then((a) => a.loggedIn && setBusy(null))
+    }, 3000)
+    const stop = setTimeout(() => setBusy(null), 5 * 60_000)
+    return () => {
+      clearInterval(t)
+      clearTimeout(stop)
+    }
+  }, [busy])
+
+  const signOut = async (): Promise<boolean> => {
+    setBusy('out')
+    const r = await window.loom.logout()
+    await check()
+    setBusy(null)
+    if (!r.ok) s.showToast(`Couldn't sign out: ${r.error ?? 'Claude Code did not answer.'}`)
+    return r.ok
+  }
+  const signIn = (): void => {
+    setBusy('waiting')
+    void s.openLoginTerminal()
+  }
+
+  const hint =
+    auth === null
+      ? 'Checking the sign-in on this PC…'
+      : auth.missing
+        ? "Claude Code isn't installed on this PC, so there is no account yet. Get started below installs it."
+        : auth.loggedIn
+          ? `${account(auth)} Chats, plan limits and Claude Code in your terminals all use this account.`
+          : busy === 'waiting'
+            ? 'Finish signing in in the terminal and your browser; this updates by itself.'
+            : 'Not signed in. Chats need a Claude account.'
+  return (
+    <Row title="Account" hint={hint}>
+      <div className="set-actions">
+        {auth?.loggedIn ? (
+          <>
+            <button
+              className="btn"
+              disabled={!!busy}
+              onClick={async () => {
+                const pick = await s.ask({
+                  title: 'Switch to another Claude account?',
+                  body: `This signs ${auth.email ?? 'this account'} out of Claude Code on this PC, then opens the sign-in for the account you want. Chats in the middle of a reply finish first.`,
+                  choices: [
+                    { id: 'switch', label: 'Sign out and switch', kind: 'primary' },
+                    { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+                  ],
+                  cancel: 'cancel'
+                })
+                if (pick === 'switch' && (await signOut())) signIn()
+              }}
+            >
+              <RefreshCw /> Switch account
+            </button>
+            <button
+              className="btn danger"
+              disabled={!!busy}
+              onClick={async () => {
+                const pick = await s.ask({
+                  title: `Sign out of ${auth.email ?? 'Claude'}?`,
+                  body: 'Claude Code on this PC signs out, in Loom, VS Code and your terminals alike. Chats need you to sign in again before they can reply.',
+                  choices: [
+                    { id: 'out', label: 'Sign out', kind: 'danger' },
+                    { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+                  ],
+                  cancel: 'cancel'
+                })
+                if (pick === 'out') await signOut()
+              }}
+            >
+              <LogOut /> Sign out
+            </button>
+          </>
+        ) : auth && !auth.missing ? (
+          <button className="btn primary" disabled={busy === 'out'} onClick={signIn}>
+            <LogIn /> Sign in
+          </button>
+        ) : null}
+      </div>
+    </Row>
+  )
+}
 
 function Row({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }): ReactNode {
   return (
@@ -62,6 +175,7 @@ export function SettingsView(): ReactNode {
 
         <section className="set-section">
           <h2>Claude</h2>
+          <AccountRow />
           <Row title="Program that runs your chats" hint="Every option uses your Claude Code sign-in, settings, skills and hooks. Changes apply to chats you start or restart from now on.">
             <div className="radio-list">
               {sources.map((o) => (

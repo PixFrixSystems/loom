@@ -15,6 +15,8 @@ import type {
 } from '@shared/types'
 import {
   claudeAuthStatus,
+  claudeLogout,
+  releaseIdleChats,
   claudeInfo,
   claudeProgram,
   closeAllChats,
@@ -294,6 +296,11 @@ function notify(title: string, body: string): void {
 }
 
 const usageDeps = { sdk: loadSdk, liveQuery, executable: executableFor, settings }
+function accountChanged(): void {
+  releaseIdleChats()
+  usageNow(true)
+}
+
 function usageNow(force = false): void {
   void refreshUsage(win?.webContents ?? null, usageDeps, force)
 }
@@ -326,6 +333,13 @@ function registerIpc(): void {
   })
   ipcMain.handle('app:claudeInfo', () => claudeInfo())
   ipcMain.handle('claude:auth', () => claudeAuthStatus(settings()))
+  ipcMain.handle('claude:logout', async () => {
+    const r = await claudeLogout(settings())
+    if (r.ok) accountChanged()
+    return r
+  })
+  // Signed in as someone else (a sign-in finished in its terminal): chats and limits follow.
+  ipcMain.on('claude:accountChanged', () => accountChanged())
   ipcMain.handle('claude:program', () => claudeProgram(settings()))
   ipcMain.handle('fs:dirsExist', (_e, paths: string[]) => dirsExist(paths))
   ipcMain.handle('fs:subfolders', (_e, dir: string) => listSubfolders(dir))

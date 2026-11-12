@@ -42,6 +42,10 @@ const api = {
   pickFile: (title: string): Promise<string | null> => ipcRenderer.invoke('app:pickFile', title),
   claudeInfo: (): Promise<ClaudeInfo> => ipcRenderer.invoke('app:claudeInfo'),
   authStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('claude:auth'),
+  /** Signs Claude Code out on this PC */
+  logout: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('claude:logout'),
+  /** Tells the main process another account is now signed in */
+  accountChanged: (): void => ipcRenderer.send('claude:accountChanged'),
   claudeProgram: (): Promise<string> => ipcRenderer.invoke('claude:program'),
   dirsExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('fs:dirsExist', paths),
   subfolders: (dir: string): Promise<SubFolder[]> => ipcRenderer.invoke('fs:subfolders', dir),

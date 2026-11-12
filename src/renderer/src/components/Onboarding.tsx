@@ -8,7 +8,7 @@ import { ProjectMark } from './ProjectMark'
 
 const PLANS: Record<string, string> = { max: 'Max', pro: 'Pro', team: 'Team', enterprise: 'Enterprise', free: 'Free' }
 
-function account(a: AuthStatus): string {
+export function account(a: AuthStatus): string {
   const who = a.email ? `Signed in as ${a.email}` : 'Signed in'
   if (a.method === 'console') return `${who}, through the Anthropic Console (API billing).`
   const plan = a.plan ? PLANS[a.plan] ?? a.plan : null
