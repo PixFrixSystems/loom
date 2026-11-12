@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AppUpdater } from 'electron-updater'
 import type { UpdateStatus } from '@shared/types'
+import { fileLogger } from './logfile'
 
 // The installed app finds new versions on GitHub Releases shortly after it starts and every few
 // hours, downloads them in the background, and then shows a Restart to update button, the way
@@ -99,7 +100,8 @@ export function setupUpdates(opts: { busyChats: () => number; window: () => Brow
     .then((mod) => {
       const u = mod.autoUpdater ?? (mod as unknown as { default: typeof mod }).default.autoUpdater
       updater = u
-      u.logger = null
+      // The updater's own account of what it did, so a failed "Restart to update" leaves a trace.
+      u.logger = fileLogger(join(app.getPath('userData'), 'logs', 'updates.log'))
       u.autoDownload = true
       u.autoInstallOnAppQuit = true
       u.on('checking-for-update', () => set({ state: 'checking', error: undefined }))
