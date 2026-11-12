@@ -64,7 +64,7 @@ import {
   writeServer
 } from './servers'
 import { closeAllPopouts, setupPopouts } from './popouts'
-import { emptyState, flushState, loadBounds, loadState, saveBounds, saveState } from './state'
+import { emptyState, flushBounds, flushState, loadBounds, loadState, saveBounds, saveState } from './state'
 
 const isDev = !app.isPackaged && !!process.env.ELECTRON_RENDERER_URL
 
@@ -221,7 +221,7 @@ function createWindow(): void {
   const rememberBounds = (): void => {
     if (!win) return
     const b = win.getNormalBounds()
-    void saveBounds({ ...b, maximized: win.isMaximized() })
+    saveBounds({ ...b, maximized: win.isMaximized() })
   }
   win.on('resize', rememberBounds)
   win.on('move', rememberBounds)
@@ -461,12 +461,12 @@ app.on('before-quit', (e) => {
   if (quitting) return
   e.preventDefault()
   quitting = true
-  // State is saved before anything that could stall or throw. Whatever happens after that, Loom
-  // quits: a Loom.exe left running with no window holds the single-instance lock, and every later
-  // launch would exit at once.
+  // State and the window's place are saved before anything that could stall or throw. Whatever
+  // happens after that, Loom quits: a Loom.exe left running with no window holds the
+  // single-instance lock, and every later launch would exit at once.
   void (async () => {
     try {
-      await flushState()
+      await Promise.all([flushState(), flushBounds()])
       closeAllChats()
       killAllTerminals()
       killAllServers()
