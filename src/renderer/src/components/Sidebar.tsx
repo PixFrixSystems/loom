@@ -124,7 +124,7 @@ function ChatRow({ tab, session }: { tab?: ChatTab; session?: SessionSummary }):
   const menu = (e: React.MouseEvent): void => {
     e.preventDefault()
     const items: MenuItem[] = [{ label: 'Open', onSelect: open }]
-    if (tab) items.push({ label: 'Close tab', onSelect: () => useStore.getState().closeTab(tab.id) })
+    if (tab) items.push({ label: 'Close tab', onSelect: () => void useStore.getState().requestClose([tab.id]) })
     const id = tab?.sessionId ?? session?.sessionId
     const s = useStore.getState()
     const here = tab?.projectId ?? projectForPath(s.projects, session?.cwd ?? '')?.id ?? null
@@ -221,7 +221,7 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
         ]
       },
       { separator: true, label: '' },
-      { label: 'Remove from Loom', danger: true, onSelect: () => s.removeProject(project.id) }
+      { label: 'Remove from Loom…', danger: true, onSelect: () => void s.requestRemoveProject(project.id) }
     ])
   }
 
@@ -420,7 +420,7 @@ function GroupBlock({
         ]
       },
       { separator: true, label: '' },
-      { label: 'Delete group', danger: true, onSelect: () => s.deleteGroup(group.id) }
+      { label: 'Delete group…', danger: true, onSelect: () => void s.requestDeleteGroup(group.id) }
     ])
   }
 

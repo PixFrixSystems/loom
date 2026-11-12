@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, join, relative } from 'node:path'
-import type { ConfigFileInfo, DirEntry, FileReadResult, GitStatus, SubFolder } from '@shared/types'
+import { basename, dirname, join, relative } from 'node:path'
+import type { ConfigFileInfo, DirEntry, FileReadResult, FileWriteOptions, FileWriteResult, GitStatus, SubFolder } from '@shared/types'
 
 const MAX_EDITABLE_BYTES = 8 * 1024 * 1024
 
@@ -24,10 +24,20 @@ export async function readTextFile(path: string): Promise<FileReadResult> {
     const buf = await fs.readFile(path)
     const head = buf.subarray(0, Math.min(buf.length, 8000))
     if (head.includes(0)) return { ok: false, reason: 'binary', size: st.size }
-    let content = buf.toString('utf8')
-    if (content.charCodeAt(0) === 0xfeff) content = content.slice(1)
-    const eol = content.includes('\r\n') ? 'crlf' : 'lf'
-    return { ok: true, content, mtime: st.mtimeMs, eol }
+    const bom = buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf
+    let content: string
+    try {
+      // Strict: a file in another encoding (an older Greek windows-1253 page, say) must not be
+      // opened as UTF-8, or the first save would replace its letters for good.
+      content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bom ? buf.subarray(3) : buf)
+    } catch {
+      return { ok: false, reason: 'encoding', size: st.size }
+    }
+    // The editor keeps one kind of line ending; take the one most lines use, so a save of a
+    // mostly-LF file with a few CRLF lines doesn't rewrite every line.
+    const crlf = content.split('\r\n').length - 1
+    const lf = content.split('\n').length - 1 - crlf
+    return { ok: true, content, mtime: st.mtimeMs, eol: crlf > lf ? 'crlf' : 'lf', bom }
   } catch (e) {
     const err = e as NodeJS.ErrnoException
     if (err.code === 'ENOENT') return { ok: false, reason: 'missing' }
@@ -35,9 +45,19 @@ export async function readTextFile(path: string): Promise<FileReadResult> {
   }
 }
 
-export async function writeTextFile(path: string, content: string): Promise<number> {
-  await fs.writeFile(path, content, 'utf8')
-  return (await fs.stat(path)).mtimeMs
+export async function writeTextFile(path: string, content: string, opts: FileWriteOptions = {}): Promise<FileWriteResult> {
+  try {
+    if (opts.expectMtime) {
+      const st = await fs.stat(path).catch(() => null)
+      // Changed since the editor read it (by Claude, say): don't overwrite that unasked.
+      if (st && st.mtimeMs > opts.expectMtime + 1) return { ok: false, reason: 'changed', mtime: st.mtimeMs }
+    }
+    await fs.mkdir(dirname(path), { recursive: true })
+    await fs.writeFile(path, opts.bom ? '﻿' + content : content, 'utf8')
+    return { ok: true, mtime: (await fs.stat(path)).mtimeMs }
+  } catch (e) {
+    return { ok: false, reason: 'error', message: (e as Error).message }
+  }
 }
 
 export async function fileMtime(path: string): Promise<number | null> {

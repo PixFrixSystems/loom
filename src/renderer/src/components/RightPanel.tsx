@@ -133,8 +133,9 @@ function ClaudePane({ project }: { project: Project | null }): ReactNode {
   const open = async (f: ConfigFileInfo): Promise<void> => {
     if (!f.exists) {
       const starter = f.path.endsWith('.json') ? '{\n}\n' : ''
-      await window.loom.writeFile(f.path, starter)
+      const r = await window.loom.writeFile(f.path, starter)
       setVersion((v) => v + 1)
+      if (!r.ok) return void useStore.getState().showToast(`Couldn't create ${f.label}: ${r.message ?? 'the file could not be written.'}`)
     }
     useStore.getState().openFile(f.path, project?.id ?? null)
   }

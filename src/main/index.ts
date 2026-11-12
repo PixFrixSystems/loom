@@ -5,6 +5,7 @@ import { installingUpdate, setupUpdates } from './updates'
 import type {
   ChatStartOptions,
   EffortLevel,
+  FileWriteOptions,
   ImageAttachment,
   LoomSettings,
   PermissionMode,
@@ -300,7 +301,7 @@ function registerIpc(): void {
   // Files and git
   ipcMain.handle('fs:listDir', (_e, dir: string) => listDir(dir))
   ipcMain.handle('fs:read', (_e, path: string) => readTextFile(path))
-  ipcMain.handle('fs:write', (_e, path: string, content: string) => writeTextFile(path, content))
+  ipcMain.handle('fs:write', (_e, path: string, content: string, opts?: FileWriteOptions) => writeTextFile(path, content, opts))
   ipcMain.handle('fs:mtime', (_e, path: string) => fileMtime(path))
   ipcMain.handle('fs:projectFiles', (_e, root: string) => listProjectFiles(root))
   ipcMain.handle('fs:configFiles', (_e, projectPath: string | null) => configFiles(projectPath))

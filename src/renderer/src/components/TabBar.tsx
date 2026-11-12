@@ -104,16 +104,16 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
   const menu = (e: React.MouseEvent): void => {
     e.preventDefault()
     const items: MenuItem[] = [
-      { label: 'Close', onSelect: () => s.closeTab(tab.id) },
+      { label: 'Close', onSelect: () => void s.requestClose([tab.id]) },
       {
         label: inFileRow(tab) ? 'Close other files' : 'Close other tabs',
         disabled: sameRow.length < 2,
-        onSelect: () => sameRow.filter((t) => t.id !== tab.id).forEach((t) => s.closeTab(t.id))
+        onSelect: () => void s.requestClose(sameRow.filter((t) => t.id !== tab.id).map((t) => t.id))
       },
       {
         label: 'Close tabs to the right',
         disabled: rowIndex === sameRow.length - 1,
-        onSelect: () => sameRow.slice(rowIndex + 1).forEach((t) => s.closeTab(t.id))
+        onSelect: () => void s.requestClose(sameRow.slice(rowIndex + 1).map((t) => t.id))
       },
       { separator: true, label: '' },
       ...(detached
@@ -196,7 +196,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
       onMouseDown={(e) => {
         if (e.button === 1) {
           e.preventDefault()
-          s.closeTab(tab.id)
+          void s.requestClose([tab.id])
         }
       }}
       onClick={() => s.activate(tab.id)}
@@ -238,7 +238,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
           title="Close (Ctrl+W)"
           onClick={(e) => {
             e.stopPropagation()
-            s.closeTab(tab.id)
+            void s.requestClose([tab.id])
           }}
         >
           <X />

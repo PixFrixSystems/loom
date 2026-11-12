@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { FileTab } from '@shared/types'
 import { languageFor, relPath } from '../lib/paths'
 import { monaco } from '../lib/monaco'
-import { liveDrafts, useStore } from '../store'
+import { fileSavers, liveDrafts, useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 
 type Load =
@@ -15,11 +15,15 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const saved = useRef('')
+  /** The editor's version at the last save or load; the file is unsaved whenever they differ. */
+  const savedVersion = useRef(0)
   const eol = useRef<'lf' | 'crlf'>('lf')
+  const bom = useRef(false)
   const mtime = useRef<number>(0)
   const [load, setLoad] = useState<Load>({ state: 'loading' })
   const [changedOnDisk, setChangedOnDisk] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const project = useStore((s) => s.projects.find((p) => p.id === tab.projectId))
   const dirty = useStore((s) => !!s.dirtyFiles[tab.id])
 
@@ -41,12 +45,15 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
             ? 'This is a binary file, so it cannot be edited here.'
             : r.reason === 'too-large'
               ? `This file is ${(r.size! / 1048576).toFixed(1)} MB, too large to edit here.`
-              : `This file could not be opened. ${r.message ?? ''}`
+              : r.reason === 'encoding'
+                ? "This file isn't saved as UTF-8 (it may use an older Windows encoding). Loom won't edit it, because saving would damage its text."
+                : `This file could not be opened. ${r.message ?? ''}`
       setLoad({ state: 'unavailable', message })
       return null
     }
     saved.current = r.content
     eol.current = r.eol
+    bom.current = r.bom
     mtime.current = r.mtime
     return r.content
   }, [tab.path])
@@ -75,7 +82,9 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
         fixedOverflowWidgets: true
       })
       editor.current = ed
-      ed.onDidChangeModelContent(() => setDirty(ed.getValue() !== saved.current))
+      saved.current = ed.getValue()
+      savedVersion.current = model.getAlternativeVersionId()
+      ed.onDidChangeModelContent(() => setDirty(model.getAlternativeVersionId() !== savedVersion.current))
       // Unsaved edits that came along when this tab moved from another window.
       const draft = useStore.getState().fileDrafts[tab.id]
       if (draft !== undefined) {
@@ -94,6 +103,7 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
       const ed = editor.current
       editor.current = null
       liveDrafts.delete(tab.id)
+      fileSavers.delete(tab.id)
       // Leaving this window with unsaved edits: keep them for whichever window shows the tab next.
       if (ed && ed.getValue() !== saved.current && useStore.getState().tabs.some((t) => t.id === tab.id)) {
         const text = ed.getValue()
@@ -104,35 +114,65 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
     }
   }, [tab.path])
 
-  const save = useCallback(async () => {
-    const ed = editor.current
-    if (!ed) return
-    setSaving(true)
-    try {
-      const value = ed.getModel()!.getValue(eol.current === 'crlf' ? monaco.editor.EndOfLinePreference.CRLF : monaco.editor.EndOfLinePreference.LF)
-      mtime.current = await window.loom.writeFile(tab.path, value)
-      saved.current = ed.getValue()
-      setDirty(false)
-      setChangedOnDisk(false)
-    } finally {
-      setSaving(false)
-    }
-  }, [tab.path, setDirty])
+  /** Saves; `overwrite` replaces a version that changed on disk. False when nothing was written. */
+  const save = useCallback(
+    async (overwrite = false): Promise<boolean> => {
+      const ed = editor.current
+      const model = ed?.getModel()
+      if (!ed || !model) return false
+      // Take the text now: anything typed while the write runs stays unsaved.
+      const text = ed.getValue()
+      const version = model.getAlternativeVersionId()
+      const value = model.getValue(eol.current === 'crlf' ? monaco.editor.EndOfLinePreference.CRLF : monaco.editor.EndOfLinePreference.LF)
+      setSaving(true)
+      setSaveError(null)
+      try {
+        const r = await window.loom.writeFile(tab.path, value, { bom: bom.current, expectMtime: overwrite ? undefined : mtime.current })
+        if (!r.ok) {
+          if (r.reason === 'changed') setChangedOnDisk(true)
+          else setSaveError(r.message ?? 'The file could not be written.')
+          return false
+        }
+        mtime.current = r.mtime
+        saved.current = text
+        savedVersion.current = version
+        setDirty(model.getAlternativeVersionId() !== version)
+        setChangedOnDisk(false)
+        return true
+      } finally {
+        setSaving(false)
+      }
+    },
+    [tab.path, setDirty]
+  )
+  const saveRef = useRef(save)
+  saveRef.current = save
+  useEffect(() => {
+    fileSavers.set(tab.id, () => saveRef.current())
+  }, [tab.id])
 
   const reload = useCallback(async () => {
     const content = await read()
-    if (content === null || !editor.current) return
-    editor.current.getModel()?.setValue(content)
-    saved.current = editor.current.getValue()
+    const ed = editor.current
+    const model = ed?.getModel()
+    if (content === null || !ed || !model) return
+    // An edit rather than a reset: the cursor, scroll and undo history survive a reload.
+    const view = ed.saveViewState()
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null)
+    model.setEOL(eol.current === 'crlf' ? monaco.editor.EndOfLineSequence.CRLF : monaco.editor.EndOfLineSequence.LF)
+    if (view) ed.restoreViewState(view)
+    saved.current = ed.getValue()
+    savedVersion.current = model.getAlternativeVersionId()
     setDirty(false)
     setChangedOnDisk(false)
+    setSaveError(null)
   }, [read, setDirty])
 
   // Ctrl+S
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !useStore.getState().confirm) {
         e.preventDefault()
         void save()
       }
@@ -170,11 +210,18 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
         </span>
         <span className="chat-head-spacer" />
         {changedOnDisk ? (
-          <span className="file-conflict">
+          <span className="file-conflict" role="status">
             Changed on disk while you were editing
             <button className="btn" onClick={() => void reload()}>
               <RefreshCw /> Reload from disk
             </button>
+            <button className="btn" onClick={() => void save(true)}>
+              Overwrite with mine
+            </button>
+          </span>
+        ) : saveError ? (
+          <span className="file-conflict" role="alert" title={saveError}>
+            Couldn't save: {saveError}
           </span>
         ) : null}
         <button className="icon-btn" title="Show in File Explorer" onClick={() => void window.loom.reveal(tab.path)}>

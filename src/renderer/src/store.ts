@@ -76,6 +76,31 @@ export const POPOUT_TAB = new URLSearchParams(location.search).get('popout')
 
 /** Unsaved text of open file tabs, read when a tab moves to another window. FileView keeps it current. */
 export const liveDrafts = new Map<string, () => string | null>()
+/** Saves an open file tab; false when it couldn't be saved (changed on disk, write failed). FileView registers it. */
+export const fileSavers = new Map<string, () => Promise<boolean>>()
+
+export interface ConfirmChoice {
+  id: string
+  label: string
+  kind?: 'primary' | 'danger' | 'ghost'
+}
+
+export interface ConfirmRequest {
+  title: string
+  body?: string
+  /** What it affects, listed under the message */
+  items?: string[]
+  choices: ConfirmChoice[]
+  /** Picked by Esc or a click outside */
+  cancel: string
+  /** Where keyboard focus starts; the cancel choice when unset */
+  focus?: string
+}
+
+/** A chat in the middle of something: a turn, a question for you, or agents still running. */
+export function chatBusy(c: ChatRuntime | undefined): boolean {
+  return !!c && (c.status === 'running' || c.status === 'starting' || c.permissions.length > 0)
+}
 
 export interface MenuItem {
   label: string
@@ -118,6 +143,8 @@ interface Store extends PersistedState {
   watchNew: Record<string, SubFolder[]>
   /** The image viewer, open on one of a message's images */
   viewer: { images: ImagePreview[]; index: number } | null
+  confirm: (ConfirmRequest & { resolve: (choice: string) => void }) | null
+  toasts: { id: string; text: string }[]
   layout: LayoutNode
   /** The pane you're working in: the tab bar and new tabs act on it. */
   focusedPane: string
@@ -225,6 +252,14 @@ interface Store extends PersistedState {
   /** A file's changes in a tab: uncommitted ones, or the ones made in a commit. */
   openDiff: (projectId: string | null, path: string, commit?: string, commitLabel?: string) => void
   showMenu: (e: { clientX: number; clientY: number }, items: MenuItem[]) => void
+  /** Asks a question in Loom's own dialog; resolves with the id of the choice picked. */
+  ask: (req: ConfirmRequest) => Promise<string>
+  showToast: (text: string) => void
+  dismissToast: (id: string) => void
+  /** Closes tabs the way a person asks to: offers to save unsaved files, warns about working chats. */
+  requestClose: (tabIds: string[]) => Promise<boolean>
+  requestRemoveProject: (id: string) => Promise<void>
+  requestDeleteGroup: (id: string) => Promise<void>
 }
 
 export function newChatRuntime(): ChatRuntime {
@@ -339,6 +374,8 @@ export const useStore = create<Store>((set, get) => {
     update: null,
     watchNew: {},
     viewer: null,
+    confirm: null,
+    toasts: [],
     layout: { kind: 'pane', id: 'main', tabId: null },
     focusedPane: 'main',
     draggingTab: null,
@@ -375,7 +412,7 @@ export const useStore = create<Store>((set, get) => {
           activeTabId: tab.id,
           chats: chat ? { [tab.id]: chat } : {},
           dirtyFiles: snapshot?.dirty ? { [tab.id]: true } : {},
-          fileDrafts: snapshot?.fileDraft ? { [tab.id]: snapshot.fileDraft } : {},
+          fileDrafts: snapshot?.fileDraft != null ? { [tab.id]: snapshot.fileDraft } : {},
           info,
           ready: true
         })
@@ -407,7 +444,12 @@ export const useStore = create<Store>((set, get) => {
           patch.tabs = st.tabs.map((t) => (t.id === tabId ? snapshot.tab : t))
           if (snapshot.chat) patch.chats = { ...st.chats, [tabId]: snapshot.chat as ChatRuntime }
           patch.dirtyFiles = { ...st.dirtyFiles, [tabId]: !!snapshot.dirty }
-          if (snapshot.fileDraft) patch.fileDrafts = { ...st.fileDrafts, [tabId]: snapshot.fileDraft }
+          // Whatever the other window had is now the truth: its unsaved text, or none because it
+          // saved there. A copy parked here when the tab left must not come back over it.
+          const fileDrafts = { ...st.fileDrafts }
+          if (snapshot.fileDraft != null) fileDrafts[tabId] = snapshot.fileDraft
+          else delete fileDrafts[tabId]
+          patch.fileDrafts = fileDrafts
         }
         set(patch)
         get().activate(tabId)
@@ -1165,7 +1207,106 @@ export const useStore = create<Store>((set, get) => {
       const status = await window.loom.gitStatus(p.path)
       set((s) => ({ git: { ...s.git, [projectId]: status } }))
     },
-    showMenu: (e, items) => set({ menu: { x: e.clientX, y: e.clientY, items } })
+    showMenu: (e, items) => set({ menu: { x: e.clientX, y: e.clientY, items } }),
+    ask: (req) =>
+      new Promise<string>((resolve) => {
+        // One question at a time: an older one still open counts as cancelled.
+        const open = get().confirm
+        if (open) open.resolve(open.cancel)
+        set({ confirm: { ...req, resolve } })
+      }),
+    showToast: (text) => {
+      const id = uid()
+      set((s) => ({ toasts: [...s.toasts.slice(-2), { id, text }] }))
+      setTimeout(() => get().dismissToast(id), 7000)
+    },
+    dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+    requestClose: async (tabIds) => {
+      const pick = (): Tab[] => tabIds.map((id) => get().tabs.find((t) => t.id === id)).filter((t): t is Tab => !!t)
+      const dirty = pick().filter((t) => t.kind === 'file' && get().dirtyFiles[t.id] && !get().detached[t.id])
+      if (dirty.length) {
+        const one = dirty.length === 1
+        const choice = await get().ask({
+          title: one ? `Save the changes to ${dirty[0].title}?` : `Save the changes to ${dirty.length} files?`,
+          body: "If you don't save, the changes are lost.",
+          items: one ? undefined : dirty.map((t) => t.title),
+          choices: [
+            { id: 'save', label: one ? 'Save' : 'Save all', kind: 'primary' },
+            { id: 'discard', label: "Don't save", kind: 'danger' },
+            { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+          ],
+          cancel: 'cancel',
+          focus: 'save'
+        })
+        if (choice === 'cancel') return false
+        if (choice === 'save') {
+          for (const t of dirty) {
+            const saved = (await fileSavers.get(t.id)?.()) ?? false
+            if (!saved) {
+              get().activate(t.id)
+              get().showToast(`${t.title} wasn't saved, so it stays open.`)
+              return false
+            }
+          }
+        }
+      }
+      const working = pick().filter((t) => t.kind === 'chat' && !get().detached[t.id] && chatBusy(get().chats[t.id]))
+      if (working.length) {
+        const one = working.length === 1
+        const choice = await get().ask({
+          title: one ? `Claude is still working in ${working[0].title}` : `Claude is still working in ${working.length} chats`,
+          body: 'Closing stops it. The conversation is saved, and you can continue it later from the sidebar.',
+          items: one ? undefined : working.map((t) => t.title),
+          choices: [
+            { id: 'close', label: one ? 'Stop and close' : 'Stop them and close', kind: 'danger' },
+            { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+          ],
+          cancel: 'cancel'
+        })
+        if (choice !== 'close') return false
+      }
+      for (const t of pick()) get().closeTab(t.id)
+      return true
+    },
+    requestRemoveProject: async (id) => {
+      const p = get().projects.find((x) => x.id === id)
+      if (!p) return
+      const tabs = get().tabs.filter((t) => t.projectId === id)
+      const terminals = tabs.filter((t) => t.kind === 'terminal').length
+      const servers = get().servers.filter((x) => x.projectId === id && (x.status === 'running' || x.status === 'starting')).length
+      const ends = [
+        tabs.length ? `its ${tabs.length === 1 ? 'open tab closes' : `${tabs.length} open tabs close`}` : '',
+        terminals ? `${terminals === 1 ? 'its terminal ends' : `${terminals} terminals end`}` : '',
+        servers ? `${servers === 1 ? 'its dev server stops' : `${servers} dev servers stop`}` : ''
+      ].filter(Boolean)
+      const choice = await get().ask({
+        title: `Remove ${p.name} from Loom?`,
+        body: `The folder and its chat history stay on disk, and you can add it again later.${ends.length ? ` ${ends.join(', ').replace(/^./, (c) => c.toUpperCase())}.` : ''}`,
+        choices: [
+          { id: 'remove', label: 'Remove', kind: 'danger' },
+          { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+        ],
+        cancel: 'cancel'
+      })
+      if (choice !== 'remove') return
+      if (tabs.length && !(await get().requestClose(tabs.map((t) => t.id)))) return
+      get().removeProject(id)
+    },
+    requestDeleteGroup: async (id) => {
+      const g = get().groups.find((x) => x.id === id)
+      if (!g) return
+      const count = get().projects.filter((p) => p.groupId === id).length
+      const choice = await get().ask({
+        title: `Delete the group ${g.name}?`,
+        body: `${count === 1 ? 'Its project stays' : count ? `Its ${count} projects stay` : 'Nothing else changes'}${count ? ' in Loom, outside any group' : ''}. Nothing is deleted from disk.${g.watchPath ? ' It stops watching its folder for new projects.' : ''}`,
+        choices: [
+          { id: 'delete', label: 'Delete group', kind: 'danger' },
+          { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+        ],
+        cancel: 'cancel'
+      })
+      if (choice === 'delete') get().deleteGroup(id)
+    }
   }
 })
 

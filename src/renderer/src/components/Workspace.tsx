@@ -302,7 +302,7 @@ export function Workspace(): ReactNode {
                   className="icon-btn small pane-close"
                   title={`Close ${t.title}${focused ? ' (Ctrl+W)' : ''}`}
                   aria-label={`Close ${t.title}`}
-                  onClick={() => useStore.getState().closeTab(t.id)}
+                  onClick={() => void useStore.getState().requestClose([t.id])}
                 >
                   <X />
                 </button>

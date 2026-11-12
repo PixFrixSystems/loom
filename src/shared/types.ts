@@ -398,8 +398,19 @@ export interface DirEntry {
 }
 
 export type FileReadResult =
-  | { ok: true; content: string; mtime: number; eol: 'lf' | 'crlf' }
-  | { ok: false; reason: 'binary' | 'too-large' | 'missing' | 'error'; message?: string; size?: number }
+  | { ok: true; content: string; mtime: number; eol: 'lf' | 'crlf'; bom: boolean }
+  | { ok: false; reason: 'binary' | 'too-large' | 'missing' | 'encoding' | 'error'; message?: string; size?: number }
+
+export interface FileWriteOptions {
+  /** Start the file with a UTF-8 byte order mark, as it had one when read */
+  bom?: boolean
+  /** The modified time the editor last saw. A newer file on disk is not overwritten. */
+  expectMtime?: number
+}
+
+export type FileWriteResult =
+  | { ok: true; mtime: number }
+  | { ok: false; reason: 'changed' | 'error'; mtime?: number; message?: string }
 
 export interface GitStatus {
   branch: string | null

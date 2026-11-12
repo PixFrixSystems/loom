@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { ConfirmHost, ToastHost } from './components/Confirm'
 import { ImageViewer } from './components/ImageViewer'
 import { ContextMenuHost } from './components/Menu'
 import { QuickOpen } from './components/QuickOpen'
@@ -15,6 +16,7 @@ function useShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const s = useStore.getState()
+      if (s.confirm) return
       const tab = s.tabs.find((t) => t.id === s.activeTabId)
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
@@ -38,7 +40,7 @@ function useShortcuts(): void {
         s.activate(next.id)
       } else if (key === 'w' && !e.shiftKey) {
         e.preventDefault()
-        if (tab) s.closeTab(tab.id)
+        if (tab) void s.requestClose([tab.id])
         else if (panesOf(s.layout).length > 1) s.closePane()
       } else if (key === 't' && !e.shiftKey) {
         e.preventDefault()
@@ -153,6 +155,8 @@ export function App(): ReactNode {
       <ContextMenuHost />
       <ImageViewer />
       {s.quickOpen ? <QuickOpen /> : null}
+      <ConfirmHost />
+      <ToastHost />
     </div>
   )
 }

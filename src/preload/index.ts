@@ -7,6 +7,8 @@ import type {
   ConfigFileInfo,
   DirEntry,
   FileReadResult,
+  FileWriteOptions,
+  FileWriteResult,
   GitChanges,
   GitCommit,
   GitCommitFile,
@@ -78,7 +80,7 @@ const api = {
 
   listDir: (dir: string): Promise<DirEntry[]> => ipcRenderer.invoke('fs:listDir', dir),
   readFile: (path: string): Promise<FileReadResult> => ipcRenderer.invoke('fs:read', path),
-  writeFile: (path: string, content: string): Promise<number> => ipcRenderer.invoke('fs:write', path, content),
+  writeFile: (path: string, content: string, opts?: FileWriteOptions): Promise<FileWriteResult> => ipcRenderer.invoke('fs:write', path, content, opts),
   fileMtime: (path: string): Promise<number | null> => ipcRenderer.invoke('fs:mtime', path),
   projectFiles: (root: string): Promise<string[]> => ipcRenderer.invoke('fs:projectFiles', root),
   configFiles: (projectPath: string | null): Promise<ConfigFileInfo[]> => ipcRenderer.invoke('fs:configFiles', projectPath),

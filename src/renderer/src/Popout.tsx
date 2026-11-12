@@ -1,5 +1,6 @@
 import { SquareArrowDownLeft } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
+import { ConfirmHost, ToastHost } from './components/Confirm'
 import { ImageViewer } from './components/ImageViewer'
 import { ContextMenuHost } from './components/Menu'
 import { ProjectMark } from './components/ProjectMark'
@@ -18,7 +19,7 @@ export function Popout(): ReactNode {
   useEffect(() => {
     void useStore.getState().init()
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w' && !useStore.getState().confirm) {
         e.preventDefault()
         window.close()
       }
@@ -52,6 +53,8 @@ export function Popout(): ReactNode {
       </main>
       <ContextMenuHost />
       <ImageViewer />
+      <ConfirmHost />
+      <ToastHost />
     </div>
   )
 }
