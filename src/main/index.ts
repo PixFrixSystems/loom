@@ -52,7 +52,7 @@ import {
 } from './git'
 import { detectProjectIcon, iconDataUrl } from './icons'
 import { finishThumbnails, fullImage } from './images'
-import { lastUsage, refreshUsage } from './usage'
+import { forgetUsage, lastUsage, refreshUsage } from './usage'
 import { configFiles, createEntry, dirsExist, fileMtime, gitStatus, listDir, listProjectFiles, listSubfolders, readTextFile, renameEntry, writeTextFile } from './files'
 import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './pty'
 import {
@@ -299,6 +299,7 @@ function notify(title: string, body: string): void {
 const usageDeps = { sdk: loadSdk, liveQuery, executable: executableFor, settings }
 function accountChanged(): void {
   releaseIdleChats()
+  forgetUsage(win?.webContents ?? null)
   usageNow(true)
 }
 
@@ -528,7 +529,8 @@ app.whenReady().then(() => {
   // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With
   // no chat running, each reading starts a Claude Code process, so a Loom left in the background
   // doesn't poll; it also reads them after every reply and when asked.
-  setTimeout(() => usageNow(true), 4000)
+  // The meter shows the last saved reading at once; a fresh one follows shortly after start.
+  setTimeout(() => usageNow(true), 1500)
   // Old copies of moved chats: a while after starting, then once a day.
   setTimeout(pruneBackups, 30_000)
   setInterval(pruneBackups, 24 * 60 * 60_000)

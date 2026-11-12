@@ -1,8 +1,8 @@
 // Plan limits (5-hour and weekly), read the way Claude Code's /usage reads them.
 // The SDK call is marked experimental, so every failure here is quiet and the last reading stays.
 
-import type { WebContents } from 'electron'
-import { existsSync, promises as fs, readFileSync } from 'node:fs'
+import { app, type WebContents } from 'electron'
+import { existsSync, promises as fs, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Query } from '@anthropic-ai/claude-agent-sdk'
@@ -110,8 +110,31 @@ let last: UsageSnapshot | null = null
 let inflight: Promise<UsageSnapshot | null> | null = null
 let lastFetch = 0
 
+// The last reading is kept between launches, so the meter shows at once while a new reading,
+// which starts a Claude Code process, takes its few seconds. Older than this, it's not shown.
+const KEEP_MS = 12 * 60 * 60_000
+const savedFile = (): string => join(app.getPath('userData'), 'usage.json')
+
+function loadSaved(): UsageSnapshot | null {
+  try {
+    const snap = JSON.parse(readFileSync(savedFile(), 'utf8')) as UsageSnapshot
+    return snap && Array.isArray(snap.limits) && Date.now() - snap.at < KEEP_MS ? { ...snap, error: undefined } : null
+  } catch {
+    return null
+  }
+}
+
 export function lastUsage(): UsageSnapshot | null {
+  last ??= loadSaved()
   return last
+}
+
+/** Signed out or switched accounts: the reading belonged to the account before. */
+export function forgetUsage(web: WebContents | null): void {
+  last = null
+  lastFetch = 0
+  rmSync(savedFile(), { force: true })
+  if (web && !web.isDestroyed()) web.send('usage:update', null)
 }
 
 /**
@@ -129,10 +152,11 @@ export function refreshUsage(
   force = false
 ): Promise<UsageSnapshot | null> {
   if (inflight) return inflight
-  if (!force && last && Date.now() - lastFetch < 45_000) return Promise.resolve(last)
+  if (!force && lastUsage() && Date.now() - lastFetch < 45_000) return Promise.resolve(last)
   lastFetch = Date.now()
   inflight = (async () => {
     let response: UsageResponse | null = null
+    let email: string | undefined
     // A start that hangs must not hold `inflight` for good, or the meter never updates again. After
     // half a minute Loom gives up, and the finally below stops the idle Claude process.
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -145,6 +169,7 @@ export function refreshUsage(
       const live = deps.liveQuery()
       if (live) {
         response = await inTime(live.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
+        email = await inTime(live.accountInfo()).then((a) => a.email, () => undefined)
       } else {
         const sdk = await inTime(deps.sdk())
         let release: ((r: IteratorResult<never>) => void) | null = null
@@ -165,6 +190,7 @@ export function refreshUsage(
         try {
           await inTime(q.initializationResult())
           response = await inTime(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
+          email = await inTime(q.accountInfo()).then((a) => a.email, () => undefined)
         } finally {
           try {
             q.close()
@@ -183,8 +209,9 @@ export function refreshUsage(
       clearTimeout(timer)
     }
     if (!response) return last
-    last = normalize(response)
+    last = { ...normalize(response), email }
     void feedGuard(last)
+    void fs.writeFile(savedFile(), JSON.stringify(last)).catch(() => undefined)
     if (web && !web.isDestroyed()) web.send('usage:update', last)
     return last
   })().finally(() => {

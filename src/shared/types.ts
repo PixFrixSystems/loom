@@ -582,6 +582,8 @@ export interface UsageSnapshot {
   limits: UsageLimit[]
   /** The usage guard's weekly stop line, when the user has one set up */
   stopAt: number | null
+  /** The account these limits belong to */
+  email?: string
   error?: string
 }
 

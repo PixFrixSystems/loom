@@ -1212,6 +1212,16 @@
   font-size: 12px;
 }
 
+/* Which account the limits belong to, under the heading */
+.usage-account {
+  margin: -6px 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
 .usage-row {
   margin-bottom: 12px;
 }

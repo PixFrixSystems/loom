@@ -65,6 +65,11 @@ function UsagePopover({ usage, anchor, onClose }: { usage: UsageSnapshot; anchor
         <span className="usage-title">Plan limits</span>
         {usage.plan ? <span className="usage-plan">{usage.plan[0].toUpperCase() + usage.plan.slice(1)}</span> : null}
       </div>
+      {usage.email ? (
+        <p className="usage-account selectable" title="The Claude account these limits belong to">
+          {usage.email}
+        </p>
+      ) : null}
       {!usage.available ? (
         <p className="usage-note">Plan limits are not available for this sign-in.</p>
       ) : usage.limits.length ? (

@@ -131,7 +131,7 @@ const api = {
   readIcon: (path: string): Promise<string | null> => ipcRenderer.invoke('icon:read', path),
   fullImage: (ref: string): Promise<string | null> => ipcRenderer.invoke('image:full', ref),
   getUsage: (force?: boolean): Promise<UsageSnapshot | null> => ipcRenderer.invoke('usage:get', force),
-  onUsage: (cb: (u: UsageSnapshot) => void): (() => void) => {
+  onUsage: (cb: (u: UsageSnapshot | null) => void): (() => void) => {
     const listener = (_e: unknown, u: UsageSnapshot): void => cb(u)
     ipcRenderer.on('usage:update', listener)
     return () => ipcRenderer.removeListener('usage:update', listener)
