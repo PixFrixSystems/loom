@@ -437,7 +437,8 @@ export const useStore = create<Store>((set, get) => {
       shell: 'powershell',
       sendWithCtrlEnter: false,
       defaultPermissionMode: 'default',
-      notifyWhenDone: true
+      notifyWhenDone: true,
+      keepChatBackupsDays: 30
     },
     sidebarWidth: 260,
     sidebarOpen: true,

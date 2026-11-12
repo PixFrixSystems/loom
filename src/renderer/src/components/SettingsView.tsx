@@ -124,6 +124,28 @@ export function SettingsView(): ReactNode {
         </section>
 
         <section className="set-section">
+          <h2>Backups</h2>
+          <Row
+            title="Keep copies of moved chats"
+            hint="Moving a chat to another project keeps a copy of the original in .claude\chat-backups, in your user folder. Copies older than this are deleted for good."
+          >
+            <Dropdown<string>
+              value={String(st.keepChatBackupsDays ?? 30)}
+              options={[
+                { value: '7', label: '7 days' },
+                { value: '14', label: '14 days' },
+                { value: '30', label: '30 days' },
+                { value: '90', label: '90 days' },
+                { value: '180', label: '6 months' },
+                { value: '365', label: 'A year' },
+                { value: '0', label: 'Forever' }
+              ]}
+              onChange={(v) => update({ keepChatBackupsDays: Number(v) })}
+            />
+          </Row>
+        </section>
+
+        <section className="set-section">
           <h2>Getting started</h2>
           <Row title="The first-launch steps" hint="Signing in to Claude, adding projects, and how much Claude does without asking.">
             <button className="btn" onClick={() => s.openStart()}>

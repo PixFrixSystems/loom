@@ -238,6 +238,8 @@ export interface LoomSettings {
   defaultEffort?: EffortLevel | null
   defaultUltracode?: boolean
   notifyWhenDone: boolean
+  /** Days to keep the copies a moved chat leaves in ~/.claude/chat-backups; 0 keeps them forever */
+  keepChatBackupsDays?: number
 }
 
 export interface ModelOption {
@@ -281,7 +283,8 @@ export const DEFAULT_SETTINGS: LoomSettings = {
   shell: 'powershell',
   sendWithCtrlEnter: false,
   defaultPermissionMode: 'default',
-  notifyWhenDone: true
+  notifyWhenDone: true,
+  keepChatBackupsDays: 30
 }
 
 export const DEFAULT_MODELS: ModelOption[] = [

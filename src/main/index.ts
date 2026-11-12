@@ -26,6 +26,7 @@ import {
   liveQuery,
   loadSdk,
   moveSession,
+  pruneChatBackups,
   loadHistory,
   openChat,
   renameSession,
@@ -306,8 +307,11 @@ function registerIpc(): void {
   })
   ipcMain.handle('state:load', () => state)
   ipcMain.on('state:save', (_e, next: PersistedState) => {
+    const keep = state.settings.keepChatBackupsDays
     state = next
     saveState(next)
+    // Kept for less time than before: the copies past it go now, not tomorrow.
+    if (next.settings.keepChatBackupsDays !== keep) pruneBackups()
   })
 
   ipcMain.handle('app:pickFolder', async () => {
@@ -497,10 +501,19 @@ app.whenReady().then(() => {
   // no chat running, each reading starts a Claude Code process, so a Loom left in the background
   // doesn't poll; it also reads them after every reply and when asked.
   setTimeout(() => usageNow(true), 4000)
+  // Old copies of moved chats: a while after starting, then once a day.
+  setTimeout(pruneBackups, 30_000)
+  setInterval(pruneBackups, 24 * 60 * 60_000)
   setInterval(() => {
     if (BrowserWindow.getFocusedWindow()) usageNow(false)
   }, 5 * 60_000)
 })
+
+function pruneBackups(): void {
+  pruneChatBackups(settings().keepChatBackupsDays ?? 30)
+    .then((n) => n && console.log(`[backups] deleted ${n} old copies of moved chats`))
+    .catch((e) => console.error('[backups]', e))
+}
 
 let quitting = false
 app.on('before-quit', (e) => {

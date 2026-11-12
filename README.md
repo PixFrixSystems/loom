@@ -110,7 +110,7 @@ A copy built this way runs the Claude Code that `npm install` brings along (or y
 - **Resumed chats** show their messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
 - **Plan limits** in the status bar come from the same source as Claude Code's `/usage`. The SDK marks that call experimental; if it changes, the meter stops updating and nothing else breaks.
 - **Previews are sandboxed.** Sites in a preview pane run with no access to Loom.
-- **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups`.
+- **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups` for 30 days (Settings changes how long).
 - **Throwing away changes** in the Git panel keeps a copy in `%APPDATA%\Loom\discarded`; new files go to the Recycle Bin.
 
 ## Working on Loom

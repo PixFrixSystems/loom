@@ -1121,6 +1121,39 @@ function escapeRegExp(s: string): string {
  * old root say the new one, so every app lists it under the new project. Messages recorded in
  * other folders keep their paths. The original file is kept in ~/.claude/chat-backups.
  */
+/** Where a moved chat's original is kept, as `<session id>-moved-<time>.jsonl` (and a folder of the same name). */
+const CHAT_BACKUPS = join(homedir(), '.claude', 'chat-backups')
+const BACKUP_NAME = /^[0-9a-f-]{36}-moved-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z(?:\.jsonl)?$/i
+
+/**
+ * Deletes the copies moved chats left behind more than `days` days ago (0 keeps them all). Only
+ * Loom's own copies, told by their names; the time in the name is when the chat moved.
+ */
+export async function pruneChatBackups(days: number): Promise<number> {
+  if (!(days > 0)) return 0
+  const cutoff = Date.now() - days * 86_400_000
+  let names: string[]
+  try {
+    names = await fsp.readdir(CHAT_BACKUPS)
+  } catch {
+    return 0
+  }
+  let removed = 0
+  for (const name of names) {
+    const m = name.match(BACKUP_NAME)
+    if (!m) continue
+    const at = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`)
+    if (Number.isNaN(at) || at >= cutoff) continue
+    try {
+      await fsp.rm(join(CHAT_BACKUPS, name), { recursive: true, force: true })
+      removed++
+    } catch (e) {
+      console.error('[backups] could not delete', name, e)
+    }
+  }
+  return removed
+}
+
 export async function moveSession(sessionId: string, fromCwd: string, toCwd: string): Promise<{ ok: boolean; error?: string }> {
   const dirName = projectDirName(toCwd)
   if (dirName.length > 200) return { ok: false, error: "That project's path is too long for Claude Code's chat folders." }
@@ -1169,7 +1202,7 @@ export async function moveSession(sessionId: string, fromCwd: string, toCwd: str
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const backups = join(homedir(), '.claude', 'chat-backups')
+  const backups = CHAT_BACKUPS
   const side = join(dirname(src), sessionId)
   try {
     // A copy of the original first, then the moved chat goes in place.
