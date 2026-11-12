@@ -16,6 +16,7 @@ import type {
 import {
   claudeAuthStatus,
   claudeLogout,
+  modelOptions,
   releaseIdleChats,
   claudeInfo,
   claudeProgram,
@@ -296,7 +297,17 @@ function notify(title: string, body: string): void {
   n.show()
 }
 
-const usageDeps = { sdk: loadSdk, liveQuery, executable: executableFor, settings }
+// The model menu follows the account: each plan limits reading also asks which models it has, so
+// a list saved while signed out (only the basic five) or under another account is replaced.
+const usageDeps = {
+  sdk: loadSdk,
+  liveQuery,
+  executable: executableFor,
+  settings,
+  onModels: (models: Parameters<typeof modelOptions>[0]) => {
+    for (const w of BrowserWindow.getAllWindows()) if (!w.webContents.isDestroyed()) w.webContents.send('models:update', modelOptions(models))
+  }
+}
 function accountChanged(): void {
   releaseIdleChats()
   forgetUsage(win?.webContents ?? null)

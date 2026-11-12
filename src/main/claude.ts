@@ -395,7 +395,7 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
   }
 }
 
-function modelOptions(models: ModelInfo[]): ModelOption[] {
+export function modelOptions(models: ModelInfo[]): ModelOption[] {
   return models.map((m) => ({
     value: m.value === 'default' ? '' : m.value,
     label: m.displayName || m.value,

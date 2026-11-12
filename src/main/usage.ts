@@ -5,7 +5,7 @@ import { app, type WebContents } from 'electron'
 import { existsSync, promises as fs, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Query } from '@anthropic-ai/claude-agent-sdk'
+import type { ModelInfo, Query } from '@anthropic-ai/claude-agent-sdk'
 import type { LoomSettings, UsageLimit, UsageSnapshot } from '@shared/types'
 
 type UsageResponse = Awaited<ReturnType<Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']>>
@@ -148,6 +148,8 @@ export function refreshUsage(
     liveQuery: () => Query | null
     executable: (s: LoomSettings) => string | undefined
     settings: () => LoomSettings
+    /** The models this account can use, asked for on the same trip */
+    onModels?: (models: ModelInfo[]) => void
   },
   force = false
 ): Promise<UsageSnapshot | null> {
@@ -170,6 +172,7 @@ export function refreshUsage(
       if (live) {
         response = await inTime(live.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
         email = await inTime(live.accountInfo()).then((a) => a.email, () => undefined)
+        await inTime(live.supportedModels()).then((m) => m.length && deps.onModels?.(m), () => undefined)
       } else {
         const sdk = await inTime(deps.sdk())
         let release: ((r: IteratorResult<never>) => void) | null = null
@@ -191,6 +194,7 @@ export function refreshUsage(
           await inTime(q.initializationResult())
           response = await inTime(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
           email = await inTime(q.accountInfo()).then((a) => a.email, () => undefined)
+          await inTime(q.supportedModels()).then((m) => m.length && deps.onModels?.(m), () => undefined)
         } finally {
           try {
             q.close()

@@ -19,6 +19,7 @@ import type {
   HistoryResult,
   ImageAttachment,
   LoginState,
+  ModelOption,
   InstallStep,
   PermissionMode,
   PermissionResponse,
@@ -131,6 +132,12 @@ const api = {
   readIcon: (path: string): Promise<string | null> => ipcRenderer.invoke('icon:read', path),
   fullImage: (ref: string): Promise<string | null> => ipcRenderer.invoke('image:full', ref),
   getUsage: (force?: boolean): Promise<UsageSnapshot | null> => ipcRenderer.invoke('usage:get', force),
+  /** The models the signed-in account can use, whenever Loom asks Claude Code again */
+  onModels: (cb: (models: ModelOption[]) => void): (() => void) => {
+    const listener = (_e: unknown, models: ModelOption[]): void => cb(models)
+    ipcRenderer.on('models:update', listener)
+    return () => ipcRenderer.removeListener('models:update', listener)
+  },
   onUsage: (cb: (u: UsageSnapshot | null) => void): (() => void) => {
     const listener = (_e: unknown, u: UsageSnapshot): void => cb(u)
     ipcRenderer.on('usage:update', listener)

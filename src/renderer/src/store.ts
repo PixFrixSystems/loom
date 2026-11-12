@@ -615,6 +615,7 @@ export const useStore = create<Store>((set, get) => {
       window.loom.onServers((servers) => set({ servers }))
       void window.loom.serverList().then((servers) => set({ servers }))
       window.loom.onUsage((usage) => set({ usage }))
+      window.loom.onModels((models) => models.length && set({ knownModels: models }))
       void window.loom.getUsage().then((usage) => usage && set({ usage }))
     },
 
