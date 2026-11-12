@@ -8,18 +8,24 @@ function MenuList({
   x,
   y,
   onClose,
-  minWidth = 180
+  minWidth = 180,
+  takeFocus = true,
+  onBack
 }: {
   items: MenuItem[]
   x: number
   y: number
   onClose: () => void
   minWidth?: number
+  /** A submenu opened by hovering leaves the keyboard where it was; one opened by key takes it. */
+  takeFocus?: boolean
+  /** ArrowLeft in a submenu goes back to the menu it came from. */
+  onBack?: () => void
 }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x, y })
-  const [sub, setSub] = useState<{ index: number; x: number; y: number } | null>(null)
-  const [focus, setFocus] = useState(-1)
+  const [sub, setSub] = useState<{ index: number; x: number; y: number; byKey: boolean } | null>(null)
+  const [focus, setFocus] = useState(takeFocus && onBack ? -2 : -1)
 
   useLayoutEffect(() => {
     const el = ref.current
@@ -28,23 +34,46 @@ function MenuList({
     const nx = Math.min(x, window.innerWidth - r.width - 6)
     const ny = Math.min(y, window.innerHeight - r.height - 6)
     setPos({ x: Math.max(6, nx), y: Math.max(6, ny) })
-    el.focus()
+    if (takeFocus) el.focus()
   }, [x, y])
 
-  const actionable = items.map((it, i) => (!it.separator && !it.disabled ? i : -1)).filter((i) => i >= 0)
+  // A submenu with nothing in it (Move to project with one project, say) can't be picked.
+  const usable = (it: MenuItem): boolean => !it.separator && !it.disabled && !(it.submenu && !it.submenu.length)
+  const actionable = items.map((it, i) => (usable(it) ? i : -1)).filter((i) => i >= 0)
+  // A submenu opened by key starts on its first item.
+  useEffect(() => {
+    if (focus === -2) setFocus(actionable[0] ?? -1)
+  }, [])
+
+  const openSub = (i: number, byKey: boolean): void => {
+    const el = ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[items.slice(0, i).filter((it) => !it.separator).length]
+    const r = el?.getBoundingClientRect()
+    if (r) setSub({ index: i, x: r.right + 2, y: r.top - 4, byKey })
+  }
 
   const onKey = (e: React.KeyboardEvent): void => {
+    // Keys pressed in a submenu are its own; the menu around it must not act on them too.
+    e.stopPropagation()
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
+      if (!actionable.length) return
       const cur = actionable.indexOf(focus)
-      const next = e.key === 'ArrowDown' ? actionable[(cur + 1) % actionable.length] : actionable[(cur - 1 + actionable.length) % actionable.length]
-      setFocus(next ?? -1)
-    } else if (e.key === 'Enter' && focus >= 0) {
+      const next =
+        cur < 0
+          ? actionable[e.key === 'ArrowDown' ? 0 : actionable.length - 1]
+          : actionable[(cur + (e.key === 'ArrowDown' ? 1 : actionable.length - 1)) % actionable.length]
+      setFocus(next)
+      setSub(null)
+    } else if ((e.key === 'Enter' || e.key === 'ArrowRight' || e.key === ' ') && focus >= 0) {
       e.preventDefault()
       const it = items[focus]
-      if (it.submenu) return
+      if (it.submenu) return openSub(focus, true)
+      if (e.key === 'ArrowRight') return
       it.onSelect?.()
       onClose()
+    } else if (e.key === 'ArrowLeft' && onBack) {
+      e.preventDefault()
+      onBack()
     } else if (e.key === 'Escape') {
       e.preventDefault()
       onClose()
@@ -69,12 +98,14 @@ function MenuList({
             key={i}
             role="menuitem"
             className={`menu-item${it.danger ? ' danger' : ''}${focus === i ? ' focused' : ''}`}
-            disabled={it.disabled}
+            disabled={!usable(it)}
+            aria-haspopup={it.submenu ? 'menu' : undefined}
+            aria-expanded={it.submenu ? sub?.index === i : undefined}
             onMouseEnter={(e) => {
               setFocus(i)
-              if (it.submenu) {
+              if (it.submenu && usable(it)) {
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                setSub({ index: i, x: r.right + 2, y: r.top - 4 })
+                setSub({ index: i, x: r.right + 2, y: r.top - 4, byKey: false })
               } else setSub(null)
             }}
             onClick={() => {
@@ -90,7 +121,17 @@ function MenuList({
         )
       )}
       {sub && items[sub.index]?.submenu ? (
-        <MenuList items={items[sub.index].submenu!} x={sub.x} y={sub.y} onClose={onClose} />
+        <MenuList
+          items={items[sub.index].submenu!}
+          x={sub.x}
+          y={sub.y}
+          onClose={onClose}
+          takeFocus={sub.byKey}
+          onBack={() => {
+            setSub(null)
+            ref.current?.focus()
+          }}
+        />
       ) : null}
     </div>
   )
@@ -100,6 +141,14 @@ function MenuList({
 export function ContextMenuHost(): ReactNode {
   const menu = useStore((s) => s.menu)
   const close = (): void => useStore.getState().set({ menu: null })
+  // The keyboard goes back to where it was when the menu closes.
+  useEffect(() => {
+    if (!menu) return
+    const before = document.activeElement as HTMLElement | null
+    return () => {
+      if (before && document.contains(before) && !document.activeElement?.closest('.confirm')) before.focus({ preventScroll: true })
+    }
+  }, [menu])
   useEffect(() => {
     if (!menu) return
     const onDown = (e: MouseEvent): void => {

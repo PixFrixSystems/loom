@@ -12,7 +12,7 @@ import {
   SquareTerminal,
   X
 } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary, type SubFolder } from '@shared/types'
 import { baseName, normPath, projectForPath, timeAgo } from '../lib/paths'
 import { chatWorking, useStore, type MenuItem } from '../store'
@@ -239,10 +239,11 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
       onDrop={(e) => {
         const id = e.dataTransfer.getData('loom/project')
         setDropHint(false)
-        if (!id || id === project.id) return
+        if (!id) return
+        // Taken here even when dropped on itself: let through, the group below would move it to the end.
         e.preventDefault()
         e.stopPropagation()
-        s.moveProject(id, project.groupId, project.id)
+        if (id !== project.id) s.moveProject(id, project.groupId, project.id)
       }}
     >
       <div
@@ -256,6 +257,8 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
         }}
         onClick={() => s.updateProject(project.id, { collapsed: expanded })}
         onKeyDown={(e) => {
+          // Enter on a button inside the row (Run, New chat, More) is that button's.
+          if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             s.updateProject(project.id, { collapsed: expanded })
@@ -364,6 +367,17 @@ function GroupBlock({
 }): ReactNode {
   const s = useStore()
   const [over, setOver] = useState(false)
+  // A drop that a project row takes never reaches the group: the highlight ends with any drag.
+  useEffect(() => {
+    if (!over) return
+    const off = (): void => setOver(false)
+    window.addEventListener('dragend', off)
+    window.addEventListener('drop', off)
+    return () => {
+      window.removeEventListener('dragend', off)
+      window.removeEventListener('drop', off)
+    }
+  }, [over])
   const collapsed = group.collapsed === true
   const editing = s.editingGroupId === group.id
   const groupActivity = projects.map((p) => activity[p.id]).find(Boolean) ?? null
@@ -447,6 +461,7 @@ function GroupBlock({
         tabIndex={0}
         onClick={() => s.updateGroup(group.id, { collapsed: !collapsed })}
         onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             s.updateGroup(group.id, { collapsed: !collapsed })
@@ -544,6 +559,16 @@ export function Sidebar(): ReactNode {
   const sessions = useStore((s) => s.sessions)
   const activity = useProjectActivity()
   const [overLoose, setOverLoose] = useState(false)
+  useEffect(() => {
+    if (!overLoose) return
+    const off = (): void => setOverLoose(false)
+    window.addEventListener('dragend', off)
+    window.addEventListener('drop', off)
+    return () => {
+      window.removeEventListener('dragend', off)
+      window.removeEventListener('drop', off)
+    }
+  }, [overLoose])
 
   const sessionsByProject = useMemo(() => {
     const map = new Map<string, SessionSummary[]>()
