@@ -283,14 +283,9 @@ function exited(s: Server, proc: ChildProcess, code: number): void {
 }
 
 /** Ends the command and everything it started (npm, node, the dev server's workers). */
-function killTree(proc: ChildProcess, wait: boolean): void {
+function killTree(proc: ChildProcess): void {
   if (!proc.pid) return
-  const args = ['/pid', String(proc.pid), '/T', '/F']
-  if (wait) {
-    spawnSync('taskkill', args, { windowsHide: true })
-    return
-  }
-  const k = spawn('taskkill', args, { windowsHide: true })
+  const k = spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { windowsHide: true })
   k.on('error', () => proc.kill())
 }
 
@@ -324,7 +319,7 @@ export function stopServer(id: string): void {
   s.stopping = true
   s.restarting = false
   setInfo(s, { status: 'stopping' })
-  killTree(s.proc, false)
+  killTree(s.proc)
 }
 
 export function restartServer(id: string): void {
@@ -339,7 +334,7 @@ export function restartServer(id: string): void {
   s.restarting = true
   s.stopping = false
   setInfo(s, { status: 'starting', url: null })
-  killTree(s.proc, false)
+  killTree(s.proc)
 }
 
 /** Takes a server that ended on its own off the list. Its output stays readable. */
@@ -362,11 +357,17 @@ export function writeServer(id: string, data: string): void {
   append(s, data.replace(/\r/g, '\r\n'))
 }
 
-/** On quit: nothing Loom started may outlive it. */
+/**
+ * On quit: nothing Loom started may outlive it. One taskkill for every server, with a time limit,
+ * so a stalled one can't keep Loom from quitting. A server caught mid-restart is not started again.
+ */
 export function killAllServers(): void {
+  const pids: string[] = []
   for (const s of servers.values()) {
+    s.restarting = false
     if (!s.proc) continue
     s.stopping = true
-    killTree(s.proc, true)
+    if (s.proc.pid) pids.push('/PID', String(s.proc.pid))
   }
+  if (pids.length) spawnSync('taskkill', ['/T', '/F', ...pids], { windowsHide: true, timeout: 5000 })
 }

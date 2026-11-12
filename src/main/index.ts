@@ -456,10 +456,21 @@ app.on('before-quit', (e) => {
   if (quitting) return
   e.preventDefault()
   quitting = true
-  closeAllChats()
-  killAllTerminals()
-  killAllServers()
-  void flushState().finally(() => app.quit())
+  // State is saved before anything that could stall or throw. Whatever happens after that, Loom
+  // quits: a Loom.exe left running with no window holds the single-instance lock, and every later
+  // launch would exit at once.
+  void (async () => {
+    try {
+      await flushState()
+      closeAllChats()
+      killAllTerminals()
+      killAllServers()
+    } catch (err) {
+      console.error('[quit]', err)
+    } finally {
+      app.quit()
+    }
+  })()
 })
 
 app.on('window-all-closed', () => app.quit())
