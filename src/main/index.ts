@@ -48,7 +48,7 @@ import {
   gitUnstage
 } from './git'
 import { detectProjectIcon, iconDataUrl } from './icons'
-import { fullImage } from './images'
+import { finishThumbnails, fullImage } from './images'
 import { lastUsage, refreshUsage } from './usage'
 import { configFiles, createEntry, dirsExist, fileMtime, gitStatus, listDir, listProjectFiles, listSubfolders, readTextFile, renameEntry, writeTextFile } from './files'
 import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './pty'
@@ -315,7 +315,12 @@ function registerIpc(): void {
 
   // Claude
   ipcMain.handle('sessions:list', (_e, force?: boolean) => listAllSessions(force))
-  ipcMain.handle('sessions:history', (_e, sessionId: string) => loadHistory(sessionId))
+  ipcMain.handle('sessions:history', async (_e, sessionId: string) => {
+    const history = await loadHistory(sessionId)
+    // Thumbnails beyond the first few are made here, a turn of the event loop between images.
+    await finishThumbnails(history.items)
+    return history
+  })
   ipcMain.handle('sessions:rename', (_e, sessionId: string, title: string) => renameSession(sessionId, title))
   ipcMain.handle('sessions:move', (_e, sessionId: string, fromCwd: string, toCwd: string) => moveSession(sessionId, fromCwd, toCwd))
 
