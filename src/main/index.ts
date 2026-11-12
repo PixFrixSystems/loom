@@ -64,18 +64,22 @@ import {
   writeServer
 } from './servers'
 import { closeAllPopouts, setupPopouts } from './popouts'
-import { flushState, loadBounds, loadState, saveBounds, saveState } from './state'
+import { emptyState, flushState, loadBounds, loadState, saveBounds, saveState } from './state'
 
 const isDev = !app.isPackaged && !!process.env.ELECTRON_RENDERER_URL
 
 // Tests point Loom at a scratch folder so they never touch the real state.
 if (process.env.LOOM_USER_DATA) app.setPath('userData', process.env.LOOM_USER_DATA)
 
+// One Loom at a time. A second launch brings the first to the front and quits without doing
+// anything itself: it doesn't read the state file, open a window or start the updater.
+const primary = app.requestSingleInstanceLock()
+
 let win: BrowserWindow | null = null
-let state: PersistedState = loadState()
+let state: PersistedState = primary ? loadState() : emptyState()
 const settings = (): LoomSettings => state.settings
 
-if (!app.requestSingleInstanceLock()) {
+if (!primary) {
   app.quit()
 } else {
   app.on('second-instance', () => {
@@ -427,6 +431,7 @@ function ensureShortcuts(): void {
 }
 
 app.whenReady().then(() => {
+  if (!primary) return
   ensureShortcuts()
   if (!isDev) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
