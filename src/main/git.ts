@@ -156,8 +156,12 @@ export async function gitUnstage(dir: string, abs: string[]): Promise<GitResult>
   const p = await paths(dir, abs)
   if (!p) return { ok: false, output: 'Not a git repository.' }
   const r = await attempt(['restore', '--staged', '--', ...p.rels], p.root)
-  // A repository with no commits yet has nothing to restore from.
-  return r.ok ? r : attempt(['rm', '--cached', '-r', '-q', '--', ...p.rels], p.root)
+  if (r.ok) return r
+  // A repository with no commits yet has nothing to restore from, so the files come out of the
+  // index instead. Any other failure (an index.lock held by a chat running git, say) is reported:
+  // taking the files out of the index then would make the next commit delete them.
+  const hasCommits = await git(['rev-parse', '--verify', '-q', 'HEAD'], p.root).then(() => true, () => false)
+  return hasCommits ? r : attempt(['rm', '--cached', '-r', '-q', '--', ...p.rels], p.root)
 }
 
 /**
