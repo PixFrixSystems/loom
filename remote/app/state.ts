@@ -26,7 +26,8 @@ export interface PhoneChat {
 type Phase =
   | { at: 'starting' }
   | { at: 'unlinked'; note?: 'removed' | 'forgotten' }
-  | { at: 'linking'; pcOff: boolean }
+  /** digits: Loom is asking on the PC, and shows the same digits there */
+  | { at: 'linking'; pcOff: boolean; digits?: string }
   | { at: 'link-failed'; why: PairError }
   | { at: 'linked' }
 
@@ -209,7 +210,10 @@ export const useApp = create<State>((set, get) => {
         stop()
         set({ ...cleared, phase: { at: 'linking', pcOff: false } })
         try {
-          const link = await pair(hash, (pcOff) => set({ phase: { at: 'linking', pcOff } }))
+          const link = await pair(hash, {
+            waiting: (pcOff) => set({ phase: { at: 'linking', pcOff } }),
+            confirm: (digits) => set({ phase: { at: 'linking', pcOff: false, digits } })
+          })
           connect(link)
         } catch (why) {
           set({ phase: { at: 'link-failed', why: why as PairError } })

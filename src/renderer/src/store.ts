@@ -153,6 +153,10 @@ export interface ConfirmRequest {
   focus?: string
   /** A text box under the message; Enter picks the first choice */
   input?: { value: string; placeholder?: string; select?: [number, number] }
+  /** Digits to compare with another screen, shown large under the message */
+  code?: string
+  /** The phone this question is about, when it asks whether to link one */
+  linkRequest?: string
 }
 
 /**

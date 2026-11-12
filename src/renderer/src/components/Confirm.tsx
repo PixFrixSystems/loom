@@ -67,6 +67,11 @@ export function ConfirmHost(): ReactNode {
             {c.body}
           </p>
         ) : null}
+        {c.code ? (
+          <p className="confirm-code selectable" aria-label={`The digits are ${c.code.split('').join(' ')}`}>
+            {c.code}
+          </p>
+        ) : null}
         {c.input ? (
           <input
             ref={field}

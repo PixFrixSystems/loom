@@ -211,11 +211,28 @@ const WHY: Record<PairError, string> = {
   full: 'Loom already has as many phones linked as it takes. Remove one in Settings, Phone access, then try again.',
   version: "This page and the Loom on your PC don't match. Update Loom, then link again.",
   timeout: "Loom on your PC didn't answer. Check that it is open and online, then show a new code.",
-  'bad-link': "That link isn't a Loom code. Scan the one Loom shows in Settings, Phone access."
+  'bad-link': "That link isn't a Loom code. Scan the one Loom shows in Settings, Phone access.",
+  refused: 'The link was refused on your PC. If that was a mistake, show a new code in Loom and scan it again.'
 }
 
 export function LinkScreen(): ReactNode {
   const phase = useApp((s) => s.phase)
+  if (phase.at === 'linking' && phase.digits) {
+    // Scanning only asks. Loom shows the same digits on the PC, where the link is allowed or refused.
+    return (
+      <Page>
+        <main id="main" className="wait" tabIndex={-1}>
+          <div className="hero">
+            <h1>Allow it on your PC</h1>
+            <p className="lede">Loom on your PC is asking whether to link this phone. Check that it shows these digits, then choose Link this phone there.</p>
+            <p className="check-digits" aria-label={`The digits are ${phase.digits.split('').join(' ')}`}>
+              {phase.digits}
+            </p>
+          </div>
+        </main>
+      </Page>
+    )
+  }
   if (phase.at === 'linking') {
     return (
       <Page>

@@ -13,6 +13,7 @@ import type { EffortLevel, PermissionResponse } from '@shared/types'
 import {
   b64u,
   aesKey,
+  checkCode,
   deviceKeyBytes,
   ID_PATTERN,
   keyPair,
@@ -63,6 +64,24 @@ interface Config {
   devices: Device[]
 }
 
+/** A phone that scanned the code, waiting for the answer given on the PC */
+interface LinkRequest {
+  id: string
+  name: string
+  /** The digits both screens show */
+  code: string
+  /** The key the phone gets if it is allowed */
+  raw: string
+  /** Loom's public key for this phone */
+  pub: string
+  pairId: string
+  /** The code's own key, for the answer */
+  key: CryptoKey
+}
+
+/** Phones that can wait for an answer at once: the one you scanned with, and room to spot a stranger */
+const MAX_REQUESTS = 3
+
 /** One phone's connection, from its hi until it leaves */
 interface Session {
   device: Device
@@ -105,6 +124,7 @@ let lastList: RemoteList | null = null
 /** Loom is quitting: no new connections */
 let closing = false
 const sessions = new Map<string, Session>()
+const requests = new Map<string, LinkRequest>()
 
 // ---------- Saved on disk ----------
 
@@ -175,6 +195,7 @@ function status(): RemoteStatus {
     error: relayError,
     devices: cfg.devices.map((d) => ({ id: d.id, name: d.name, linkedAt: d.linkedAt, seenAt: d.seenAt, connected: sessions.has(d.id) })),
     pairing: pairing ? { url: pairing.url, expiresAt: pairing.expiresAt } : null,
+    requests: [...requests.values()].map(({ id, name, code }) => ({ id, name, code })),
     address: ADDRESS
   }
 }
@@ -328,17 +349,24 @@ async function onFrame(text: string): Promise<void> {
 
 // ---------- Linking a phone ----------
 
+/** The code is gone (used, cancelled, run out): the phones still waiting on it are told. */
+function endPairing(): void {
+  if (pairing) clearTimeout(pairing.timer)
+  pairing = null
+  for (const r of requests.values()) sendRaw({ to: r.id, x: 'expired' })
+  requests.clear()
+}
+
 function cancelPairing(): void {
   if (!pairing) return
-  clearTimeout(pairing.timer)
-  pairing = null
+  endPairing()
   sync()
 }
 
 async function startPairing(): Promise<RemoteStatus> {
   const secret = randomBytes(SECRET_BYTES)
   const id = await pairingId(secret)
-  if (pairing) clearTimeout(pairing.timer)
+  endPairing()
   pairing = {
     id,
     secret,
@@ -373,6 +401,7 @@ async function onPair(from: string, pairId: string, sealed: string): Promise<voi
   const reply = async (m: PairDown): Promise<void> => sendRaw({ to: from, p: pr.id, d: await seal(key, sealContext('pair', pr.id, 'down'), m) })
   if (msg.v !== REMOTE_VERSION) return reply({ t: 'pair-failed', reason: 'version' })
   if (cfg.devices.filter((d) => d.id !== from).length >= MAX_DEVICES) return reply({ t: 'pair-failed', reason: 'full' })
+  if (!requests.has(from) && requests.size >= MAX_REQUESTS) return
   const pair = await keyPair()
   let raw: Uint8Array<ArrayBuffer>
   try {
@@ -381,13 +410,36 @@ async function onPair(from: string, pairId: string, sealed: string): Promise<voi
     if (++pr.fails >= 5) cancelPairing()
     return
   }
-  // A code links one phone.
-  clearTimeout(pr.timer)
+  const request: LinkRequest = { id: from, name: cleanName(msg.name), code: await checkCode(raw), raw: b64u(raw), pub: await publicKey(pair), pairId: pr.id, key }
+  if (pairing !== pr) return
+  // Scanning the code only asks. The phone is let in when someone at the PC says so, having
+  // seen its name and the digits its screen shows.
+  requests.set(from, request)
+  await reply({ t: 'confirm', pub: request.pub, pc: hostname() })
+  emitStatus()
+}
+
+/** The answer given on the PC to a phone that scanned the code. */
+async function answerLink(id: string, allow: boolean): Promise<void> {
+  const r = requests.get(id)
+  if (!r) return
+  requests.delete(id)
+  const tell = async (to: LinkRequest, m: PairDown): Promise<void> => sendRaw({ to: to.id, p: to.pairId, d: await seal(to.key, sealContext('pair', to.pairId, 'down'), m) })
+  const full = cfg.devices.filter((d) => d.id !== id).length >= MAX_DEVICES
+  if (!allow || full) {
+    await tell(r, { t: 'pair-failed', reason: allow ? 'full' : 'refused' })
+    return emitStatus()
+  }
+  // A code links one phone: it is used up, and any other phone waiting on it is turned away.
+  const others = [...requests.values()]
+  requests.clear()
+  if (pairing) clearTimeout(pairing.timer)
   pairing = null
-  endSession(from)
-  cfg.devices = [...cfg.devices.filter((d) => d.id !== from), { id: from, name: cleanName(msg.name), linkedAt: Date.now(), raw: b64u(raw) }]
+  endSession(id)
+  cfg.devices = [...cfg.devices.filter((d) => d.id !== id), { id, name: r.name, linkedAt: Date.now(), raw: r.raw }]
   save()
-  await reply({ t: 'paired', pub: await publicKey(pair), pc: hostname() })
+  await tell(r, { t: 'paired', pub: r.pub, pc: hostname() })
+  for (const other of others) await tell(other, { t: 'pair-failed', reason: 'refused' })
   emitStatus()
 }
 
@@ -546,15 +598,17 @@ export function setupRemote(d: Deps): void {
   ipcMain.handle('remote:status', () => status())
   ipcMain.handle('remote:enable', (_e, on: boolean) => {
     cfg.enabled = on === true
-    if (!cfg.enabled && pairing) {
-      clearTimeout(pairing.timer)
-      pairing = null
-    }
+    if (!cfg.enabled) endPairing()
     save()
     sync()
     return status()
   })
   ipcMain.handle('remote:pair', () => startPairing())
+  ipcMain.handle('remote:answerLink', async (_e, id: string, allow: boolean) => {
+    await answerLink(id, allow === true)
+    sync()
+    return status()
+  })
   ipcMain.handle('remote:pairCancel', () => {
     cancelPairing()
     return status()

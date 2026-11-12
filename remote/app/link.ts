@@ -6,9 +6,11 @@
 
 import {
   aesKey,
+  checkCode,
   deviceKeyBytes,
   keyPair,
   pairingId,
+  PAIRING_MS,
   pairingKey,
   parsePairingHash,
   publicKey,
@@ -46,7 +48,7 @@ export type Conn =
   /** Loom no longer knows this phone */
   | 'unknown'
 
-export type PairError = 'expired' | 'full' | 'version' | 'timeout' | 'bad-link'
+export type PairError = 'expired' | 'full' | 'version' | 'timeout' | 'bad-link' | 'refused'
 
 interface Handlers {
   conn: (conn: Conn) => void
@@ -123,9 +125,10 @@ function deviceName(): string {
 
 /**
  * Links this phone with the code in the address (the part after #), and saves the link.
- * `waiting` is told when the relay answers but Loom on the PC doesn't yet.
+ * `waiting` is told when the relay answers but Loom on the PC doesn't yet. `confirm` is told the
+ * digits to show while Loom asks, on the PC, whether to let this phone in.
  */
-export function pair(hash: string, waiting: (pcOff: boolean) => void): Promise<Link> {
+export function pair(hash: string, on: { waiting: (pcOff: boolean) => void; confirm: (digits: string) => void }): Promise<Link> {
   return new Promise((resolve, reject) => {
     const code = parsePairingHash(hash)
     if (!code) return reject('bad-link' satisfies PairError)
@@ -133,15 +136,20 @@ export function pair(hash: string, waiting: (pcOff: boolean) => void): Promise<L
     const ws = new WebSocket(relayUrl(code.room, device))
     let done = false
     let sent = false
+    /** This phone's key, once Loom's half has arrived: what the digits on both screens come from */
+    let raw: Uint8Array<ArrayBuffer> | null = null
     const finish = (err: PairError | null, link?: Link): void => {
       if (done) return
       done = true
       clearTimeout(timer)
+      clearInterval(beat)
       ws.close()
       if (link) resolve(link)
       else reject(err)
     }
-    const timer = setTimeout(() => finish('timeout'), 30_000)
+    let timer = setTimeout(() => finish('timeout'), 30_000)
+    // The answer on the PC can take a while: the connection is kept from going quiet meanwhile.
+    const beat = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('ping'), 25_000)
     // The pairing's name on the relay and its key both come from the code's secret.
     const keys = pairingId(code.secret).then(async (pairId) => [await pairingKey(code.secret, pairId), await keyPair(), pairId] as const)
 
@@ -156,7 +164,7 @@ export function pair(hash: string, waiting: (pcOff: boolean) => void): Promise<L
       const [key, own, pairId] = await keys
       if ('t' in f) {
         if (f.t !== 'pc') return
-        waiting(!f.on)
+        on.waiting(!f.on)
         if (!f.on || sent) return
         sent = true
         const up: PairUp = { t: 'pair', v: REMOTE_VERSION, pub: await publicKey(own), name: deviceName() }
@@ -169,12 +177,18 @@ export function pair(hash: string, waiting: (pcOff: boolean) => void): Promise<L
       if (!down) return
       if (down.t === 'pair-failed') return finish(down.reason)
       try {
-        const link: Link = {
-          room: code.room,
-          device,
-          key: await aesKey(await deviceKeyBytes(own, down.pub, code.secret, device)),
-          pc: String(down.pc).slice(0, 60)
+        if (down.t === 'confirm') {
+          // Loom has the request and is asking on the PC. The code stays good until it runs out.
+          raw = await deviceKeyBytes(own, down.pub, code.secret, device)
+          on.confirm(await checkCode(raw))
+          clearTimeout(timer)
+          timer = setTimeout(() => finish('expired'), PAIRING_MS + 15_000)
+          return
         }
+        // Allowed. The key is the one the digits came from; a Loom from before the question was
+        // asked on the PC sends its half only now.
+        raw ??= await deviceKeyBytes(own, down.pub, code.secret, device)
+        const link: Link = { room: code.room, device, key: await aesKey(raw), pc: String(down.pc).slice(0, 60) }
         await saveLink(link)
         finish(null, link)
       } catch {

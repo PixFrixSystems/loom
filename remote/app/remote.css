@@ -1904,3 +1904,21 @@ button.row:disabled {
   font-weight: 600;
   white-space: nowrap;
 }
+/* Linking: the digits to compare with the ones Loom shows on the PC */
+.check-digits {
+  display: inline-block;
+  margin-top: 28px;
+  padding: 18px 26px 16px;
+  border-radius: 16px;
+  background: var(--glass);
+  box-shadow: var(--glass-edge);
+  color: var(--text);
+  font-size: clamp(2.5rem, 2rem + 3vw, 3.5rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+  line-height: 1;
+  /* The spacing after the last digit would push them off centre */
+  text-indent: 0.2em;
+}
+

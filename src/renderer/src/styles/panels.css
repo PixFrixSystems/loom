@@ -368,6 +368,24 @@
   line-height: 1.5;
 }
 
+/* Digits to compare with another screen: large, evenly spaced, nothing else on the line */
+.confirm-code {
+  margin: 2px 0;
+  padding: 12px 0 10px;
+  border-radius: 9px;
+  background: var(--bg-sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+  font-size: 30px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-align: center;
+  /* The spacing after the last digit would push them off centre */
+  text-indent: 0.22em;
+}
+
 .confirm-input {
   width: 100%;
 }

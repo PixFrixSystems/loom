@@ -254,6 +254,8 @@ const api = {
   remoteEnable: (on: boolean): Promise<RemoteStatus> => ipcRenderer.invoke('remote:enable', on),
   remotePair: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:pair'),
   remotePairCancel: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:pairCancel'),
+  /** Allows or refuses a phone that scanned the code */
+  remoteAnswerLink: (id: string, allow: boolean): Promise<RemoteStatus> => ipcRenderer.invoke('remote:answerLink', id, allow),
   remoteRemove: (id: string): Promise<RemoteStatus> => ipcRenderer.invoke('remote:remove', id),
   onRemoteStatus: (cb: (status: RemoteStatus) => void): (() => void) => {
     const listener = (_e: unknown, status: RemoteStatus): void => cb(status)

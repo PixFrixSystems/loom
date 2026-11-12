@@ -110,7 +110,7 @@ export function PhoneAccess(): ReactNode {
       <div className="set-row">
         <div className="set-text">
           <div className="set-title">Linked phones</div>
-          <div className="set-hint">A phone is linked by scanning a code shown here. Remove one and it can no longer connect.</div>
+          <div className="set-hint">A phone is linked by scanning a code shown here, then allowed on this PC. Remove one and it can no longer connect.</div>
         </div>
         <div className="set-control">
           <div className="phone-controls">
@@ -140,7 +140,7 @@ export function PhoneAccess(): ReactNode {
                 <div className="phone-pair-text">
                   <p className="phone-pair-title">Scan with the phone&apos;s camera</p>
                   <p className="phone-pair-hint">
-                    Links one phone, for the next <TimeLeft at={remote.pairing.expiresAt} />. Whoever scans it first gets in, so keep it to yourself.
+                    Good for one phone, for the next <TimeLeft at={remote.pairing.expiresAt} />. Loom then asks you here before it lets the phone in.
                   </p>
                   <div className="phone-pair-actions">
                     <button

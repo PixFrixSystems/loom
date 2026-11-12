@@ -475,6 +475,50 @@ function phonesConnected(): boolean {
   return !!useStore.getState().remote?.devices.some((d) => d.connected)
 }
 
+// ---------- A phone asking to be linked (main window only) ----------
+
+let asking: string | null = null
+const answered = new Set<string>()
+
+/**
+ * A phone scanned the code: Loom asks here, on the PC, before it is let in. The dialog names the
+ * phone and shows the digits its screen shows, so a phone that isn't yours is easy to tell.
+ */
+function askAboutLinks(): void {
+  const s = useStore.getState()
+  const waiting = s.remote?.requests ?? []
+  // The request on screen went away (its code ran out, or was cancelled): take the question down.
+  if (asking && !waiting.some((r) => r.id === asking)) {
+    const open = s.confirm
+    if (open?.linkRequest === asking) {
+      useStore.setState({ confirm: null })
+      open.resolve(open.cancel)
+    }
+    return
+  }
+  const next = waiting.find((r) => !answered.has(r.id))
+  if (asking || !next) return
+  asking = next.id
+  void s
+    .ask({
+      title: `Link ${next.name} to Loom?`,
+      body: 'It scanned the code on this PC. Check that its screen shows these digits. A linked phone can read your chats, send messages and approve what Claude asks to run.',
+      code: next.code,
+      linkRequest: next.id,
+      choices: [
+        { id: 'link', label: 'Link this phone', kind: 'primary' },
+        { id: 'refuse', label: 'Refuse', kind: 'ghost' }
+      ],
+      cancel: 'refuse'
+    })
+    .then(async (choice) => {
+      answered.add(next.id)
+      const remote = await window.loom.remoteAnswerLink(next.id, choice === 'link')
+      asking = null
+      useStore.setState({ remote })
+    })
+}
+
 // ---------- Start ----------
 
 export function startRemoteAgent(): void {
@@ -520,6 +564,9 @@ export function startRemoteAgent(): void {
   })
 
   if (POPOUT_TAB) return
+  useStore.subscribe((s, prev) => {
+    if (s.remote !== prev.remote) askAboutLinks()
+  })
   window.loom.onRemoteListRequest(() => {
     sendList(true)
     void sendIcons(true)

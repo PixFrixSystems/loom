@@ -13,6 +13,9 @@
 //   Loom answers with its own public key the same way. Each side then works out the phone's key
 //   from the two key pairs and the secret, so a relay that swapped keys would get nothing, and a
 //   photo of an old QR code is no use once the phone has linked.
+//   Scanning is not enough to get in: Loom then asks on the PC whether to link that phone, and
+//   both screens show the same four digits, worked out from the phone's key. Someone else who
+//   got hold of the code shows up with a name and digits that aren't the ones on your phone.
 //
 // Each connection:
 //   The phone says hi with a random number. Loom answers with that number and a fresh session
@@ -67,7 +70,12 @@ export type RelayNotice =
 // ---------- Linking ----------
 
 export type PairUp = { t: 'pair'; v: number; pub: string; name: string }
-export type PairDown = { t: 'paired'; pub: string; pc: string } | { t: 'pair-failed'; reason: 'full' | 'version' }
+export type PairDown =
+  /** Loom has the request and is asking on the PC. The phone can now work out its key and the digits to compare. */
+  | { t: 'confirm'; pub: string; pc: string }
+  /** Allowed on the PC: the phone is linked. (Loom 0.1.8 sends this straight away, with no confirm before it.) */
+  | { t: 'paired'; pub: string; pc: string }
+  | { t: 'pair-failed'; reason: 'full' | 'version' | 'refused' }
 
 // ---------- After linking ----------
 
@@ -235,6 +243,15 @@ export interface RemoteDevice {
   connected: boolean
 }
 
+/** A phone that scanned the code and waits for the PC to allow it */
+export interface RemoteLinkRequest {
+  /** The phone's device id */
+  id: string
+  name: string
+  /** The four digits its screen shows */
+  code: string
+}
+
 export interface RemoteStatus {
   enabled: boolean
   /** Loom's connection to the relay */
@@ -243,6 +260,8 @@ export interface RemoteStatus {
   devices: RemoteDevice[]
   /** A QR code waiting to be scanned */
   pairing: { url: string; expiresAt: number } | null
+  /** Phones that scanned it and wait to be allowed */
+  requests: RemoteLinkRequest[]
   /** The page to open on the phone */
   address: string
 }
@@ -334,6 +353,16 @@ export async function deviceKeyBytes(
   const peer = await crypto.subtle.importKey('raw', unb64u(peerPublic), ECDH, false, [])
   const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: peer }, own.privateKey, 256))
   return hkdf(shared, secret, `loom-remote device v1 ${deviceId}`)
+}
+
+/**
+ * The four digits a phone and Loom both show while a link waits to be allowed. They come from
+ * the phone's key, so they are the same on both screens only for the phone that key belongs to.
+ */
+export async function checkCode(raw: Uint8Array<ArrayBuffer>): Promise<string> {
+  const bytes = await hkdf(raw, new Uint8Array(0), 'loom-remote check code v1')
+  const n = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0
+  return String(n % 10_000).padStart(4, '0')
 }
 
 /** What a message's seal is tied to: one phone or pairing, one direction */
