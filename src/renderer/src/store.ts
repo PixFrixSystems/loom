@@ -318,6 +318,9 @@ interface Store extends PersistedState {
   /** Closes tabs the way a person asks to: offers to save unsaved files, warns about working chats. */
   requestClose: (tabIds: string[]) => Promise<boolean>
   requestRemoveProject: (id: string) => Promise<void>
+  /** Tabs closed in this session, newest last, for Reopen closed tab */
+  closedTabs: Tab[]
+  reopenClosed: () => void
   requestDeleteGroup: (id: string) => Promise<void>
 }
 
@@ -437,6 +440,7 @@ export const useStore = create<Store>((set, get) => {
     viewer: null,
     confirm: null,
     toasts: [],
+    closedTabs: [],
     treeVersion: 0,
     layout: { kind: 'pane', id: 'main', tabId: null },
     focusedPane: 'main',
@@ -746,7 +750,10 @@ export const useStore = create<Store>((set, get) => {
       delete detached[tabId]
       const fileDrafts = { ...s.fileDrafts }
       delete fileDrafts[tabId]
-      set({ tabs, layout, activeTabId, chats, terminals, dirtyFiles, detached, fileDrafts })
+      // Chats with history, files, previews and diffs can come back; a shell or a dev server can't.
+      const reopenable = (tab.kind === 'chat' && tab.sessionId) || tab.kind === 'file' || tab.kind === 'browser' || tab.kind === 'diff'
+      const closedTabs = reopenable ? [...s.closedTabs.filter((t) => t.id !== tabId), tab].slice(-20) : s.closedTabs
+      set({ tabs, layout, activeTabId, chats, terminals, dirtyFiles, detached, fileDrafts, closedTabs })
       clearLive(tabId)
       if (activeTabId) get().activate(activeTabId)
     },
@@ -1448,6 +1455,20 @@ export const useStore = create<Store>((set, get) => {
       }
       for (const t of pick()) get().closeTab(t.id)
       return true
+    },
+    reopenClosed: () => {
+      const list = [...get().closedTabs]
+      const tab = list.pop()
+      set({ closedTabs: list })
+      if (!tab) return
+      if (tab.kind === 'file') return get().openFile(tab.path, tab.projectId)
+      if (tab.kind === 'chat') {
+        const open = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === tab.sessionId)
+        if (open) return get().activate(open.id)
+      }
+      // The project may have gone meanwhile; the tab still opens, just without it.
+      const projectId = tab.projectId && get().projects.some((p) => p.id === tab.projectId) ? tab.projectId : null
+      get().openTab({ ...tab, id: uid(), projectId } as Tab)
     },
     requestRemoveProject: async (id) => {
       const p = get().projects.find((x) => x.id === id)

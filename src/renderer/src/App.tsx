@@ -56,6 +56,9 @@ function useShortcuts(): void {
         e.preventDefault()
         if (tab) void s.requestClose([tab.id])
         else if (panesOf(s.layout).length > 1) s.closePane()
+      } else if (key === 't' && e.shiftKey) {
+        e.preventDefault()
+        s.reopenClosed()
       } else if (key === 't' && !e.shiftKey) {
         e.preventDefault()
         s.newChat(tab?.projectId ?? s.projects[0]?.id ?? null)

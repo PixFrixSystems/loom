@@ -115,6 +115,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
         disabled: rowIndex === sameRow.length - 1,
         onSelect: () => void s.requestClose(sameRow.slice(rowIndex + 1).map((t) => t.id))
       },
+      { label: 'Reopen closed tab (Ctrl+Shift+T)', disabled: !s.closedTabs.length, onSelect: () => s.reopenClosed() },
       { separator: true, label: '' },
       ...(detached
         ? [{ label: 'Move back to this window', onSelect: () => void window.loom.popoutClose(tab.id) }]
