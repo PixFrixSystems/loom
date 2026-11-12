@@ -5,6 +5,7 @@ import { ImageViewer } from './components/ImageViewer'
 import { ContextMenuHost } from './components/Menu'
 import { ProjectMark } from './components/ProjectMark'
 import { TabContent } from './components/Workspace'
+import { startRemoteAgent } from './remoteAgent'
 import { useStore } from './store'
 
 /**
@@ -17,7 +18,7 @@ export function Popout(): ReactNode {
   const project = useStore((s) => s.projects.find((p) => p.id === tab?.projectId))
 
   useEffect(() => {
-    void useStore.getState().init()
+    void useStore.getState().init().then(startRemoteAgent)
     const onKey = (e: KeyboardEvent): void => {
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyW' && !useStore.getState().confirm) {
         e.preventDefault()

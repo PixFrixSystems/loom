@@ -1,4 +1,4 @@
-import { CircleArrowUp, GitBranch, RefreshCw } from 'lucide-react'
+import { CircleArrowUp, GitBranch, RefreshCw, Smartphone } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { UsageLimit, UsageSnapshot } from '@shared/types'
@@ -176,6 +176,8 @@ export function StatusBar(): ReactNode {
   }, [project?.id])
 
   const mode = tab?.kind === 'chat' ? (tab.permissionMode ?? chat?.permissionMode) : null
+  // A phone is using Loom right now: say so, and lead to where it can be removed.
+  const phones = s.remote?.devices.filter((d) => d.connected) ?? []
 
   return (
     <footer className="statusbar">
@@ -209,6 +211,16 @@ export function StatusBar(): ReactNode {
           {running === 1 ? '1 chat working' : `${running} chats working`}
           {agents ? <span className="sb-muted">{agents === 1 ? '1 agent' : `${agents} agents`}</span> : null}
         </span>
+      ) : null}
+      {phones.length ? (
+        <button
+          className="sb-item sb-phone"
+          title={`${phones.map((d) => d.name).join(', ')} ${phones.length === 1 ? 'is' : 'are'} connected to Loom. Click for Phone access in Settings`}
+          onClick={() => s.openSettings()}
+        >
+          <Smartphone />
+          {phones.length === 1 ? 'Phone connected' : `${phones.length} phones connected`}
+        </button>
       ) : null}
       {mode ? <span className="sb-item sb-muted">{MODE_OPTIONS.find((m) => m.value === mode)?.label ?? mode}</span> : null}
       {chat?.activeModel ? <span className="sb-item sb-muted">{modelName(chat.activeModel, s.knownModels)}</span> : null}

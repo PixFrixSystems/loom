@@ -1951,6 +1951,24 @@ body.is-resizing webview {
   color: var(--text);
 }
 
+/* A linked phone is connected: lavender, as everything live is, and it opens Phone access */
+.sb-phone {
+  height: 22px;
+  margin: 0 -7px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--light);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--base) var(--ease-out);
+}
+
+.sb-phone:hover {
+  background: var(--bg-hover);
+}
+
 /* A new version has downloaded: the one place the status bar asks for a click */
 .sb-update {
   height: 20px;

@@ -7,6 +7,7 @@ import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
 import { account } from './Onboarding'
+import { PhoneAccess } from './PhoneAccess'
 import { SignInPanel } from './SignIn'
 
 /**
@@ -303,6 +304,8 @@ export function SettingsView(): ReactNode {
           </Row>
           <NotifyRow notifyWhenDone={st.notifyWhenDone} sound={st.notifySound ?? 'off'} volume={st.notifyVolume ?? DEFAULT_VOLUME} update={update} />
         </section>
+
+        <PhoneAccess />
 
         <section className="set-section">
           <h2>Backups</h2>

@@ -36,6 +36,7 @@ import type {
   UpdateStatus,
   UsageSnapshot
 } from '@shared/types'
+import type { PhoneAction, RemoteList, RemoteStatus, ToPhone } from '@shared/remote'
 
 const api = {
   loadState: (): Promise<PersistedState> => ipcRenderer.invoke('state:load'),
@@ -246,7 +247,39 @@ const api = {
     const listener = (_e: unknown, id: string, data: string, end: number): void => cb(id, data, end)
     ipcRenderer.on('server:data', listener)
     return () => ipcRenderer.removeListener('server:data', listener)
-  }
+  },
+
+  // Phone access: the settings, then what a window tells linked phones and hears from them.
+  remoteStatus: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:status'),
+  remoteEnable: (on: boolean): Promise<RemoteStatus> => ipcRenderer.invoke('remote:enable', on),
+  remotePair: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:pair'),
+  remotePairCancel: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:pairCancel'),
+  remoteRemove: (id: string): Promise<RemoteStatus> => ipcRenderer.invoke('remote:remove', id),
+  onRemoteStatus: (cb: (status: RemoteStatus) => void): (() => void) => {
+    const listener = (_e: unknown, status: RemoteStatus): void => cb(status)
+    ipcRenderer.on('remote:status', listener)
+    return () => ipcRenderer.removeListener('remote:status', listener)
+  },
+  /** The chats phones have open right now */
+  remoteWatching: (): Promise<string[]> => ipcRenderer.invoke('remote:watching'),
+  onRemoteWatching: (cb: (tabIds: string[]) => void): void => {
+    ipcRenderer.on('remote:watching', (_e, tabIds: string[]) => cb(tabIds))
+  },
+  /** A phone opened a chat: it wants the chat as it is now */
+  onRemoteOpen: (cb: (tabId: string, device: string) => void): void => {
+    ipcRenderer.on('remote:open', (_e, tabId: string, device: string) => cb(tabId, device))
+  },
+  onRemoteAct: (cb: (action: PhoneAction, device: string) => void): void => {
+    ipcRenderer.on('remote:act', (_e, action: PhoneAction, device: string) => cb(action, device))
+  },
+  onRemoteListRequest: (cb: () => void): void => {
+    ipcRenderer.on('remote:list-request', () => cb())
+  },
+  /** For the phones that have this chat open, or only the one named */
+  remotePush: (msg: ToPhone, to?: string): void => ipcRenderer.send('remote:push', msg, to),
+  /** For every connected phone, or only the one named: project icons, saved chats, a chat just opened */
+  remoteTell: (msg: ToPhone, to?: string): void => ipcRenderer.send('remote:tell', msg, to),
+  remoteList: (list: RemoteList): void => ipcRenderer.send('remote:list', list)
 }
 
 export type LoomApi = typeof api

@@ -71,6 +71,7 @@ import {
   writeServer
 } from './servers'
 import { closeAllPopouts, setupPopouts } from './popouts'
+import { closeRemote, setupRemote } from './remote'
 import { cancelLogin, loginState, startLogin, submitLoginCode } from './login'
 import { emptyState, flushBounds, flushState, loadBounds, loadState, saveBounds, saveState } from './state'
 
@@ -618,6 +619,7 @@ app.whenReady().then(() => {
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
+  setupRemote({ main: () => win })
   setupUpdates({ confirm: () => confirmLoss('Restarting', 'Restart now', 'Later') })
   // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With
   // no chat running, each reading starts a Claude Code process, so a Loom left in the background
@@ -653,6 +655,7 @@ app.on('before-quit', (e) => {
       killAllTerminals()
       killAllServers()
       cancelLogin()
+      closeRemote()
     } catch (err) {
       console.error('[quit]', err)
     } finally {

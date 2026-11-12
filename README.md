@@ -49,6 +49,12 @@ See what changed, open a side-by-side diff, stage or throw away changes (Loom ke
 
 Group projects in the sidebar; each one picks up its site's favicon. A group can watch a folder: when new folders appear there (after a git pull, say), the group offers them with one click to add. Open and edit files in the same editor as VS Code (Monaco), find any file with Ctrl+P, and open a terminal (PowerShell, Command Prompt or Git Bash) in any project folder. A chat can move to another project, history and all.
 
+### Your chats on your phone
+
+Link a phone in Settings, Phone access: Loom shows a QR code, the phone scans it, and from then on [remote.loom.baby](https://remote.loom.baby) on that phone shows the chats open in Loom. Follow a chat as Claude writes, send messages, stop it, and answer its approvals, questions and plans, from anywhere. Loom has to be running on the PC, which still does all the work.
+
+The phone and the PC talk through a small relay, and everything between them is encrypted with a key only the two hold: the relay passes sealed messages along and cannot read them. Phone access is off until you link a phone, each phone can be removed in Settings, and the status bar says when one is connected.
+
 ### A short first run
 
 <p align="center">
@@ -110,6 +116,7 @@ A copy built this way runs the Claude Code that `npm install` brings along (or y
 - **Resumed chats** show their messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
 - **Plan limits** in the status bar come from the same source as Claude Code's `/usage`. The SDK marks that call experimental; if it changes, the meter stops updating and nothing else breaks.
 - **Previews are sandboxed.** Sites in a preview pane run with no access to Loom.
+- **A linked phone can do what you can in a chat:** send messages and approve what Claude asks to run. Its key is kept in that phone's browser, where the page can use it but not read it, and on the PC encrypted for your Windows account. Lose the phone, remove it in Settings, Phone access.
 - **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups` for 30 days (Settings changes how long).
 - **Throwing away changes** in the Git panel keeps a copy in `%APPDATA%\Loom\discarded`; new files go to the Recycle Bin.
 
@@ -126,6 +133,8 @@ npm run dist         # builds the installer into dist/
 `smoke:live` leaves two short test chats in Claude's history for this folder. To also check that one of your own saved chats loads, set `LOOM_SMOKE_CHAT="<folder>|<session id>"`. `LOOM_USER_DATA=<folder>` runs a second, separate Loom with its own profile.
 
 To release a version, run `npm version patch` (or `minor`), then `git push --follow-tags`. The Release workflow builds the installer and attaches it to a draft release on GitHub; check it there and publish it. Installed copies find it within a few hours (or at once with Check for updates) and offer Restart to update.
+
+The phone page and its relay live in `remote/` and run as one Cloudflare Worker (the Free plan covers it): `remote/app` is the page, `remote/worker` the relay, and `src/shared/remote.ts` holds the messages and the encryption both sides share. See [remote/README.md](remote/README.md).
 
 Loom is Electron, React and TypeScript, built with electron-vite and packaged with electron-builder. Chats go through the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), files open in Monaco, and terminals are xterm.js on a native pty.
 

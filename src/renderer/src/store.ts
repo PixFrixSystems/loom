@@ -34,6 +34,7 @@ import {
   type AgentTask,
   type UsageSnapshot
 } from '@shared/types'
+import type { RemoteStatus } from '@shared/remote'
 import {
   cleanLayout,
   inFileRow,
@@ -234,6 +235,8 @@ interface Store extends PersistedState {
   /** Unsaved file text handed over from another window, used once by the file's view */
   fileDrafts: Record<string, string>
   usage: UsageSnapshot | null
+  /** Phone access: whether it is on, and the phones linked (main window only) */
+  remote: RemoteStatus | null
   history: string[]
   quickOpen: boolean
   editingProjectId: string | null
@@ -279,7 +282,8 @@ interface Store extends PersistedState {
 
   chat: (tabId: string) => ChatRuntime
   loadHistory: (tabId: string) => Promise<void>
-  send: (tabId: string, text: string, images: ImageAttachment[]) => Promise<void>
+  /** id: the message's own, when whoever sent it (a linked phone) already made one */
+  send: (tabId: string, text: string, images: ImageAttachment[], id?: string) => Promise<void>
   interrupt: (tabId: string) => void
   setModel: (tabId: string, model: string | null) => void
   setMode: (tabId: string, mode: PermissionMode) => void
@@ -474,6 +478,7 @@ export const useStore = create<Store>((set, get) => {
     detached: {},
     fileDrafts: {},
     usage: null,
+    remote: null,
     history: [],
     quickOpen: false,
     editingProjectId: null,
@@ -980,7 +985,7 @@ export const useStore = create<Store>((set, get) => {
       }))
     },
 
-    send: async (tabId, text, images) => {
+    send: async (tabId, text, images, givenId) => {
       const tab = get().tabs.find((t) => t.id === tabId)
       if (!tab || tab.kind !== 'chat') return
       const trimmed = text.trim()
@@ -993,7 +998,7 @@ export const useStore = create<Store>((set, get) => {
         })
       )
       // A real UUID: Claude Code tags the message with it, and Stop names the ones it takes back by it.
-      const id = crypto.randomUUID()
+      const id = givenId ?? crypto.randomUUID()
       patchChat(tabId, (c) => ({
         items: [
           ...c.items,

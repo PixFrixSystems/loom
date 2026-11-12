@@ -10,6 +10,7 @@ import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
+import { startRemoteAgent } from './remoteAgent'
 import { tabsInOrder, useStore } from './store'
 import wordmark from './assets/brand/loom-wordmark.webp'
 import wordmark2x from './assets/brand/loom-wordmark@2x.webp'
@@ -131,7 +132,7 @@ export function App(): ReactNode {
   useShortcuts()
 
   useEffect(() => {
-    void useStore.getState().init()
+    void useStore.getState().init().then(startRemoteAgent)
   }, [])
 
   useEffect(() => {
