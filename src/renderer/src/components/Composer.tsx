@@ -44,6 +44,35 @@ const SENDABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 const MAX_SIDE = 2000
 
 /** The heading a command is listed under: Claude Code says "user", "project", or names the source. */
+/*
+ * The Ultracode key's dot-matrix icons, as on the website's glass switch: a quiet ring while it's
+ * off, a lightning bolt when it's on. Dots relight in a diagonal sweep when it flips.
+ */
+const RING = ['.......', '..###..', '.#...#.', '.#...#.', '.#...#.', '..###..', '.......']
+const BOLT = ['....##.', '...##..', '..##...', '.#####.', '...##..', '..##...', '.##....']
+
+function DotIcon({ on }: { on: boolean }): ReactNode {
+  const shape = on ? BOLT : RING
+  return (
+    <svg className="dots" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true">
+      {shape.flatMap((row, r) =>
+        [...row].map((cell, c) => (
+          <rect
+            key={r * 7 + c}
+            className={cell === '#' ? 'dots-d lit' : 'dots-d'}
+            x={c * 2 + 0.3}
+            y={r * 2 + 0.3}
+            width="1.4"
+            height="1.4"
+            rx="0.35"
+            style={{ ['--d' as string]: r + c }}
+          />
+        ))
+      )}
+    </svg>
+  )
+}
+
 function groupOf(c: SlashCommandInfo): string {
   if (c.builtin) return 'Claude Code'
   if (c.source === 'user') return 'Your skills'
@@ -415,7 +444,20 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
             title={`Ultracode ${tab.ultracode ? 'on' : 'off'}: Claude plans big jobs as workflows of several agents. Uses more of your limits.`}
             onClick={() => s.setUltracode(tab.id, !tab.ultracode)}
           >
-            <span className="switch-track" aria-hidden="true" />
+            <span className="gkey" aria-hidden="true">
+              <span className="gkey-floor" />
+              <span className="gkey-ghost gkey-ghost-off">
+                <DotIcon on={false} />
+              </span>
+              <span className="gkey-ghost gkey-ghost-on">
+                <DotIcon on />
+              </span>
+              <span className="gkey-knob">
+                <span className="gkey-scatter" />
+                <span className="gkey-rim" />
+                <DotIcon on={tab.ultracode === true} />
+              </span>
+            </span>
             Ultracode
           </button>
           <ContextMeter info={chat.context} />
