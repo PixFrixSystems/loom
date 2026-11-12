@@ -1,6 +1,6 @@
 import { ArrowDown, FolderOpen, LoaderCircle, SquareTerminal } from 'lucide-react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { ChatTab } from '@shared/types'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { AgentTask, ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
 import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
 import { AgentsButton, AgentTasks } from './AgentTasks'
@@ -169,6 +169,28 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     })
   }, [visible])
 
+  // Agents and background tasks sit in the timeline where they started, after the step that was
+  // the latest then, and scroll away with it like any other step. The header's Agents button and
+  // the status bar keep saying they run. '' holds the ones that started before the steps on show.
+  const agentsAfter = useMemo(() => {
+    const at = new Map<string, AgentTask[]>()
+    for (const task of chat.tasks) {
+      let anchor = ''
+      for (const { item } of rows) {
+        // A second's grace: the step that started it can be stamped a moment after the task itself.
+        if (item.ts && Date.parse(item.ts) <= task.startedAt + 1000) anchor = item.id
+      }
+      at.set(anchor, [...(at.get(anchor) ?? []), task])
+    }
+    return at
+  }, [chat.tasks, rows])
+  const agentsRow = (tasks: AgentTask[] | undefined): ReactNode =>
+    tasks?.length ? (
+      <div ref={rise} className="tl tl-run tl-agents">
+        <AgentTasks tabId={tab.id} tasks={tasks} />
+      </div>
+    ) : null
+
   // Your own message just went in: show it and what comes next, wherever you had scrolled to.
   const lastItem = chat.items[chat.items.length - 1]
   useLayoutEffect(() => {
@@ -298,25 +320,29 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               </p>
             </div>
           ) : null}
-          {rows.map(({ item, time }) =>
-            item.kind === 'user' ? (
-              <div key={item.id} ref={arrived.has(item.id) ? rise : undefined} className="turn-user">
-                {time ? <div className="turn-time">{time}</div> : null}
-                <ChatItemView item={item} cwd={tab.cwd} />
-              </div>
-            ) : item.kind === 'done' ? (
-              <div key={item.id} ref={arrived.has(item.id) ? rise : undefined} className="turn-end">
-                <ChatItemView item={item} cwd={tab.cwd} />
-                <HoverTime ts={item.ts} />
-              </div>
-            ) : (
-              <div key={item.id} ref={arrived.has(item.id) ? rise : undefined} className={`tl ${timelineClass(item)}${time ? ' has-time' : ''}`}>
-                {time ? <div className="turn-time">{time}</div> : null}
-                <ChatItemView item={item} cwd={tab.cwd} />
-                <HoverTime ts={item.ts} />
-              </div>
-            )
-          )}
+          {agentsRow(agentsAfter.get(''))}
+          {rows.map(({ item, time }) => (
+            <Fragment key={item.id}>
+              {item.kind === 'user' ? (
+                <div ref={arrived.has(item.id) ? rise : undefined} className="turn-user">
+                  {time ? <div className="turn-time">{time}</div> : null}
+                  <ChatItemView item={item} cwd={tab.cwd} />
+                </div>
+              ) : item.kind === 'done' ? (
+                <div ref={arrived.has(item.id) ? rise : undefined} className="turn-end">
+                  <ChatItemView item={item} cwd={tab.cwd} />
+                  <HoverTime ts={item.ts} />
+                </div>
+              ) : (
+                <div ref={arrived.has(item.id) ? rise : undefined} className={`tl ${timelineClass(item)}${time ? ' has-time' : ''}`}>
+                  {time ? <div className="turn-time">{time}</div> : null}
+                  <ChatItemView item={item} cwd={tab.cwd} />
+                  <HoverTime ts={item.ts} />
+                </div>
+              )}
+              {agentsRow(agentsAfter.get(item.id))}
+            </Fragment>
+          ))}
           {/* The live rows rise in as they appear; the finished step that replaces one does not. */}
           {thinking ? (
             <div ref={rise} className="tl tl-think tl-live">
@@ -328,11 +354,6 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               <div className="msg-assistant streaming">
                 <Markdown text={partial} cwd={tab.cwd} streaming />
               </div>
-            </div>
-          ) : null}
-          {chat.tasks.length ? (
-            <div ref={rise} className="tl tl-run tl-agents">
-              <AgentTasks tabId={tab.id} tasks={chat.tasks} />
             </div>
           ) : null}
           {(busy || chat.activity === 'compacting') && !partial && !thinking && !chat.permissions.length ? (
