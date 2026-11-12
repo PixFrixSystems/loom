@@ -289,8 +289,9 @@ function registerIpc(): void {
   ipcMain.handle('sessions:move', (_e, sessionId: string, fromCwd: string, toCwd: string) => moveSession(sessionId, fromCwd, toCwd))
 
   ipcMain.handle('chat:open', (e, tabId: string, opts: ChatStartOptions) => {
-    openChat(e.sender, tabId, opts, settings, (id, error) => {
+    openChat(e.sender, tabId, opts, settings, (id, error, ask) => {
       const tab = state.tabs.find((t) => t.id === id)
+      if (ask) return notify('Claude needs you', tab ? `${tab.title}: ${ask}` : ask)
       notify(error ? 'Claude stopped with an error' : 'Claude finished', tab?.title ?? 'A chat finished')
       setTimeout(() => usageNow(true), 1500)
     })

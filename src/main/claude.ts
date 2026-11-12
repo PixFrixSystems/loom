@@ -418,7 +418,8 @@ class ChatSession {
     readonly tabId: string,
     private opts: ChatStartOptions,
     private readonly settings: () => LoomSettings,
-    private readonly onTurnDone: (tabId: string, error?: string) => void
+    /** A turn ended (`error` when it failed), or Claude is waiting for an answer (`ask`). */
+    private readonly onTurnDone: (tabId: string, error?: string, ask?: string) => void
   ) {
     this.sessionId = opts.sessionId
   }
@@ -525,6 +526,7 @@ class ChatSession {
     } catch (e) {
       if (!this.closed) {
         failure = executableFor(this.settings()) ? (e as Error).message || 'Claude stopped unexpectedly' : MISSING_CLAUDE
+        this.onTurnDone(this.tabId, failure)
         const tail = this.stderrTail.trim().split(/\r?\n/).slice(-6).join('\n')
         this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text: failure, detail: tail || undefined }] })
       }
@@ -795,6 +797,8 @@ class ChatSession {
     }
     this.requests.set(requestId, request)
     this.emit({ type: 'permission', request })
+    // Waiting on the person: worth a notification when Loom isn't in front.
+    this.onTurnDone(this.tabId, undefined, request.kind === 'question' ? 'Claude has a question' : request.kind === 'plan' ? 'A plan is ready for review' : request.summary || 'Claude needs your approval')
 
     return new Promise<PermissionResult>((resolve) => {
       const finish = (result: PermissionResult): void => {
@@ -956,7 +960,7 @@ export function openChat(
   tabId: string,
   opts: ChatStartOptions,
   settings: () => LoomSettings,
-  onTurnDone: (tabId: string, error?: string) => void
+  onTurnDone: (tabId: string, error?: string, ask?: string) => void
 ): void {
   const existing = chats.get(tabId)
   if (existing) {
