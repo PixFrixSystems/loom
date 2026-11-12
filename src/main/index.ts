@@ -111,7 +111,8 @@ function windowOptions(): BrowserWindowConstructorOptions {
     backgroundColor: '#0c0e15',
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#12141b', symbolColor: '#a9afbf', height: 42 },
-    icon: join(__dirname, '../../resources/icon.png'),
+    // An .ico on Windows: the taskbar shows it, where it would show electron.exe's icon instead of a PNG.
+    icon: join(__dirname, '../../resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
