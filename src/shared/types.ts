@@ -376,6 +376,10 @@ export interface SlashCommandInfo {
   source?: string
   /** What it takes after the name, such as "<file>" */
   hint?: string
+  /** For your own skills: where one came from, when known (its repository or author) */
+  origin?: string
+  /** The same in full, for a tooltip: "Installed from heygen-com/hyperframes" */
+  originDetail?: string
 }
 
 /** How full a chat's context window is, in tokens. */

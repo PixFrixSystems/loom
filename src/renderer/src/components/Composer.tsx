@@ -349,6 +349,11 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
                     <span className="cmd-name">/{c.name}</span>
                     {c.hint ? <span className="cmd-hint">{c.hint}</span> : null}
                     <span className="cmd-desc">{c.description}</span>
+                    {c.origin ? (
+                      <span className="cmd-origin" title={c.originDetail}>
+                        {c.origin}
+                      </span>
+                    ) : null}
                   </button>
                 )
               })}

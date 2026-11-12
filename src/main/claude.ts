@@ -38,6 +38,7 @@ import type {
 } from '@shared/types'
 import { assistantItems, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
 import { fillThumbnails } from './images'
+import { skillOrigin } from './skillOrigin'
 
 type Sdk = typeof import('@anthropic-ai/claude-agent-sdk')
 let sdkPromise: Promise<Sdk> | null = null
@@ -264,12 +265,16 @@ function contextFromHistory(messages: unknown[]): ContextInfo | undefined {
 /** A command as the menu shows it: Claude Code labels a skill's source in brackets at the end. */
 function toCommandInfo(c: SlashCommand): SlashCommandInfo {
   const m = c.description.match(/\s*\(([^()]+)\)\s*$/)
+  const source = m ? m[1] : undefined
+  const origin = source === 'user' ? skillOrigin(c.name) : null
   return {
     name: c.name,
     description: m ? c.description.slice(0, m.index).trim() : c.description,
     builtin: c.builtin === true,
-    source: m ? m[1] : undefined,
-    hint: c.argumentHint?.trim() || undefined
+    source,
+    hint: c.argumentHint?.trim() || undefined,
+    origin: origin?.label,
+    originDetail: origin?.detail
   }
 }
 

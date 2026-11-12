@@ -1604,6 +1604,19 @@
   }
 }
 
+/* Where one of your skills came from, at the end of its row in the / list */
+.cmd-origin {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  max-width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
 /* How full the chat is, after the options. The bar itself is drawn in shell.css. */
 .ctx-meter {
   display: inline-flex;
