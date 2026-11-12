@@ -464,9 +464,13 @@ app.whenReady().then(() => {
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
   setupUpdates({ busyChats: runningChats, window: () => win })
-  // Plan limits: shortly after start, then every five minutes while Loom is open.
+  // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With
+  // no chat running, each reading starts a Claude Code process, so a Loom left in the background
+  // doesn't poll; it also reads them after every reply and when asked.
   setTimeout(() => usageNow(true), 4000)
-  setInterval(() => usageNow(false), 5 * 60_000)
+  setInterval(() => {
+    if (BrowserWindow.getFocusedWindow()) usageNow(false)
+  }, 5 * 60_000)
 })
 
 let quitting = false

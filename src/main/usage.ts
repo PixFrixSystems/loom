@@ -104,6 +104,8 @@ async function feedGuard(snap: UsageSnapshot): Promise<void> {
   }
 }
 
+const USAGE_TIMEOUT = 30_000
+
 let last: UsageSnapshot | null = null
 let inflight: Promise<UsageSnapshot | null> | null = null
 let lastFetch = 0
@@ -131,12 +133,20 @@ export function refreshUsage(
   lastFetch = Date.now()
   inflight = (async () => {
     let response: UsageResponse | null = null
+    // A start that hangs must not hold `inflight` for good, or the meter never updates again. After
+    // half a minute Loom gives up, and the finally below stops the idle Claude process.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Claude Code took too long to report the plan limits.')), USAGE_TIMEOUT)
+    })
+    timedOut.catch(() => undefined)
+    const inTime = <T>(p: Promise<T>): Promise<T> => Promise.race([p, timedOut])
     try {
       const live = deps.liveQuery()
       if (live) {
-        response = await live.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })
+        response = await inTime(live.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
       } else {
-        const sdk = await deps.sdk()
+        const sdk = await inTime(deps.sdk())
         let release: ((r: IteratorResult<never>) => void) | null = null
         const idle: AsyncIterable<never> = {
           [Symbol.asyncIterator]: () => ({ next: () => new Promise<IteratorResult<never>>((r) => (release = r)) })
@@ -153,8 +163,8 @@ export function refreshUsage(
           }
         })
         try {
-          await q.initializationResult()
-          response = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })
+          await inTime(q.initializationResult())
+          response = await inTime(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
         } finally {
           try {
             q.close()
@@ -169,6 +179,8 @@ export function refreshUsage(
       const snap: UsageSnapshot = last ? { ...last, error: (e as Error).message } : { at: Date.now(), plan: null, available: false, limits: [], stopAt: stopLine(), error: (e as Error).message }
       if (web && !web.isDestroyed()) web.send('usage:update', snap)
       return last
+    } finally {
+      clearTimeout(timer)
     }
     if (!response) return last
     last = normalize(response)
