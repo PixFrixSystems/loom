@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { spawn, type IPty } from '@lydell/node-pty'
 import type { ShellChoice } from '@shared/types'
 import { userEnv } from './servers'
+import { OutputTail } from './tail'
 
 /** Output kept per terminal so a window that picks it up (a tab moved to another window) can redraw it. */
 const MAX_REPLAY = 256 * 1024
@@ -10,7 +11,7 @@ const MAX_REPLAY = 256 * 1024
 interface Term {
   pty: IPty
   web: WebContents
-  replay: string
+  replay: OutputTail
 }
 
 const terms = new Map<string, Term>()
@@ -41,7 +42,7 @@ export function createTerminal(
   if (running) {
     running.web = web
     resizeTerminal(id, cols, rows)
-    return { ok: true, replay: running.replay }
+    return { ok: true, replay: running.replay.text() }
   }
   const { file, args } = shellFor(shell)
   try {
@@ -53,10 +54,10 @@ export function createTerminal(
       env: userEnv({ TERM_PROGRAM: 'Loom' }),
       useConpty: true
     })
-    const term: Term = { pty, web, replay: '' }
+    const term: Term = { pty, web, replay: new OutputTail(MAX_REPLAY) }
     terms.set(id, term)
     pty.onData((data) => {
-      term.replay = (term.replay + data).slice(-MAX_REPLAY)
+      term.replay.push(data)
       if (!term.web.isDestroyed()) term.web.send('pty:data', id, data)
     })
     pty.onExit(({ exitCode }) => {

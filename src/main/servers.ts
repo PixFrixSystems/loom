@@ -4,6 +4,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, parse, relative } from 'node:path'
 import type { RunTarget, ServerInfo } from '@shared/types'
+import { OutputTail } from './tail'
 
 // ---------- Finding what a project runs ----------
 
@@ -115,7 +116,7 @@ const PORT_LINE = /\b(?:listening|running|started|ready|serving|available)\b[^\n
 interface Server {
   info: ServerInfo
   proc: ChildProcess | null
-  log: string
+  log: OutputTail
   /** Characters written since Loom started this server, so a view can join the stream without gaps or repeats. */
   end: number
   scan: string
@@ -146,16 +147,15 @@ function setInfo(s: Server, patch: Partial<ServerInfo>): void {
 }
 
 function append(s: Server, data: string): void {
-  s.log += data
+  s.log.push(data)
   s.end += data.length
-  if (s.log.length > MAX_LOG) s.log = s.log.slice(-MAX_LOG)
   send('server:data', s.info.id, data, s.end)
   if (!s.info.url && s.proc) findUrl(s, data)
 }
 
 /** A dim line from Loom itself, on its own line with a blank line above it. */
 function note(s: Server, text: string): void {
-  const lead = !s.log ? '' : s.log.endsWith('\n') ? '\r\n' : '\r\n\r\n'
+  const lead = !s.log.length ? '' : s.log.endsWith('\n') ? '\r\n' : '\r\n\r\n'
   append(s, `${lead}\x1b[2m${text}\x1b[0m\r\n`)
 }
 
@@ -297,7 +297,7 @@ export function startServer(projectId: string, target: RunTarget): ServerInfo {
   const s: Server = {
     info: { id, projectId, target, status: 'starting', url: null, exitCode: null, startedAt: Date.now() },
     proc: null,
-    log: prev?.log ?? '',
+    log: prev?.log ?? new OutputTail(MAX_LOG),
     end: prev?.end ?? 0,
     scan: '',
     stopping: false,
@@ -346,7 +346,7 @@ export function dismissServer(id: string): void {
 
 export function serverLog(id: string): { text: string; end: number } | null {
   const s = servers.get(id)
-  return s ? { text: s.log, end: s.end } : null
+  return s ? { text: s.log.text(), end: s.end } : null
 }
 
 /** Keys typed into the output tab, for the odd server that asks a question. Shown as typed. */
