@@ -61,7 +61,7 @@ The first launch walks through signing in to Claude, adding projects (it suggest
 
 Download `Loom-Setup-<version>.exe` from the [latest release](../../releases/latest) and run it. Install it for just you (no admin needed) or everyone on the PC, in the folder you like; it adds Loom to the Start menu and the desktop.
 
-Loom keeps itself up to date. When a new version is out it downloads it in the background and shows a **Restart to update** button in the status bar; Loom reopens in a few seconds with your tabs and chats. Ignore it and the update installs the next time you quit. Settings has the version, Check for updates and What's new.
+Loom keeps itself up to date. When a new version is out it downloads it in the background and shows a **Restart to update** button in the status bar; Loom closes, installs it and opens again by itself, with your tabs and chats, usually within a minute. Ignore it and the update installs the next time you quit. Settings has the version, Check for updates and What's new.
 
 Loom isn't code-signed yet, so the first time Windows may say "Windows protected your PC". Click **More info**, then **Run anyway**.
 
