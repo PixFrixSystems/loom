@@ -104,7 +104,8 @@ export async function detectRunTargets(root: string, otherProjects: string[]): P
 
 // ---------- Running them ----------
 // Servers run on plain pipes, not a console: a console repaints its screen and would wipe the
-// log's first lines. FORCE_COLOR keeps their colours.
+// log's first lines. FORCE_COLOR keeps their colours, and PYTHONUNBUFFERED makes Python print as it
+// goes (through a pipe it would hold the server's address back until its buffer filled).
 
 const MAX_LOG = 512 * 1024
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g
@@ -199,7 +200,7 @@ export function userEnv(extra: Record<string, string> = {}): Record<string, stri
 }
 
 function childEnv(): Record<string, string> {
-  return userEnv({ FORCE_COLOR: '1', BROWSER: 'none' })
+  return userEnv({ FORCE_COLOR: '1', BROWSER: 'none', PYTHONUNBUFFERED: '1' })
 }
 
 function launch(s: Server): void {
