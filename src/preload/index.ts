@@ -46,6 +46,8 @@ const api = {
   dirsExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('fs:dirsExist', paths),
   subfolders: (dir: string): Promise<SubFolder[]> => ipcRenderer.invoke('fs:subfolders', dir),
   reveal: (path: string): Promise<void> => ipcRenderer.invoke('app:reveal', path),
+  /** Puts an image (a data: URL) on the clipboard; false when it isn't one */
+  copyImage: (dataUrl: string): Promise<boolean> => ipcRenderer.invoke('app:copyImage', dataUrl),
   reportUnsaved: (names: string[]): void => ipcRenderer.send('app:unsaved', names),
   createEntry: (path: string, kind: 'file' | 'folder'): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('fs:create', path, kind),
   renameEntry: (from: string, to: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('fs:rename', from, to),

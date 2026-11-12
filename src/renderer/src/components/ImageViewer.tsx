@@ -28,6 +28,8 @@ export function ImageViewer(): ReactNode {
     if (!viewer) return
     const count = viewer.images.length
     const onKey = (e: KeyboardEvent): void => {
+      // A menu open over the image takes its own keys (Esc closes the menu, not the image).
+      if (useStore.getState().menu) return
       const set = useStore.getState().set
       if (e.key === 'Escape') set({ viewer: null })
       else if (e.key === 'ArrowRight' && count > 1) set({ viewer: { ...viewer, index: (viewer.index + 1) % count } })
@@ -59,7 +61,29 @@ export function ImageViewer(): ReactNode {
         </button>
       ) : null}
       {src ? (
-        <img key={viewer.index} className="viewer-img" src={src} alt="" draggable={false} onClick={(e) => e.stopPropagation()} />
+        <img
+          key={viewer.index}
+          className="viewer-img"
+          src={src}
+          alt=""
+          draggable={false}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            const s = useStore.getState()
+            s.showMenu(e, [
+              {
+                label: 'Copy image',
+                onSelect: () =>
+                  void window.loom
+                    .copyImage(src)
+                    .then((ok) => ok || s.showToast("Couldn't copy this image."))
+                    .catch(() => s.showToast("Couldn't copy this image."))
+              }
+            ])
+          }}
+        />
       ) : (
         <p className="viewer-missing">This image is no longer available.</p>
       )}

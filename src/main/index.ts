@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { installingUpdate, setupUpdates } from './updates'
@@ -330,6 +330,15 @@ function registerIpc(): void {
   ipcMain.handle('fs:dirsExist', (_e, paths: string[]) => dirsExist(paths))
   ipcMain.handle('fs:subfolders', (_e, dir: string) => listSubfolders(dir))
   ipcMain.handle('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
+  // An image from a chat onto the clipboard, as an image other apps can paste.
+  ipcMain.handle('app:copyImage', async (_e, dataUrl: string) => {
+    const image = typeof dataUrl === 'string' && dataUrl.startsWith('data:image/') ? nativeImage.createFromDataURL(dataUrl) : null
+    if (!image || image.isEmpty()) return false
+    // Always as PNG, whatever it was sent as: the format every app can paste.
+    const png = new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' })
+    await clipboard.write([new ClipboardItem({ 'image/png': png })])
+    return true
+  })
   ipcMain.handle('fs:create', (_e, path: string, kind: 'file' | 'folder') => createEntry(path, kind))
   ipcMain.handle('fs:rename', (_e, from: string, to: string) => renameEntry(from, to))
   ipcMain.handle('fs:trash', async (_e, path: string) => {

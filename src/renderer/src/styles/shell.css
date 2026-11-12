@@ -866,7 +866,7 @@
 /* Menus float over the work: dark glass with a blur, lit along the top, entering from their corner */
 .menu {
   position: fixed;
-  z-index: 1000;
+  z-index: 1100; /* above the image viewer, so its Copy menu shows */
   min-width: 180px;
   max-width: 360px;
   max-height: 70vh;
