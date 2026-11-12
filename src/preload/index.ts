@@ -70,6 +70,14 @@ const api = {
   notifyTest: (): void => ipcRenderer.send('app:notifyTest'),
   /** Opens Windows' notification settings */
   notifySettings: (): void => ipcRenderer.send('app:notifySettings'),
+  /** A question from the main process (before quitting or restarting) for Loom's own dialog */
+  onAsk: (cb: (id: string, req: unknown) => void): (() => void) => {
+    const listener = (_e: unknown, id: string, req: unknown): void => cb(id, req)
+    ipcRenderer.on('app:ask', listener)
+    return () => ipcRenderer.removeListener('app:ask', listener)
+  },
+  askShown: (id: string): void => ipcRenderer.send('app:askShown', id),
+  askReply: (id: string, choice: string): void => ipcRenderer.send('app:askReply', id, choice),
   onNotifySound: (cb: (sound: NotifySound) => void): (() => void) => {
     const listener = (_e: unknown, sound: NotifySound): void => cb(sound)
     ipcRenderer.on('app:notifySound', listener)

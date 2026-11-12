@@ -618,6 +618,13 @@ export const useStore = create<Store>((set, get) => {
       window.loom.onUsage((usage) => set({ usage }))
       window.loom.onModels((models) => models.length && set({ knownModels: models }))
       window.loom.onNotifySound((sound) => playTone(sound, get().settings.notifyVolume))
+      // Quitting or restarting would lose something: asked in Loom's own dialog.
+      window.loom.onAsk((id, req) => {
+        window.loom.askShown(id)
+        void get()
+          .ask(req as ConfirmRequest)
+          .then((choice) => window.loom.askReply(id, choice))
+      })
       void window.loom.getUsage().then((usage) => usage && set({ usage }))
     },
 

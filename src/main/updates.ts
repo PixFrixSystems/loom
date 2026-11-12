@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AppUpdater } from 'electron-updater'
@@ -50,29 +50,13 @@ async function check(): Promise<UpdateStatus> {
 }
 
 interface InstallDeps {
-  busyChats: () => number
-  /** Files with unsaved edits in any Loom window */
-  unsaved: () => string[]
-  explain: (busy: number, unsaved: string[], doing: string) => { message: string; detail: string }
-  window: () => BrowserWindow | null
+  /** Asks before restarting would stop chats or lose unsaved files; true to go ahead */
+  confirm: () => Promise<boolean>
 }
 
 async function install(opts: InstallDeps): Promise<boolean> {
   if (!updater || status.state !== 'ready') return false
-  const busy = opts.busyChats()
-  const unsaved = opts.unsaved()
-  const win = opts.window()
-  if ((busy > 0 || unsaved.length) && win) {
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'question',
-      buttons: ['Restart now', 'Later'],
-      defaultId: unsaved.length ? 1 : 0,
-      cancelId: 1,
-      title: 'Loom',
-      ...opts.explain(busy, unsaved, 'Restarting')
-    })
-    if (response !== 0) return false
-  }
+  if (!(await opts.confirm())) return false
   installing = true
   // The install runs silently with no window open, and unpacking can take half a minute; this says
   // what's going on.

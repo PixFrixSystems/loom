@@ -1,5 +1,6 @@
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { installingUpdate, setupUpdates } from './updates'
@@ -244,18 +245,20 @@ function createWindow(): void {
   win.on('move', rememberBounds)
 
   win.on('close', (e) => {
+    if (closeConfirmed) return
     const busy = runningChats()
     const unsaved = unsavedFiles()
     if ((busy > 0 || unsaved.length) && win && !installingUpdate()) {
-      const choice = dialog.showMessageBoxSync(win, {
-        type: 'question',
-        buttons: ['Quit anyway', 'Cancel'],
-        defaultId: 1,
-        cancelId: 1,
-        title: 'Loom',
-        ...whatQuittingLoses(busy, unsaved, 'Quitting')
+      // Asked in Loom's own dialog, so the window stays open while it waits for the answer.
+      e.preventDefault()
+      if (askingToClose) return
+      askingToClose = true
+      void confirmLoss('Quitting', 'Quit anyway', 'Cancel').then((go) => {
+        askingToClose = false
+        if (!go || !win) return
+        closeConfirmed = true
+        win.close()
       })
-      if (choice === 1) e.preventDefault()
     }
   })
 
@@ -273,6 +276,60 @@ function createWindow(): void {
 const unsavedByWindow = new Map<number, string[]>()
 function unsavedFiles(): string[] {
   return [...unsavedByWindow.values()].flat()
+}
+
+let closeConfirmed = false
+let askingToClose = false
+
+/**
+ * Asks before quitting or restarting would stop chats or lose unsaved files, in Loom's own themed
+ * dialog. A window that doesn't take the question within a moment (it hung) gets Windows' own
+ * dialog instead, so Loom can always be closed.
+ */
+async function confirmLoss(doing: 'Quitting' | 'Restarting', go: string, stay: string): Promise<boolean> {
+  const busy = runningChats()
+  const unsaved = unsavedFiles()
+  if (!busy && !unsaved.length) return true
+  const { message, detail } = whatQuittingLoses(busy, unsaved, doing)
+  const target = win
+  if (!target || target.webContents.isDestroyed()) return true
+  const id = randomUUID()
+  const answer = new Promise<string | null>((resolve) => {
+    let taken = false
+    const onShown = (_e: unknown, shownId: string): void => {
+      if (shownId === id) taken = true
+    }
+    const onReply = (_e: unknown, replyId: string, choice: string): void => {
+      if (replyId !== id) return
+      ipcMain.removeListener('app:askShown', onShown)
+      ipcMain.removeListener('app:askReply', onReply)
+      resolve(choice)
+    }
+    ipcMain.on('app:askShown', onShown)
+    ipcMain.on('app:askReply', onReply)
+    setTimeout(() => {
+      if (taken) return
+      ipcMain.removeListener('app:askShown', onShown)
+      ipcMain.removeListener('app:askReply', onReply)
+      resolve(null)
+    }, 2000)
+  })
+  target.webContents.send('app:ask', id, {
+    title: doing === 'Quitting' ? 'Quit Loom?' : 'Restart Loom to update?',
+    body: `${message} ${detail}`,
+    items: unsaved.length > 1 ? unsaved : undefined,
+    choices: [
+      { id: 'go', label: go, kind: unsaved.length ? 'danger' : 'primary' },
+      { id: 'stay', label: stay, kind: 'ghost' }
+    ],
+    cancel: 'stay',
+    focus: 'stay'
+  })
+  const choice = await answer
+  if (choice !== null) return choice === 'go'
+  if (target.isDestroyed()) return true
+  const fallback = dialog.showMessageBoxSync(target, { type: 'question', buttons: [go, stay], defaultId: 1, cancelId: 1, title: 'Loom', message, detail })
+  return fallback === 0
 }
 
 /** What closing Loom would cost, for the question asked before quitting or restarting. */
@@ -560,7 +617,7 @@ app.whenReady().then(() => {
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
-  setupUpdates({ busyChats: runningChats, unsaved: unsavedFiles, explain: whatQuittingLoses, window: () => win })
+  setupUpdates({ confirm: () => confirmLoss('Restarting', 'Restart now', 'Later') })
   // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With
   // no chat running, each reading starts a Claude Code process, so a Loom left in the background
   // doesn't poll; it also reads them after every reply and when asked.
