@@ -66,11 +66,12 @@ async function install(opts: { busyChats: () => number; window: () => BrowserWin
     if (response !== 0) return false
   }
   installing = true
-  // The install runs silently for a few seconds with no window open; this says what's going on.
+  // The install runs silently with no window open, and unpacking can take half a minute; this says
+  // what's going on.
   if (Notification.isSupported()) {
     new Notification({
       title: `Updating Loom to ${status.available}`,
-      body: 'Loom closes, installs the update and opens again by itself in a few seconds.',
+      body: 'Loom closes, installs the update and opens again by itself when it is done. That can take up to a minute.',
       silent: true
     }).show()
   }
