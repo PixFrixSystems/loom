@@ -670,6 +670,11 @@
 }
 
 /* ---------- Approval cards ---------- */
+/* Cards take focus only so Tab can reach their buttons; their border already marks them. */
+.ask:focus {
+  outline: none;
+}
+
 .ask {
   display: flex;
   flex-direction: column;

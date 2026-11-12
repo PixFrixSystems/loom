@@ -1,6 +1,6 @@
 import { CircleHelp, ClipboardList, ShieldAlert } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { PermissionRequest } from '@shared/types'
+import type { PermissionRequest, PermissionResponse } from '@shared/types'
 import { useStore } from '../store'
 import { Markdown } from './Markdown'
 
@@ -16,16 +16,41 @@ const ASK_TITLES: Record<string, string> = {
   Read: 'Read this file?'
 }
 
-function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }): ReactNode {
-  const [reason, setReason] = useState('')
-  const allowRef = useRef<HTMLButtonElement>(null)
+/** Is the person typing or working somewhere? Then a card that appears must not take the keyboard. */
+function busyElsewhere(card: HTMLElement | null): boolean {
+  const el = document.activeElement as HTMLElement | null
+  if (!el || el === document.body) return false
+  if (el.closest('input, textarea, select, [contenteditable="true"], .monaco-editor, .xterm, webview')) return true
+  // Focus in another pane: leave it there.
+  const panel = card?.closest('.tab-panel')
+  return !!panel && !panel.contains(el)
+}
+
+/**
+ * Answers a card, then puts the keyboard back in this chat's message box. Cards never focus a
+ * button that answers them: a Space or Enter meant for something else must not approve a command.
+ */
+function useAnswer(tabId: string, requestId: string): { ref: React.RefObject<HTMLDivElement | null>; answer: (r: PermissionResponse) => void } {
+  const ref = useRef<HTMLDivElement>(null)
   const respond = useStore((s) => s.respond)
   useEffect(() => {
-    allowRef.current?.focus({ preventScroll: true })
+    if (!busyElsewhere(ref.current)) ref.current?.focus({ preventScroll: true })
   }, [])
+  const answer = (r: PermissionResponse): void => {
+    const box = ref.current?.closest('.tab-panel')?.querySelector<HTMLTextAreaElement>('.composer-input')
+    const hadFocus = !!ref.current?.contains(document.activeElement)
+    respond(tabId, requestId, r)
+    if (hadFocus || !busyElsewhere(ref.current)) box?.focus({ preventScroll: true })
+  }
+  return { ref, answer }
+}
+
+function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }): ReactNode {
+  const [reason, setReason] = useState('')
+  const { ref, answer } = useAnswer(tabId, req.requestId)
   const title = ASK_TITLES[req.toolName] ?? `Use ${req.toolName.startsWith('mcp__') ? req.toolName.split('__').slice(1).join(': ') : req.toolName}?`
   return (
-    <div className="ask" role="alertdialog" aria-label={title}>
+    <div ref={ref} tabIndex={-1} className="ask" role="alertdialog" aria-label={title}>
       <div className="ask-head">
         <ShieldAlert />
         <span className="ask-title">{title}</span>
@@ -41,11 +66,11 @@ function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }):
       ) : null}
       {req.reason ? <p className="ask-reason">{req.reason}</p> : null}
       <div className="ask-actions">
-        <button ref={allowRef} className="btn primary" onClick={() => respond(tabId, req.requestId, { decision: 'allow' })}>
+        <button className="btn primary" onClick={() => answer({ decision: 'allow' })}>
           Allow
         </button>
         {req.canAlwaysAllow ? (
-          <button className="btn" onClick={() => respond(tabId, req.requestId, { decision: 'allow-always' })} title="Don't ask again for this in this chat">
+          <button className="btn" onClick={() => answer({ decision: 'allow-always' })} title="Don't ask again for this in this chat">
             Allow for this chat
           </button>
         ) : null}
@@ -55,10 +80,10 @@ function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }):
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') respond(tabId, req.requestId, { decision: 'deny', message: reason })
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) answer({ decision: 'deny', message: reason })
           }}
         />
-        <button className="btn" onClick={() => respond(tabId, req.requestId, { decision: 'deny', message: reason })}>
+        <button className="btn" onClick={() => answer({ decision: 'deny', message: reason })}>
           Deny
         </button>
       </div>
@@ -67,7 +92,7 @@ function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }):
 }
 
 function QuestionRequest({ tabId, req }: { tabId: string; req: PermissionRequest }): ReactNode {
-  const respond = useStore((s) => s.respond)
+  const { ref, answer } = useAnswer(tabId, req.requestId)
   const questions = req.questions ?? []
   const [picked, setPicked] = useState<Record<string, string[]>>({})
   const [other, setOther] = useState<Record<string, string>>({})
@@ -80,7 +105,7 @@ function QuestionRequest({ tabId, req }: { tabId: string; req: PermissionRequest
   const complete = questions.every((q) => answerFor(q.question))
 
   return (
-    <div className="ask" role="dialog" aria-label="Claude has a question">
+    <div ref={ref} tabIndex={-1} className="ask" role="dialog" aria-label="Claude has a question">
       <div className="ask-head">
         <CircleHelp />
         <span className="ask-title">{questions.length > 1 ? 'Claude has a few questions' : 'Claude has a question'}</span>
@@ -126,7 +151,7 @@ function QuestionRequest({ tabId, req }: { tabId: string; req: PermissionRequest
           className="btn primary"
           disabled={!complete}
           onClick={() =>
-            respond(tabId, req.requestId, {
+            answer({
               decision: 'answer',
               answers: Object.fromEntries(questions.map((q) => [q.question, answerFor(q.question)]))
             })
@@ -134,7 +159,7 @@ function QuestionRequest({ tabId, req }: { tabId: string; req: PermissionRequest
         >
           Send answers
         </button>
-        <button className="btn ghost" onClick={() => respond(tabId, req.requestId, { decision: 'deny', message: 'The user skipped the question.' })}>
+        <button className="btn ghost" onClick={() => answer({ decision: 'deny', message: 'The user skipped the question.' })}>
           Skip
         </button>
       </div>
@@ -143,10 +168,10 @@ function QuestionRequest({ tabId, req }: { tabId: string; req: PermissionRequest
 }
 
 function PlanRequest({ tabId, req, cwd }: { tabId: string; req: PermissionRequest; cwd: string }): ReactNode {
-  const respond = useStore((s) => s.respond)
+  const { ref, answer } = useAnswer(tabId, req.requestId)
   const [feedback, setFeedback] = useState('')
   return (
-    <div className="ask" role="dialog" aria-label="Review the plan">
+    <div ref={ref} tabIndex={-1} className="ask" role="dialog" aria-label="Review the plan">
       <div className="ask-head">
         <ClipboardList />
         <span className="ask-title">Claude finished planning. Start?</span>
@@ -157,10 +182,10 @@ function PlanRequest({ tabId, req, cwd }: { tabId: string; req: PermissionReques
         </div>
       ) : null}
       <div className="ask-actions">
-        <button className="btn primary" onClick={() => respond(tabId, req.requestId, { decision: 'approve-plan', mode: 'acceptEdits' })}>
+        <button className="btn primary" onClick={() => answer({ decision: 'approve-plan', mode: 'acceptEdits' })}>
           Start, edit automatically
         </button>
-        <button className="btn" onClick={() => respond(tabId, req.requestId, { decision: 'approve-plan', mode: 'default' })}>
+        <button className="btn" onClick={() => answer({ decision: 'approve-plan', mode: 'default' })}>
           Start, ask before edits
         </button>
         <input
@@ -169,10 +194,10 @@ function PlanRequest({ tabId, req, cwd }: { tabId: string; req: PermissionReques
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') respond(tabId, req.requestId, { decision: 'reject-plan', message: feedback })
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) answer({ decision: 'reject-plan', message: feedback })
           }}
         />
-        <button className="btn" onClick={() => respond(tabId, req.requestId, { decision: 'reject-plan', message: feedback })}>
+        <button className="btn" onClick={() => answer({ decision: 'reject-plan', message: feedback })}>
           Keep planning
         </button>
       </div>
