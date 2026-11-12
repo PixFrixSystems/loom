@@ -360,7 +360,7 @@ function registerIpc(): void {
       setTimeout(() => usageNow(true), 1500)
     })
   })
-  ipcMain.handle('chat:send', (_e, tabId: string, text: string, images: ImageAttachment[]) => getChat(tabId)?.send(text, images))
+  ipcMain.handle('chat:send', (_e, tabId: string, text: string, images: ImageAttachment[], id?: string) => getChat(tabId)?.send(text, images, id))
   ipcMain.handle('chat:interrupt', (_e, tabId: string) => getChat(tabId)?.interrupt())
   ipcMain.handle('chat:stopTask', (_e, tabId: string, taskId: string) => getChat(tabId)?.stopTask(taskId))
   ipcMain.handle('chat:setModel', (_e, tabId: string, model: string | null) => getChat(tabId)?.setModel(model))

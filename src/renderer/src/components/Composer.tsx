@@ -241,6 +241,14 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
     }
   }, [tab.id])
 
+  // Messages Stop took back come in ahead of whatever you have typed since.
+  useEffect(() => {
+    if (!chat.refill) return
+    const back = chat.refill.text
+    setText((t) => [back, t].filter(Boolean).join('\n\n'))
+    ta.current?.focus({ preventScroll: true })
+  }, [chat.refill?.key])
+
   const submit = (): void => {
     if ((!text.trim() && !images.length) || chat.moving) return
     void s.send(tab.id, text, images)

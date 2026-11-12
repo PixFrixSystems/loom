@@ -848,7 +848,8 @@ class ChatSession {
     this.pending.get(requestId)?.(response)
   }
 
-  async send(text: string, images: ImageAttachment[]): Promise<void> {
+  /** `id` is the message's id in the chat, so Stop can name the ones it took back. */
+  async send(text: string, images: ImageAttachment[], id?: string): Promise<void> {
     if (!this.q) {
       if (!executableFor(this.settings())) {
         this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text: MISSING_CLAUDE }] })
@@ -874,15 +875,26 @@ class ChatSession {
       ...(text ? [{ type: 'text' as const, text }] : [])
     ]
     this.mark = Date.now()
-    this.queue!.push({ type: 'user', message: { role: 'user', content }, parent_tool_use_id: null })
+    const uuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? (id as SDKUserMessage['uuid']) : undefined
+    this.queue!.push({ type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, uuid })
     this.setStatus('running')
   }
 
+  /**
+   * Stop means stop: messages sent while Claude worked that it hasn't read yet are cancelled
+   * with the turn, instead of starting the next one, and go back into the message box.
+   */
   async interrupt(): Promise<void> {
     if (this.busy) this.stopRequested = true
     this.rejectPending('Stopped by the user.')
+    const q = this.q
+    if (!q) return
     try {
-      await this.q?.interrupt()
+      // The SDK takes cancelQueued, though its published type leaves it out.
+      const interrupt = q.interrupt.bind(q) as unknown as (o: { cancelQueued: boolean }) => Promise<{ cancelled?: unknown[] } | undefined>
+      const receipt = await interrupt({ cancelQueued: true })
+      const ids = (receipt?.cancelled ?? []).filter((x): x is string => typeof x === 'string')
+      if (ids.length) this.emit({ type: 'unsent', ids })
     } catch {
       // nothing running
     }

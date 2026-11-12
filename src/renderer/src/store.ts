@@ -74,6 +74,8 @@ export interface ChatRuntime {
   attachments: ImageAttachment[]
   /** Being moved to another project: no messages until it's done */
   moving?: boolean
+  /** Text Stop took back from messages Claude hadn't read yet, for the message box to take in */
+  refill?: { text: string; key: number }
 }
 
 /**
@@ -989,10 +991,12 @@ export const useStore = create<Store>((set, get) => {
           return { thumb: await thumbnailOf(full), full }
         })
       )
+      // A real UUID: Claude Code tags the message with it, and Stop names the ones it takes back by it.
+      const id = crypto.randomUUID()
       patchChat(tabId, (c) => ({
         items: [
           ...c.items,
-          { kind: 'user', id: uid(), text: trimmed, images: images.length, previews: previews.length ? previews : undefined, ts: new Date().toISOString() }
+          { kind: 'user', id, text: trimmed, images: images.length, previews: previews.length ? previews : undefined, ts: new Date().toISOString() }
         ],
         draft: '',
         error: undefined,
@@ -1002,7 +1006,7 @@ export const useStore = create<Store>((set, get) => {
       }))
       try {
         await ensureOpened(tab)
-        await window.loom.chatSend(tabId, trimmed, images)
+        await window.loom.chatSend(tabId, trimmed, images, id)
       } catch (e) {
         patchChat(tabId, () => ({ status: 'error', error: (e as Error).message }))
       }
@@ -1308,6 +1312,26 @@ export const useStore = create<Store>((set, get) => {
         case 'tasks':
           patchChat(tabId, () => ({ tasks: ev.tasks }))
           break
+        case 'unsent': {
+          // Stop cancelled messages Claude hadn't read yet: off the conversation, back into the box.
+          const gone = new Set(ev.ids)
+          const back = get()
+            .chat(tabId)
+            .items.filter((it): it is Extract<ChatItem, { kind: 'user' }> => it.kind === 'user' && gone.has(it.id))
+          if (!back.length) break
+          const images: ImageAttachment[] = back.flatMap((it) =>
+            (it.previews ?? []).flatMap((p) => {
+              const m = p.full?.match(/^data:([^;,]+);base64,(.+)$/)
+              return m ? [{ mediaType: m[1], data: m[2], name: 'image' }] : []
+            })
+          )
+          patchChat(tabId, (c) => ({
+            items: c.items.filter((it) => !(it.kind === 'user' && gone.has(it.id))),
+            attachments: [...images, ...c.attachments].slice(0, 8),
+            refill: { text: back.map((it) => it.text).filter(Boolean).join('\n\n'), key: Date.now() }
+          }))
+          break
+        }
         case 'permission-done':
           patchChat(tabId, (c) => ({ permissions: c.permissions.filter((p) => p.requestId !== ev.requestId) }))
           break

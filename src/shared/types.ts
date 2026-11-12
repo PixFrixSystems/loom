@@ -403,6 +403,8 @@ export type ChatEvent =
   | { type: 'commands'; commands: SlashCommandInfo[] }
   | { type: 'mode'; permissionMode: PermissionMode }
   | { type: 'context'; context: ContextInfo }
+  /** Messages sent while Claude worked that Stop cancelled before Claude read them: they go back in the box */
+  | { type: 'unsent'; ids: string[] }
 
 export interface ChatStartOptions {
   cwd: string
