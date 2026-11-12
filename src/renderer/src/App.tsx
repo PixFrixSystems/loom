@@ -12,6 +12,18 @@ import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
 import { useStore } from './store'
 
+/**
+ * The key a shortcut means, by its place on the keyboard: with a Greek layout active, Ctrl+W
+ * reports the letter "ς", but it is still the W key.
+ */
+export function shortcutKey(e: KeyboardEvent): string {
+  if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3).toLowerCase()
+  if (/^Digit\d$/.test(e.code)) return e.code.slice(5)
+  if (e.code === 'Backquote') return '`'
+  if (e.code === 'Comma') return ','
+  return e.key.toLowerCase()
+}
+
 function useShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -20,7 +32,7 @@ function useShortcuts(): void {
       const tab = s.tabs.find((t) => t.id === s.activeTabId)
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
-      const key = e.key.toLowerCase()
+      const key = shortcutKey(e)
       if (e.code === 'Backslash') {
         // Ctrl+\ splits to the right, Ctrl+Shift+\ splits down.
         e.preventDefault()

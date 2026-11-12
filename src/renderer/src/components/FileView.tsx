@@ -172,7 +172,7 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !useStore.getState().confirm) {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS' && !useStore.getState().confirm) {
         e.preventDefault()
         void save()
       }

@@ -19,7 +19,7 @@ export function Popout(): ReactNode {
   useEffect(() => {
     void useStore.getState().init()
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w' && !useStore.getState().confirm) {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyW' && !useStore.getState().confirm) {
         e.preventDefault()
         window.close()
       }
