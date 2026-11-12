@@ -74,6 +74,8 @@ export interface ChatRuntime {
   attachments: ImageAttachment[]
   /** Being moved to another project: no messages until it's done */
   moving?: boolean
+  /** What Claude Code is doing besides answering, such as compacting the conversation */
+  activity?: 'compacting' | null
   /** Text Stop took back from messages Claude hadn't read yet, for the message box to take in */
   refill?: { text: string; key: number }
 }
@@ -1284,6 +1286,7 @@ export const useStore = create<Store>((set, get) => {
           if (ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle') clearLive(tabId, 'thinking')
           patchChat(tabId, (c) => ({
             status: ev.status,
+            ...(ev.status === 'stopped' || ev.status === 'error' ? { activity: null } : {}),
             error: ev.error,
             // A turn Claude started by itself has no send to time it from.
             ...(ev.status === 'running' && c.status !== 'running' && c.status !== 'starting' ? { startedAt: Date.now() } : {}),
@@ -1311,6 +1314,9 @@ export const useStore = create<Store>((set, get) => {
           break
         case 'tasks':
           patchChat(tabId, () => ({ tasks: ev.tasks }))
+          break
+        case 'activity':
+          patchChat(tabId, () => ({ activity: ev.activity }))
           break
         case 'unsent': {
           // Stop cancelled messages Claude hadn't read yet: off the conversation, back into the box.
@@ -1348,7 +1354,7 @@ export const useStore = create<Store>((set, get) => {
                 : it
             )
             if (ev.durationMs && ev.durationMs >= 1000) items.push({ kind: 'done', id: uid(), ms: ev.durationMs, ts: new Date(now).toISOString() })
-            return { unread: get().activeTabId !== tabId, items }
+            return { unread: get().activeTabId !== tabId, items, activity: null }
           })
           const tab = get().tabs.find((t) => t.id === tabId)
           if (tab?.projectId) void get().refreshGit(tab.projectId)

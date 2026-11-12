@@ -649,6 +649,9 @@ class ChatSession {
       this.sessionId = init.session_id
       this.emit({ type: 'session', sessionId: init.session_id, model: init.model, permissionMode: init.permissionMode })
       void this.loadCapabilities()
+    } else if (sub === 'status') {
+      const status = (m as { status?: string | null }).status
+      this.emit({ type: 'activity', activity: status === 'compacting' ? 'compacting' : null })
     } else if (sub === 'compact_boundary') {
       this.emit({ type: 'items', items: [{ kind: 'note', id: m.uuid, tone: 'info', text: 'Conversation compacted' }] })
       void this.refreshContext()

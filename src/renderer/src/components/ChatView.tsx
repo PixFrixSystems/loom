@@ -67,7 +67,7 @@ function HoverTime({ ts }: { ts?: string }): ReactNode {
   ) : null
 }
 
-function Working({ since }: { since?: number }): ReactNode {
+function Working({ since, what = 'Claude is working' }: { since?: number; what?: string }): ReactNode {
   const [, tick] = useState(0)
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 1000)
@@ -80,7 +80,7 @@ function Working({ since }: { since?: number }): ReactNode {
       <span className="shuttle" aria-hidden="true">
         <span />
       </span>
-      <span>Claude is working</span>
+      <span>{what}</span>
       <span className="working-time">{label}</span>
     </div>
   )
@@ -190,7 +190,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
       return
     }
     if (stick.current) el.scrollTop = el.scrollHeight
-  }, [chat.items, partial, thinking, chat.permissions.length, chat.tasks.length, busy, shown, limit])
+  }, [chat.items, partial, thinking, chat.permissions.length, chat.tasks.length, busy, chat.activity, shown, limit])
 
   // Scrolling up lets go of the bottom at once, before the next words pull the view back down.
   const letGo = (): void => {
@@ -334,9 +334,9 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               <AgentTasks tabId={tab.id} tasks={chat.tasks} />
             </div>
           ) : null}
-          {busy && !partial && !thinking && !chat.permissions.length ? (
+          {(busy || chat.activity === 'compacting') && !partial && !thinking && !chat.permissions.length ? (
             <div className="tl tl-run tl-working">
-              <Working since={chat.startedAt} />
+              <Working since={chat.startedAt} what={chat.activity === 'compacting' ? 'Compacting the conversation' : undefined} />
             </div>
           ) : null}
           {chat.status === 'error' && chat.error && !chat.items.some((i) => i.kind === 'note' && i.tone === 'error') ? (
