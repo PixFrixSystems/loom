@@ -771,6 +771,12 @@
   display: none;
 }
 
+/* Settings: over the whole work area, above the panes, their dividers and close buttons */
+.tab-panel.overlay-panel {
+  z-index: 15;
+  background: var(--bg);
+}
+
 .resizer {
   position: absolute;
   top: var(--topbar);

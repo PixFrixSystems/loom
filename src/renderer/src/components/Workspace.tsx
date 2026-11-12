@@ -4,7 +4,7 @@ import type { LayoutNode, Tab } from '@shared/types'
 import { paneOfTab, panesOf, type Edge, type Pane, type Split } from '../lib/layout'
 import { projectForPath } from '../lib/paths'
 import { useResizing } from '../lib/resizing'
-import { useStore } from '../store'
+import { isOverlayTab, useStore } from '../store'
 import { ChatView } from './ChatView'
 import { FileView } from './FileView'
 import { Onboarding } from './Onboarding'
@@ -235,11 +235,14 @@ export function Workspace(): ReactNode {
   const focusedPane = useStore((s) => s.focusedPane)
   const dragging = useStore((s) => s.draggingTab)
   const detached = useStore((s) => s.detached)
+  const activeTabId = useStore((s) => s.activeTabId)
   const main = useRef<HTMLElement>(null)
+  const [full, setFull] = useState<Rect | null>(null)
   const [rects, setRects] = useState<Record<string, Rect>>({})
   const [mounted, setMounted] = useState<Set<string>>(new Set())
   const panes = panesOf(layout)
   const multi = panes.length > 1
+  const overlayOpen = isOverlayTab(tabs.find((t) => t.id === activeTabId))
 
   // A tab is built the first time it shows, then kept (hidden) so it keeps its state.
   useEffect(() => {
@@ -258,6 +261,7 @@ export function Workspace(): ReactNode {
     if (!root) return
     const measure = (): void => {
       const base = root.getBoundingClientRect()
+      setFull((prev) => (prev && prev.width === Math.round(base.width) && prev.height === Math.round(base.height) ? prev : { left: 0, top: 0, width: Math.round(base.width), height: Math.round(base.height) }))
       const next: Record<string, Rect> = {}
       root.querySelectorAll<HTMLElement>('[data-pane]').forEach((el) => {
         const r = el.getBoundingClientRect()
@@ -281,11 +285,20 @@ export function Workspace(): ReactNode {
     <main className={`content${multi ? ' is-split' : ''}`} ref={main}>
       <LayoutView node={layout} multi={multi} focusedPane={focusedPane} />
       {tabs
-        .filter((t) => !detached[t.id] && (mounted.has(t.id) || paneOfTab(layout, t.id)))
+        .filter((t) => !detached[t.id] && (mounted.has(t.id) || paneOfTab(layout, t.id) || (isOverlayTab(t) && t.id === activeTabId)))
         .map((t) => {
+          // Settings covers the whole work area while it is the open tab; the panes stay as they are below.
+          if (isOverlayTab(t)) {
+            const shown = t.id === activeTabId && !!full
+            return (
+              <div key={t.id} className="tab-panel overlay-panel" hidden={!shown} style={shown ? { left: 0, top: 0, width: full!.width, height: full!.height, right: 'auto', bottom: 'auto' } : undefined}>
+                <TabContent tab={t} active={shown} visible={shown} />
+              </div>
+            )
+          }
           const pane = paneOfTab(layout, t.id)
           const rect = pane ? rects[pane.id] : undefined
-          const visible = !!rect
+          const visible = !!rect && !overlayOpen
           const focused = visible && pane!.id === focusedPane
           return (
             <div

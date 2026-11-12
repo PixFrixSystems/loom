@@ -10,7 +10,7 @@ import { FileBar, TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
-import { useStore } from './store'
+import { tabsInOrder, useStore } from './store'
 
 /**
  * The key a shortcut means, by its place on the keyboard: with a Greek layout active, Ctrl+W
@@ -46,9 +46,11 @@ function useShortcuts(): void {
         s.focusPane(list[(i + step) % list.length].id)
       } else if (key === 'tab') {
         e.preventDefault()
-        if (!s.tabs.length) return
-        const i = s.tabs.findIndex((t) => t.id === s.activeTabId)
-        const next = s.tabs[(i + (e.shiftKey ? s.tabs.length - 1 : 1)) % s.tabs.length]
+        // In the order the tabs are shown, past the ones living in a window of their own.
+        const list = tabsInOrder(s.tabs).filter((t) => !s.detached[t.id] || t.id === s.activeTabId)
+        if (!list.length) return
+        const i = list.findIndex((t) => t.id === s.activeTabId)
+        const next = list[(i + (e.shiftKey ? list.length - 1 : 1) + list.length) % list.length]
         s.activate(next.id)
       } else if (key === 'w' && !e.shiftKey) {
         e.preventDefault()
@@ -73,7 +75,8 @@ function useShortcuts(): void {
         e.preventDefault()
         s.openSettings()
       } else if (/^[1-9]$/.test(key) && !e.altKey && !e.shiftKey) {
-        const t = s.tabs[key === '9' ? s.tabs.length - 1 : Number(key) - 1]
+        const list = tabsInOrder(s.tabs)
+        const t = list[key === '9' ? list.length - 1 : Number(key) - 1]
         if (t) {
           e.preventDefault()
           s.activate(t.id)

@@ -289,6 +289,10 @@
   line-height: 1.5;
 }
 
+.confirm-input {
+  width: 100%;
+}
+
 .confirm-items {
   margin: 0;
   padding: 6px 10px;

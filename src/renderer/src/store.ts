@@ -36,6 +36,7 @@ import {
 } from '@shared/types'
 import {
   cleanLayout,
+  inFileRow,
   newPane,
   paneById,
   paneOfTab,
@@ -98,6 +99,19 @@ export interface ConfirmRequest {
   cancel: string
   /** Where keyboard focus starts; the cancel choice when unset */
   focus?: string
+}
+
+/**
+ * Settings shows over the whole work area instead of inside a pane, so opening and closing it
+ * leaves the panes exactly as they were.
+ */
+export function isOverlayTab(tab: Pick<Tab, 'kind'> | undefined | null): boolean {
+  return tab?.kind === 'settings'
+}
+
+/** Tabs in the order they appear: the top row, then the files row. */
+export function tabsInOrder(tabs: Tab[]): Tab[] {
+  return [...tabs.filter((t) => !inFileRow(t)), ...tabs.filter((t) => inFileRow(t))]
 }
 
 /** A chat in the middle of something: a turn, a question for you, or agents still running. */
@@ -469,8 +483,9 @@ export const useStore = create<Store>((set, get) => {
       })
       // Server output tabs belong to servers that stopped when Loom last quit.
       const tabs = state.tabs.filter((t) => t.kind !== 'server')
-      const fallback = tabs.some((t) => t.id === state.activeTabId) ? state.activeTabId : (tabs[0]?.id ?? null)
-      let layout = cleanLayout(state.layout ?? { kind: 'pane', id: 'main', tabId: fallback }, new Set(tabs.map((t) => t.id)))
+      const paneTabs = tabs.filter((t) => !isOverlayTab(t))
+      const fallback = paneTabs.some((t) => t.id === state.activeTabId) ? state.activeTabId : (paneTabs[0]?.id ?? null)
+      let layout = cleanLayout(state.layout ?? { kind: 'pane', id: 'main', tabId: fallback }, new Set(tabs.filter((t) => !isOverlayTab(t)).map((t) => t.id)))
       let focused = paneById(layout, state.focusedPane ?? '') ?? panesOf(layout)[0]
       // A saved layout whose tabs are gone would open empty: show the last tab used instead.
       if (!focused.tabId && fallback && !panesOf(layout).some((p) => p.tabId === fallback)) {
@@ -614,6 +629,10 @@ export const useStore = create<Store>((set, get) => {
         void window.loom.popoutFocus(tabId)
         return
       }
+      if (isOverlayTab(get().tabs.find((t) => t.id === tabId))) {
+        set((s) => ({ activeTabId: tabId, pointerFocus: false, history: [...s.history.filter((h) => h !== tabId), tabId].slice(-50) }))
+        return
+      }
       set((s) => {
         // Already on screen: go to its pane. Otherwise it takes the place of what the focused pane shows.
         const shown = paneOfTab(s.layout, tabId)
@@ -649,9 +668,10 @@ export const useStore = create<Store>((set, get) => {
       // already on screen; failing that the nearest neighbour; failing that it stays empty.
       const onScreen = new Set(panesOf(s.layout).map((p) => p.tabId))
       const replacement = (): string | null => {
-        const back = [...s.history].reverse().find((h) => h !== tabId && !onScreen.has(h) && !s.detached[h] && tabs.some((t) => t.id === h))
+        const fits = (id: string): boolean => !onScreen.has(id) && !s.detached[id] && !isOverlayTab(tabs.find((t) => t.id === id))
+        const back = [...s.history].reverse().find((h) => h !== tabId && fits(h) && tabs.some((t) => t.id === h))
         if (back) return back
-        const free = tabs.map((t, i) => ({ id: t.id, d: Math.abs(i - idx) })).filter((x) => !onScreen.has(x.id) && !s.detached[x.id])
+        const free = tabs.map((t, i) => ({ id: t.id, d: Math.abs(i - idx) })).filter((x) => fits(x.id))
         return free.sort((a, b) => a.d - b.d)[0]?.id ?? null
       }
       let layout = s.layout
@@ -661,7 +681,8 @@ export const useStore = create<Store>((set, get) => {
         layout = setPaneTab(layout, p.id, next)
         onScreen.add(next)
       }
-      const activeTabId = paneById(layout, s.focusedPane)?.tabId ?? null
+      // Closing something else while Settings is open keeps Settings in front.
+      const activeTabId = s.activeTabId !== tabId && isOverlayTab(tabs.find((t) => t.id === s.activeTabId)) ? s.activeTabId : (paneById(layout, s.focusedPane)?.tabId ?? null)
       const chats = { ...s.chats }
       delete chats[tabId]
       const terminals = { ...s.terminals }
@@ -678,13 +699,12 @@ export const useStore = create<Store>((set, get) => {
     popOut: (tabId, at) => {
       const s = get()
       const tab = s.tabs.find((t) => t.id === tabId)
-      if (!tab || s.detached[tabId] || POPOUT_TAB) return
+      // Settings and Get started change Loom itself, which a window of its own can't do.
+      if (!tab || s.detached[tabId] || POPOUT_TAB || tab.kind === 'settings' || tab.kind === 'start') return
       // Its pane shows the tab used before it, as when a tab closes.
       const onScreen = new Set(panesOf(s.layout).map((p) => p.tabId))
-      const back =
-        [...s.history].reverse().find((h) => h !== tabId && !onScreen.has(h) && !s.detached[h] && s.tabs.some((t) => t.id === h)) ??
-        s.tabs.find((t) => t.id !== tabId && !onScreen.has(t.id) && !s.detached[t.id])?.id ??
-        null
+      const fits = (id: string): boolean => id !== tabId && !onScreen.has(id) && !s.detached[id] && !isOverlayTab(s.tabs.find((t) => t.id === id))
+      const back = [...s.history].reverse().find((h) => fits(h) && s.tabs.some((t) => t.id === h)) ?? s.tabs.find((t) => fits(t.id))?.id ?? null
       let layout = s.layout
       for (const p of panesOf(layout)) if (p.tabId === tabId) layout = setPaneTab(layout, p.id, back)
       const activeTabId = paneById(layout, s.focusedPane)?.tabId ?? null
@@ -988,10 +1008,13 @@ export const useStore = create<Store>((set, get) => {
       const s = get()
       const target = paneId ?? s.focusedPane
       const onScreen = new Set(panesOf(s.layout).map((p) => p.tabId))
+      const fits = (id: string, except: string | null): boolean =>
+        id !== except && !onScreen.has(id) && !s.detached[id] && !isOverlayTab(s.tabs.find((t) => t.id === id))
       const spare = (except: string | null): string | null =>
-        [...s.history].reverse().find((h) => h !== except && !onScreen.has(h) && s.tabs.some((t) => t.id === h)) ??
-        s.tabs.find((t) => t.id !== except && !onScreen.has(t.id))?.id ??
-        null
+        [...s.history].reverse().find((h) => fits(h, except) && s.tabs.some((t) => t.id === h)) ?? s.tabs.find((t) => fits(t.id, except))?.id ?? null
+      // A tab in its own window comes back first; Settings never goes in a pane.
+      if (tabId && s.detached[tabId]) return void window.loom.popoutClose(tabId)
+      if (tabId && isOverlayTab(s.tabs.find((t) => t.id === tabId))) return get().activate(tabId)
       let layout = s.layout
       let tab = tabId ?? null
       if (tab) {
@@ -1008,6 +1031,8 @@ export const useStore = create<Store>((set, get) => {
       const s = get()
       const target = paneById(s.layout, paneId)
       if (!target) return
+      if (s.detached[tabId]) return void window.loom.popoutClose(tabId)
+      if (isOverlayTab(s.tabs.find((t) => t.id === tabId))) return get().activate(tabId)
       const from = paneOfTab(s.layout, tabId)
       let layout = s.layout
       if (from && from.id !== paneId) layout = setPaneTab(layout, from.id, target.tabId)
@@ -1032,7 +1057,8 @@ export const useStore = create<Store>((set, get) => {
       const shown = panesOf(s.layout).map((p) => p.tabId)
       const order: string[] = []
       for (const id of [focusedTab, ...shown, ...[...s.history].reverse(), ...s.tabs.map((t) => t.id)]) {
-        if (id && !order.includes(id) && s.tabs.some((t) => t.id === id)) order.push(id)
+        const t = s.tabs.find((x) => x.id === id)
+        if (id && t && !order.includes(id) && !s.detached[id] && !isOverlayTab(t)) order.push(id)
       }
       const count = PRESETS.find((p) => p.name === name)?.panes ?? 1
       const layout = presetLayout(name, order.slice(0, count))
