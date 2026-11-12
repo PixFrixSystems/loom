@@ -22,6 +22,9 @@
   color: var(--text-3);
   font-size: 12px;
   white-space: nowrap;
+  /* Like a chat's header: what doesn't fit stays in this pane, focus rings whole. */
+  overflow: clip;
+  overflow-clip-margin: 3px;
 }
 
 .file-head .chat-head-project {

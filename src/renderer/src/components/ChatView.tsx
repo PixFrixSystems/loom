@@ -245,12 +245,12 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         <span className="chat-head-spacer" />
         {chat.activeModel ? <span className="chat-head-meta">{modelName(chat.activeModel, knownModels)}</span> : null}
         <RunControl projectId={tab.projectId} />
-        <button className="icon-btn" title="Open a terminal here" onClick={() => s.newTerminal(tab.projectId)}>
+        <button className="icon-btn chat-head-tool" title="Open a terminal here" onClick={() => s.newTerminal(tab.projectId)}>
           <SquareTerminal />
         </button>
         {/* A chat in a window of its own has no side panel to show files in. */}
         {!POPOUT_TAB ? (
-          <button className="icon-btn" title="Show files" onClick={() => s.set({ rightPanelOpen: true, rightPanelView: 'files' })}>
+          <button className="icon-btn chat-head-tool" title="Show files" onClick={() => s.set({ rightPanelOpen: true, rightPanelView: 'files' })}>
             <FolderOpen />
           </button>
         ) : null}

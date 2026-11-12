@@ -70,10 +70,11 @@ export function ServerControls({
         <button
           className="srv-link"
           title={`Open ${server.url} in the browser${server.adopted ? `\nThis server was already running; Loom didn't start it` : ''}`}
+          aria-label={`Open ${server.url} in the browser`}
           onClick={() => openUrl(server.url)}
         >
           <span className="srv-dot" aria-hidden="true" />
-          {hostOf(server.url)}
+          <span className="srv-host">{hostOf(server.url)}</span>
         </button>
       ) : (
         <span className={`srv-state${failed(server) ? ' is-failed' : ''}`} role="status" title={why ?? undefined}>
@@ -83,18 +84,18 @@ export function ServerControls({
         </span>
       )}
       {server.status === 'running' && server.url ? (
-        <button className="icon-btn small" title="Preview in Loom, beside this" onClick={() => s.openPreview(server.projectId, server.url!)}>
+        <button className="icon-btn small srv-preview" title="Preview in Loom, beside this" onClick={() => s.openPreview(server.projectId, server.url!)}>
           <Globe />
         </button>
       ) : null}
       {output ? (
-        <button className="icon-btn small" title="Show output" onClick={() => s.showServerOutput(server.id)}>
+        <button className="icon-btn small srv-output" title="Show output" onClick={() => s.showServerOutput(server.id)}>
           <ScrollText />
         </button>
       ) : null}
       {live ? (
         <>
-          <button className="icon-btn small" title="Restart" disabled={server.status === 'stopping'} onClick={() => s.restartServer(server.id)}>
+          <button className="icon-btn small srv-restart" title="Restart" disabled={server.status === 'stopping'} onClick={() => s.restartServer(server.id)}>
             <RotateCw />
           </button>
           <button className="icon-btn small" title="Stop" disabled={server.status === 'stopping'} onClick={() => s.stopServer(server.id)}>
@@ -152,9 +153,14 @@ export function RunControl({ projectId }: { projectId: string | null }): ReactNo
   if (!target || !targets) return null
   return (
     <span className="run-split">
-      <button className="run-btn" title={runTitle(target)} onClick={() => void useStore.getState().runProject(project.id)}>
+      <button
+        className="run-btn"
+        title={runTitle(target)}
+        aria-label={`Run ${target.script}`}
+        onClick={() => void useStore.getState().runProject(project.id)}
+      >
         <Play />
-        Run {target.script}
+        <span className="run-label">Run {target.script}</span>
       </button>
       {targets.length > 1 ? (
         <button

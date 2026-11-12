@@ -23,6 +23,10 @@
   color: var(--text-3);
   font-size: 12px;
   white-space: nowrap;
+  /* Whatever doesn't fit stays in this pane: it never draws over the pane beside it. The small
+     margin keeps the buttons' focus rings whole. */
+  overflow: clip;
+  overflow-clip-margin: 3px;
 }
 
 .chat-head > .icon-btn {
@@ -31,7 +35,8 @@
 }
 
 .chat-head-project {
-  min-width: 48px;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -80,6 +85,21 @@
   container-type: inline-size;
 }
 
+/* In a header the server's controls keep their size; only its address or state shortens, and
+   the project name and chat title give way first. */
+:is(.chat-head, .file-head) .srv-link {
+  max-width: 190px;
+}
+
+:is(.chat-head, .file-head) .srv-host,
+:is(.chat-head, .file-head) .srv-state {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Narrow panes (a small window, a split, both side panels open) keep what matters most: the
+   project, Run or the running server's address, and Stop. The rest steps aside in this order. */
 @container (max-width: 480px) {
   .chat-head-meta,
   .chat-head-path {
@@ -87,15 +107,48 @@
   }
 }
 
-@container (max-width: 380px) {
-  .srv-link {
-    max-width: 96px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+@container (max-width: 420px) {
+  .content.is-split .chat-head .chat-head-title,
+  :is(.chat-head, .file-head) .srv-output,
+  :is(.chat-head, .file-head) .srv-restart {
+    display: none;
+  }
+}
+
+@container (max-width: 360px) {
+  :is(.chat-head, .file-head) .run-label {
+    display: none;
   }
 
-  .run-btn {
-    padding: 0 7px;
+  /* Room for a whole localhost:12345 */
+  :is(.chat-head, .file-head) .srv-link,
+  :is(.chat-head, .file-head) .srv-state {
+    max-width: 124px;
+  }
+
+  :is(.chat-head, .file-head) .run-btn {
+    padding: 0 9px;
+  }
+
+  :is(.chat-head, .file-head) .run-split .run-btn:not(:only-child) {
+    padding-right: 7px;
+  }
+}
+
+@container (max-width: 300px) {
+  .chat-head-tool {
+    display: none;
+  }
+}
+
+@container (max-width: 240px) {
+  :is(.chat-head, .file-head) .srv-host,
+  :is(.chat-head, .file-head) .srv-preview {
+    display: none;
+  }
+
+  :is(.chat-head, .file-head) .srv-link {
+    padding: 0 6px;
   }
 }
 
