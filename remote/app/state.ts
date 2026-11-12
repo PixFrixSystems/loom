@@ -4,6 +4,7 @@
 import { create } from 'zustand'
 import type { ChatItem, EffortLevel, PermissionResponse } from '@shared/types'
 import type { RemoteChatState, RemoteList, RemoteSavedChat, ToPhone } from '@shared/remote'
+import type { Attached } from './images'
 import { forgetLink, loadLink, pair, post, reconnect, start, stop, type Conn, type Link, type PairError } from './link'
 
 export interface PhoneChat {
@@ -38,6 +39,8 @@ interface State {
   phase: Phase
   conn: Conn
   pc: string
+  /** What the Loom on the PC takes beyond the first version's messages: 'images' */
+  can: string[]
   list: RemoteList | null
   route: Route
   chats: Record<string, PhoneChat>
@@ -52,7 +55,7 @@ interface State {
   onRoute: () => void
   unlink: () => Promise<void>
   retry: () => void
-  send: (tabId: string, text: string) => boolean
+  send: (tabId: string, text: string, images?: Attached[]) => boolean
   stopChat: (tabId: string) => void
   respond: (tabId: string, requestId: string, response: PermissionResponse) => void
   more: (tabId: string) => void
@@ -99,7 +102,7 @@ export const useApp = create<State>((set, get) => {
   const onMessage = (m: ToPhone): void => {
     switch (m.t) {
       case 'hello':
-        set({ pc: m.pc, opening: null })
+        set({ pc: m.pc, can: m.can ?? [], opening: null })
         post({ t: 'list' })
         // Back after a gap: whatever was on screen is asked for again, whole.
         ask(get().route)
@@ -195,6 +198,7 @@ export const useApp = create<State>((set, get) => {
     phase: { at: 'starting' },
     conn: 'connecting',
     pc: '',
+    can: [],
     list: null,
     route: { at: 'home' },
     chats: {},
@@ -250,12 +254,16 @@ export const useApp = create<State>((set, get) => {
 
     retry: () => reconnect(),
 
-    send: (tabId, text) => {
+    send: (tabId, text, images = []) => {
       const id = crypto.randomUUID()
-      if (!post({ t: 'send', tabId, text, id })) return false
+      const sent = images.map(({ mediaType, data }) => ({ mediaType, data }))
+      if (!post({ t: 'send', tabId, text, id, ...(sent.length ? { images: sent } : {}) })) return false
       // Shown at once; Loom's own copy of the message, with the same id, takes its place.
       patchChat(tabId, (c) => ({
-        items: [...c.items, { kind: 'user', id, text, images: 0, ts: new Date().toISOString() }],
+        items: [
+          ...c.items,
+          { kind: 'user', id, text, images: images.length, previews: images.length ? images.map((i) => ({ thumb: i.thumb })) : undefined, ts: new Date().toISOString() }
+        ],
         pending: [...c.pending, id]
       }))
       return true

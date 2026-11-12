@@ -15,9 +15,12 @@ import {
   aesKey,
   checkCode,
   deviceKeyBytes,
+  IMAGE_TYPES,
   ID_PATTERN,
   keyPair,
   MAX_DEVICES,
+  MAX_IMAGE_CHARS,
+  MAX_IMAGES,
   MAX_SEND,
   PAIRING_MS,
   pairingId,
@@ -41,6 +44,7 @@ import {
   type PhoneAction,
   type RelayData,
   type RelayNotice,
+  type RemoteImage,
   type RemoteList,
   type RemoteStatus,
   type ToPhone
@@ -484,7 +488,7 @@ async function onDeviceData(from: string, sealed: string): Promise<void> {
     if (before?.watching) watchingChanged()
     device.seenAt = Date.now()
     saveSoon()
-    post(s, { t: 'hello', nonce: msg.nonce, pc: hostname(), version: app.getVersion() })
+    post(s, { t: 'hello', nonce: msg.nonce, pc: hostname(), version: app.getVersion(), can: ['images'] })
     return emitStatus()
   }
   const s = sessions.get(from)
@@ -495,6 +499,20 @@ async function onDeviceData(from: string, sealed: string): Promise<void> {
 }
 
 const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 80
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/
+
+/** The images sent with a message, kept to the kinds and sizes Loom takes; null when any is off. */
+function cleanImages(v: unknown): RemoteImage[] | null {
+  if (v === undefined) return []
+  if (!Array.isArray(v) || v.length > MAX_IMAGES) return null
+  const out: RemoteImage[] = []
+  for (const image of v as { mediaType?: unknown; data?: unknown }[]) {
+    const mediaType = IMAGE_TYPES.find((t) => t === image?.mediaType)
+    if (!mediaType || typeof image.data !== 'string' || !image.data || image.data.length > MAX_IMAGE_CHARS || !BASE64.test(image.data)) return null
+    out.push({ mediaType, data: image.data })
+  }
+  return out
+}
 const EFFORTS: unknown[] = ['low', 'medium', 'high', 'xhigh', 'max'] satisfies EffortLevel[]
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -545,11 +563,13 @@ function onPhone(s: Session, m: FromPhone): void {
     case 'more':
       if (isId(m.tabId) && isId(m.before)) act({ t: 'more', tabId: m.tabId, before: m.before })
       break
-    case 'send':
+    case 'send': {
       if (!isId(m.tabId) || typeof m.text !== 'string' || typeof m.id !== 'string' || !UUID.test(m.id)) return
-      if (!m.text.trim() || m.text.length > MAX_SEND) return
-      act({ t: 'send', tabId: m.tabId, text: m.text, id: m.id })
+      const images = cleanImages(m.images)
+      if (!images || m.text.length > MAX_SEND || (!m.text.trim() && !images.length)) return
+      act({ t: 'send', tabId: m.tabId, text: m.text, id: m.id, ...(images.length ? { images } : {}) })
       break
+    }
     case 'stop':
       if (isId(m.tabId)) act({ t: 'stop', tabId: m.tabId })
       break

@@ -1,9 +1,10 @@
-import { ArrowUp, ChevronLeft, Plus, Square, TriangleAlert } from 'lucide-react'
+import { ArrowUp, ChevronLeft, ImagePlus, Plus, Square, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { UsageLimit } from '@shared/types'
-import type { RemoteChatSummary, RemoteProject } from '@shared/remote'
+import { MAX_IMAGES, type RemoteChatSummary, type RemoteProject } from '@shared/remote'
 import { timeAgo } from '@renderer/lib/paths'
 import { Ask } from './Asks'
+import { prepare, type Attached } from './images'
 import { LinkScreen, Wordmark } from './LinkPage'
 import { Picks } from './Picks'
 import { go, useApp, type PhoneChat } from './state'
@@ -298,9 +299,15 @@ const FINE_POINTER = window.matchMedia('(pointer: fine)')
 
 function Composer({ tabId, working, off }: { tabId: string; working: boolean; off: string | null }): ReactNode {
   const [text, setText] = useState('')
+  const [images, setImages] = useState<Attached[]>([])
+  const [adding, setAdding] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
   const send = useApp((s) => s.send)
   const stopChat = useApp((s) => s.stopChat)
+  // Only a Loom that takes pictures with a message is offered them.
+  const canAttach = useApp((s) => s.can.includes('images'))
   // The box grows with what is typed, up to a few lines.
   useLayoutEffect(() => {
     const el = box.current
@@ -310,12 +317,54 @@ function Composer({ tabId, working, off }: { tabId: string; working: boolean; of
   }, [text])
   const submit = (): void => {
     const trimmed = text.trim()
-    if (!trimmed || off) return
-    if (send(tabId, trimmed)) setText('')
+    if ((!trimmed && !images.length) || off || adding) return
+    if (send(tabId, trimmed, images)) {
+      setText('')
+      setImages([])
+      setNote(null)
+    }
+  }
+  /** Pictures picked from the phone's library or camera: made small enough to send, then shown. */
+  const attach = async (files: FileList | null): Promise<void> => {
+    const picked = [...(files ?? [])]
+    if (picker.current) picker.current.value = ''
+    if (!picked.length) return
+    const room = Math.max(0, MAX_IMAGES - images.length)
+    setAdding(true)
+    const made = await Promise.all(picked.slice(0, room).map(prepare))
+    const ready = made.filter((m): m is Attached => !!m)
+    setImages((cur) => [...cur, ...ready].slice(0, MAX_IMAGES))
+    const unread = made.length - ready.length
+    setNote(
+      picked.length > room
+        ? `A message takes up to ${MAX_IMAGES} pictures, so ${picked.length - room === 1 ? 'one was' : `${picked.length - room} were`} left out.`
+        : unread
+          ? `${unread === 1 ? "One picture couldn't" : `${unread} pictures couldn't`} be read, so ${unread === 1 ? 'it was' : 'they were'} left out.`
+          : null
+    )
+    setAdding(false)
   }
   return (
     <div className="composer">
       <Picks tabId={tabId} off={!!off} />
+      {images.length || adding || note ? (
+        <div className="attached">
+          {images.map((image, i) => (
+            <span key={image.id} className="attached-item">
+              <img src={image.thumb} alt="" />
+              <button type="button" className="attached-remove" aria-label={`Remove picture ${i + 1}`} onClick={() => setImages((cur) => cur.filter((x) => x.id !== image.id))}>
+                <X />
+              </button>
+            </span>
+          ))}
+          {adding ? <span className="attached-note">Getting the picture ready</span> : null}
+          {note && !adding ? (
+            <span className="attached-note" role="status">
+              {note}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <form
         className="composer-row"
         onSubmit={(e) => {
@@ -323,6 +372,21 @@ function Composer({ tabId, working, off }: { tabId: string; working: boolean; of
           submit()
         }}
       >
+        {canAttach ? (
+          <>
+            <input ref={picker} type="file" accept="image/*" multiple hidden tabIndex={-1} onChange={(e) => void attach(e.target.files)} />
+            <button
+              type="button"
+              className="round is-attach"
+              aria-label="Attach pictures"
+              title="Attach pictures"
+              disabled={!!off || adding || images.length >= MAX_IMAGES}
+              onClick={() => picker.current?.click()}
+            >
+              <ImagePlus />
+            </button>
+          </>
+        ) : null}
         <textarea
           ref={box}
           className="composer-box"
@@ -345,7 +409,7 @@ function Composer({ tabId, working, off }: { tabId: string; working: boolean; of
             <Square />
           </button>
         ) : null}
-        <button type="submit" className="round is-send" aria-label="Send" title="Send" disabled={!!off || !text.trim()}>
+        <button type="submit" className="round is-send" aria-label="Send" title="Send" disabled={!!off || adding || (!text.trim() && !images.length)}>
           <ArrowUp />
         </button>
       </form>

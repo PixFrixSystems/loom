@@ -274,7 +274,14 @@ function act(action: PhoneAction, device: string): void {
   const c = s.chat(tab.id)
   switch (action.t) {
     case 'send':
-      if (!c.moving) void s.send(tab.id, action.text, [], action.id)
+      if (!c.moving) {
+        void s.send(
+          tab.id,
+          action.text,
+          (action.images ?? []).map((image, i) => ({ mediaType: image.mediaType, data: image.data, name: `phone-${i + 1}` })),
+          action.id
+        )
+      }
       break
     case 'stop':
       s.interrupt(tab.id)

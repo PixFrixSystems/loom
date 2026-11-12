@@ -176,7 +176,8 @@ export interface TextChange {
 }
 
 export type ToPhone =
-  | { t: 'hello'; nonce: string; pc: string; version: string }
+  /** can: what this Loom takes beyond the first version's messages, such as 'images' with a message */
+  | { t: 'hello'; nonce: string; pc: string; version: string; can?: string[] }
   | { t: 'list'; list: RemoteList }
   /**
    * A chat's steps. reset: these are its latest steps, replacing whatever the phone has.
@@ -201,8 +202,11 @@ export type ToPhone =
 
 export type PhoneAction =
   | { t: 'more'; tabId: string; before: string }
-  /** id: a UUID the phone made, so its own copy of the message and Loom's are the same step */
-  | { t: 'send'; tabId: string; text: string; id: string }
+  /**
+   * id: a UUID the phone made, so its own copy of the message and Loom's are the same step.
+   * With images the text may be empty. Only a Loom whose hello says it can take 'images' gets them.
+   */
+  | { t: 'send'; tabId: string; text: string; id: string; images?: RemoteImage[] }
   | { t: 'stop'; tabId: string }
   | { t: 'respond'; tabId: string; requestId: string; response: PermissionResponse }
   /** Asks for a project's saved chats */
@@ -231,6 +235,25 @@ export interface Envelope<M> {
 
 /** The longest message a phone may send to a chat */
 export const MAX_SEND = 100_000
+
+/** An image sent with a message: the kinds Claude takes, as base64 */
+export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
+
+export interface RemoteImage {
+  mediaType: (typeof IMAGE_TYPES)[number]
+  data: string
+}
+
+/** Images one message from a phone may carry */
+export const MAX_IMAGES = 4
+
+/**
+ * The longest one image's base64 may be (about 460 KB of image). A message is sealed and sent as
+ * one piece, which comes to about 1.8 characters per byte of image, and the relay passes pieces
+ * of up to 4,000,000 characters: four images of this size fit. The phone makes photos smaller
+ * before sending.
+ */
+export const MAX_IMAGE_CHARS = 620_000
 
 // ---------- What Loom's settings show ----------
 
