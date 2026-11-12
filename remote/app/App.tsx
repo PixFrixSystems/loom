@@ -1,4 +1,4 @@
-import { ArrowUp, ChevronLeft, ImagePlus, Plus, Square, TriangleAlert, X } from 'lucide-react'
+import { ArrowUp, ChevronLeft, ChevronRight, ImagePlus, Plus, Square, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { UsageLimit } from '@shared/types'
 import { MAX_IMAGES, type RemoteChatSummary, type RemoteProject } from '@shared/remote'
@@ -115,6 +115,87 @@ function ProjectRow({ p, open }: { p: RemoteProject; open: RemoteChatSummary[] }
   )
 }
 
+/** The projects that are in no group, as a folder of their own */
+const LOOSE = '(none)'
+const FOLDED_KEY = 'loom-folded'
+
+function savedFolded(): string[] {
+  try {
+    const ids: unknown = JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '[]')
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** Which folders are folded shut on this phone. Kept between visits; Loom's own sidebar is not touched. */
+function useFolded(): { folded: Set<string>; toggle: (id: string) => void } {
+  const [ids, setIds] = useState(savedFolded)
+  const toggle = (id: string): void =>
+    setIds((cur) => {
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
+      try {
+        localStorage.setItem(FOLDED_KEY, JSON.stringify(next))
+      } catch {
+        // No storage (private browsing): it still folds, until the page is closed.
+      }
+      return next
+    })
+  return { folded: new Set(ids), toggle }
+}
+
+/**
+ * A group of projects, as Loom's sidebar has them: its name folds the projects away. Folded, it
+ * still says how many it holds and whether any of their chats needs you or is at work.
+ */
+function Folder({
+  id,
+  name,
+  projects,
+  openIn,
+  folded,
+  onToggle
+}: {
+  id: string
+  name: string
+  projects: RemoteProject[]
+  openIn: (projectId: string) => RemoteChatSummary[]
+  folded: boolean
+  onToggle: () => void
+}): ReactNode {
+  const open = projects.flatMap((p) => openIn(p.id))
+  const body = `folder-${id}`
+  return (
+    <div className="subgroup">
+      <h3 className="fold-head">
+        <button className="fold" aria-expanded={!folded} aria-controls={folded ? undefined : body} onClick={onToggle}>
+          <ChevronRight className={`chev${folded ? '' : ' is-open'}`} />
+          <span className="fold-name">{name}</span>
+          {folded ? (
+            <span className="fold-meta">
+              {open.some((c) => c.needsYou) ? (
+                <span className="tag is-needs">Needs you</span>
+              ) : open.some((c) => c.working) ? (
+                <span className="tag is-working">
+                  <span className="live-dot" /> Working
+                </span>
+              ) : null}
+              <span>{projects.length === 1 ? '1 project' : `${projects.length} projects`}</span>
+            </span>
+          ) : null}
+        </button>
+      </h3>
+      {folded ? null : (
+        <div id={body}>
+          {projects.map((p) => (
+            <ProjectRow key={p.id} p={p} open={openIn(p.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Meter({ l }: { l: UsageLimit }): ReactNode {
   const level = l.severity === 'critical' ? 'stop' : l.severity === 'warning' ? 'warn' : 'ok'
   return (
@@ -134,6 +215,7 @@ function HomeScreen(): ReactNode {
   const conn = useApp((s) => s.conn)
   const unlink = useApp((s) => s.unlink)
   const [asking, setAsking] = useState(false)
+  const { folded, toggle } = useFolded()
 
   const projects = list?.projects ?? []
   const chats = [...(list?.chats ?? [])].sort(byUrgency)
@@ -170,18 +252,13 @@ function HomeScreen(): ReactNode {
               <h2>Projects</h2>
               {!projects.length ? <p className="hint">Loom has no projects yet. Add a project folder on your PC.</p> : null}
               {(list.groups ?? []).map((g) => (
-                <div key={g.id} className="subgroup">
-                  <h3>{g.name}</h3>
-                  {projects
-                    .filter((p) => p.groupId === g.id)
-                    .map((p) => (
-                      <ProjectRow key={p.id} p={p} open={openIn(p.id)} />
-                    ))}
-                </div>
+                <Folder key={g.id} id={g.id} name={g.name} projects={projects.filter((p) => p.groupId === g.id)} openIn={openIn} folded={folded.has(g.id)} onToggle={() => toggle(g.id)} />
               ))}
-              {loose.length ? (
+              {loose.length && list.groups?.length ? (
+                <Folder id={LOOSE} name="Not in a group" projects={loose} openIn={openIn} folded={folded.has(LOOSE)} onToggle={() => toggle(LOOSE)} />
+              ) : loose.length ? (
+                // No groups in Loom: the projects are one plain list, with nothing to fold.
                 <div className="subgroup">
-                  {list.groups?.length ? <h3>Not in a group</h3> : null}
                   {loose.map((p) => (
                     <ProjectRow key={p.id} p={p} open={openIn(p.id)} />
                   ))}

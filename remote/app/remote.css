@@ -2066,3 +2066,54 @@ button.row:disabled {
   font-size: 16px;
   line-height: 1.45;
 }
+
+/* A folder of projects: its name folds the projects under it away */
+.subgroup .fold-head {
+  margin: 4px 0 0;
+}
+
+.fold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 20px);
+  min-height: 44px;
+  margin: 0 -10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-l);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+
+.fold:active {
+  background: var(--bg-hover);
+}
+
+@media (hover: hover) {
+  .fold:hover {
+    background: var(--bg-hover);
+  }
+}
+
+.fold-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Folded shut, it still says what is inside */
+.fold-meta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 500;
+}
