@@ -4,7 +4,7 @@ import type { ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
 import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
 import { AgentTasks } from './AgentTasks'
-import { ChatItemView, LiveThinking, timelineClass } from './ChatItems'
+import { ChatItemView, LiveThinking, rise, timelineClass, useArrivals } from './ChatItems'
 import { Composer, composers } from './Composer'
 import { Markdown } from './Markdown'
 import { PermissionCard } from './PermissionCard'
@@ -67,6 +67,7 @@ function HoverTime({ ts }: { ts?: string }): ReactNode {
   ) : null
 }
 
+/** Claude is working: the row's dot on the timeline pulses violet, as it does while Claude thinks. */
 function Working({ since, what = 'Claude is working' }: { since?: number; what?: string }): ReactNode {
   const [, tick] = useState(0)
   useEffect(() => {
@@ -77,9 +78,6 @@ function Working({ since, what = 'Claude is working' }: { since?: number; what?:
   const label = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`
   return (
     <div className="working" role="status">
-      <span className="shuttle" aria-hidden="true">
-        <span />
-      </span>
       <span>{what}</span>
       <span className="working-time">{label}</span>
     </div>
@@ -156,6 +154,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   const busy = chat.status === 'running' || chat.status === 'starting'
   const visible = useMemo(() => (chat.items.length > limit ? chat.items.slice(-limit) : chat.items), [chat.items, limit])
   const hidden = chat.items.length - visible.length
+  const arrived = useArrivals(visible, shown)
   // The time sits over each of your messages, and over Claude's text when the minute has moved on.
   const rows = useMemo(() => {
     let last: string | null = null
@@ -300,42 +299,43 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
           ) : null}
           {rows.map(({ item, time }) =>
             item.kind === 'user' ? (
-              <div key={item.id} className="turn-user">
+              <div key={item.id} ref={arrived.has(item.id) ? rise : undefined} className="turn-user">
                 {time ? <div className="turn-time">{time}</div> : null}
                 <ChatItemView item={item} cwd={tab.cwd} />
               </div>
             ) : item.kind === 'done' ? (
-              <div key={item.id} className="turn-end">
+              <div key={item.id} ref={arrived.has(item.id) ? rise : undefined} className="turn-end">
                 <ChatItemView item={item} cwd={tab.cwd} />
                 <HoverTime ts={item.ts} />
               </div>
             ) : (
-              <div key={item.id} className={`tl ${timelineClass(item)}${time ? ' has-time' : ''}`}>
+              <div key={item.id} ref={arrived.has(item.id) ? rise : undefined} className={`tl ${timelineClass(item)}${time ? ' has-time' : ''}`}>
                 {time ? <div className="turn-time">{time}</div> : null}
                 <ChatItemView item={item} cwd={tab.cwd} />
                 <HoverTime ts={item.ts} />
               </div>
             )
           )}
+          {/* The live rows rise in as they appear; the finished step that replaces one does not. */}
           {thinking ? (
-            <div className="tl tl-run tl-thinking-live">
+            <div ref={rise} className="tl tl-think tl-live">
               <LiveThinking text={thinking.text} since={thinking.since} />
             </div>
           ) : null}
           {partial ? (
-            <div className="tl tl-text">
+            <div ref={rise} className="tl tl-text">
               <div className="msg-assistant streaming">
                 <Markdown text={partial} cwd={tab.cwd} streaming />
               </div>
             </div>
           ) : null}
           {chat.tasks.length ? (
-            <div className="tl tl-run tl-agents">
+            <div ref={rise} className="tl tl-run tl-agents">
               <AgentTasks tabId={tab.id} tasks={chat.tasks} />
             </div>
           ) : null}
           {(busy || chat.activity === 'compacting') && !partial && !thinking && !chat.permissions.length ? (
-            <div className="tl tl-run tl-working">
+            <div ref={rise} className="tl tl-live tl-working">
               <Working since={chat.startedAt} what={chat.activity === 'compacting' ? 'Compacting the conversation' : undefined} />
             </div>
           ) : null}
@@ -345,7 +345,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
             </div>
           ) : null}
           {chat.permissions.map((p) => (
-            <div key={p.requestId} className="tl tl-wait">
+            <div key={p.requestId} ref={rise} className="tl tl-wait">
               <PermissionCard tabId={tab.id} req={p} cwd={tab.cwd} />
             </div>
           ))}

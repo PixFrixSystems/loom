@@ -37,7 +37,7 @@ export function Popout(): ReactNode {
   return (
     <div className="popout">
       <header className="popout-bar thread" data-color={project?.color}>
-        <ProjectMark project={project} fallback="tab-noicon" size={14} />
+        <ProjectMark project={project} size={14} />
         {project ? <span className="popout-project">{project.name}</span> : null}
         <span className="popout-title">{tab.title}</span>
         <span className="popout-spacer" />

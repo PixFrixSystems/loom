@@ -284,14 +284,13 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
                 {recent.map((p, i) => (
                   <button
                     key={p.id}
-                    className={`btn${i === 0 && !chatted ? ' primary' : ''} thread`}
-                    data-color={p.color}
+                    className={`btn${i === 0 && !chatted ? ' primary' : ''}`}
                     onClick={() => {
                       s.set({ onboarded: true })
                       s.newChat(p.id)
                     }}
                   >
-                    <ProjectMark project={p} fallback="start-thread" size={14} />
+                    <ProjectMark project={p} size={14} />
                     <MessageSquarePlus /> New chat in {p.name}
                   </button>
                 ))}

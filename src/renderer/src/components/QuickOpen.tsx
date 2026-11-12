@@ -18,6 +18,21 @@ function score(path: string, q: string): number {
   return i === q.length ? 10 : -1
 }
 
+/** The file name with the typed text lit where it appears in it. */
+function lit(name: string, q: string): ReactNode {
+  const lower = name.toLowerCase()
+  // Some letters change length when lowercased; then the positions would not line up.
+  const at = q && lower.length === name.length ? lower.indexOf(q) : -1
+  if (at < 0) return name
+  return (
+    <>
+      {name.slice(0, at)}
+      <mark className="palette-match">{name.slice(at, at + q.length)}</mark>
+      {name.slice(at + q.length)}
+    </>
+  )
+}
+
 export function QuickOpen(): ReactNode {
   const s = useStore()
   const tab = s.tabs.find((t) => t.id === s.activeTabId)
@@ -28,6 +43,7 @@ export function QuickOpen(): ReactNode {
   const [index, setIndex] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   const close = (): void => s.set({ quickOpen: false })
+  const needle = q.trim().toLowerCase()
 
   const list = useRef<HTMLDivElement>(null)
 
@@ -100,7 +116,7 @@ export function QuickOpen(): ReactNode {
             }}
           />
           {project ? (
-            <span className="palette-project thread" data-color={project.color}>
+            <span className="palette-project">
               <ProjectMark project={project} size={14} />
               {project.name}
               {s.projects.length > 1 ? <kbd>Tab</kbd> : null}
@@ -120,7 +136,7 @@ export function QuickOpen(): ReactNode {
               onClick={() => choose(rel)}
             >
               <FileText className="tree-icon" />
-              <span className="tree-name">{rel.slice(rel.lastIndexOf('\\') + 1)}</span>
+              <span className="tree-name">{lit(rel.slice(rel.lastIndexOf('\\') + 1), needle)}</span>
               <span className="tree-dir">{rel.includes('\\') ? rel.slice(0, rel.lastIndexOf('\\')) : ''}</span>
             </button>
           ))}

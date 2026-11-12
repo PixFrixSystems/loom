@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../store'
@@ -114,7 +115,7 @@ export function ToastHost(): ReactNode {
         <div key={t.id} className="toast">
           <span className="selectable">{t.text}</span>
           <button className="icon-btn small toast-close" aria-label="Dismiss" onClick={() => useStore.getState().dismissToast(t.id)}>
-            ×
+            <X />
           </button>
         </div>
       ))}

@@ -1,58 +1,89 @@
 :root {
-  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --font-code: 'Cascadia Code', 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  --font-ui: 'Schibsted Grotesk Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'Cascadia Code', 'Cascadia Mono', Consolas, ui-monospace, monospace;
 
-  /* Ground: warm graphite, like undyed wool under low light */
-  --bg: #1a1c20;
-  --bg-shell: #15171a;
-  --bg-raised: #212328;
-  --bg-input: #1e2025;
-  --bg-sunken: #17191c;
-  --bg-hover: rgba(232, 226, 214, 0.055);
-  --bg-active: rgba(232, 226, 214, 0.09);
-  --line: #2a2d33;
-  --line-soft: #23262b;
-  --line-strong: #3b3f47;
+  /* A graphite room lit from above: each surface a little lighter than what is behind it */
+  --bg-deep: #0a0c12;
+  --window: #0c0e15;
+  --bg: #10131c; /* panes: chats, files, terminals, settings */
+  --bg-shell: #10121a; /* the window with a faint white wash: sidebar, tab rows, status bar, side panel */
+  --bg-top: #12141b; /* the title bar, a touch more lit */
+  --bg-raised: #161926; /* menus, popovers and cards, solid */
+  --bg-input: #191c26;
+  --bg-sunken: #080a10; /* terminal, tool output and diff wells: inset, darker than the pane */
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.09);
+  --line: rgba(255, 255, 255, 0.07);
+  --line-soft: rgba(255, 255, 255, 0.05);
+  --line-strong: rgba(255, 255, 255, 0.12);
+  --edge: rgba(255, 255, 255, 0.08); /* the glass outline, drawn as an inset shadow */
+  --edge-2: rgba(255, 255, 255, 0.14);
+  --hi: rgba(255, 255, 255, 0.1); /* the top edge catching the light */
 
-  --text: #e8e4dc;
-  --text-2: #b4afa5;
-  --text-3: #8f8a81;
+  --text: #eceef4;
+  --text-2: #a9afbf;
+  --text-3: #858b9c;
 
-  /* Verdigris: the one action colour */
-  --accent: #6fb5a1;
-  --accent-hover: #84c3b0;
-  --accent-ink: #0c1916;
-  --accent-soft: rgba(111, 181, 161, 0.14);
-  --accent-line: rgba(111, 181, 161, 0.45);
+  /* The loop's violet: the one colour that means something. Live, active, connected. */
+  --brand: #8c8af6;
+  --brand-glow: rgba(140, 138, 246, 0.55);
+  --brand-deep: #4b47b8;
+  /* Lavender edge light: focus, selection, checked */
+  --light: #c8c6fa;
+  --light-glow: rgba(146, 144, 248, 0.45);
 
-  --warn: #dcb05a;
-  --warn-soft: rgba(220, 176, 90, 0.13);
-  --danger: #e27d6b;
-  --danger-soft: rgba(226, 125, 107, 0.13);
-  --ok: #93c078;
+  /* Older names, kept so every component reads the same colours */
+  --accent: var(--brand);
+  --accent-hover: #a3a1f8;
+  --accent-ink: #0c0f1d;
+  --accent-soft: rgba(132, 130, 246, 0.14);
+  --accent-line: rgba(196, 194, 252, 0.35);
 
-  /* Project threads: natural dye colours */
-  --t-woad: #6f97c8;
-  --t-madder: #d27563;
-  --t-verdigris: #5fb09a;
-  --t-weld: #d6b257;
-  --t-indigo: #918cda;
-  --t-cochineal: #cb769e;
-  --t-lichen: #a1b968;
-  --t-walnut: #b68f6b;
-  --t-slate: #919eaf;
+  /* Status: the only other hues */
+  --ok: #4fd18b;
+  --ok-soft: rgba(79, 209, 139, 0.16);
+  --warn: #f0c38a;
+  --warn-soft: rgba(240, 195, 138, 0.16);
+  --danger: #ff8595;
+  --danger-soft: rgba(255, 91, 112, 0.14);
 
-  --radius-s: 4px;
-  --radius: 6px;
-  --radius-l: 10px;
-  --shadow-pop: 0 10px 28px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* Glass, the house recipe: a lit surface, its outline and a deep soft shadow */
+  --glass: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%), #0f121b;
+  --glass-edge: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--edge);
+  --glass-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--edge), 0 30px 60px -36px rgba(0, 0, 0, 0.9);
+  /* What floats over content: menus, popovers, dialogs */
+  --float: rgba(22, 25, 38, 0.97);
+  --shadow-pop: inset 0 1px 0 var(--hi), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 24px 48px -16px rgba(0, 0, 0, 0.9);
+  /* The lit white button */
+  --lit: linear-gradient(180deg, #ffffff 0%, #e2e6f4 100%);
+  --lit-ink: #0c0f1d;
+  --lit-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 30px -10px var(--light-glow);
+  --lit-shadow-hover: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 44px -8px rgba(156, 154, 250, 0.7);
+
+  /* Project tiles: deep, quiet tints. Only the violet carries meaning. */
+  --t-woad: linear-gradient(180deg, #2a3466 0%, #1c2348 100%);
+  --t-madder: linear-gradient(180deg, #4a2c31 0%, #2f1c20 100%);
+  --t-verdigris: linear-gradient(180deg, #2c4a44 0%, #1b302c 100%);
+  --t-weld: linear-gradient(180deg, #4c3a2a 0%, #30241a 100%);
+  --t-indigo: linear-gradient(180deg, #3b3355 0%, #251f38 100%);
+  --t-cochineal: linear-gradient(180deg, #4a2c45 0%, #2f1c2c 100%);
+  --t-lichen: linear-gradient(180deg, #38442a 0%, #232b1a 100%);
+  --t-walnut: linear-gradient(180deg, #45392e 0%, #2c241d 100%);
+  --t-slate: linear-gradient(180deg, #343843 0%, #22252d 100%);
+
+  --radius-s: 5px;
+  --radius: 8px;
+  --radius-l: 12px;
+  --pill: 999px;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --fast: 140ms;
-  --base: 200ms;
+  --ease-io: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-firm: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 160ms;
+  --base: 220ms;
 
-  --topbar: 38px;
-  --statusbar: 24px;
+  --topbar: 42px;
+  --statusbar: 28px;
 
   color-scheme: dark;
 }
@@ -71,7 +102,7 @@ body,
 }
 
 body {
-  background: var(--bg);
+  background: var(--window);
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 13px;
@@ -79,12 +110,27 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
-  font-variant-numeric: tabular-nums;
+  caret-color: var(--light);
 }
 
+/* Tabular figures only where numbers change in place or line up (meters, counts, timers). In
+   Schibsted Grotesk they also widen the full stop, comma and colon, so text and times keep the
+   proportional ones. */
+
 ::selection {
-  background: rgba(111, 181, 161, 0.32);
-  color: var(--text);
+  background: var(--brand-deep);
+  color: #fff;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* One icon set: Lucide drawn at 1.5px, the brand's stroke */
+svg.lucide {
+  stroke-width: 1.5px;
 }
 
 input,
@@ -115,27 +161,27 @@ button:disabled {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--light);
+  outline-offset: 3px;
   border-radius: var(--radius-s);
 }
 
 a {
-  color: var(--accent);
+  color: var(--light);
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: var(--accent-line);
+  text-decoration-color: rgba(200, 198, 250, 0.35);
   cursor: pointer;
 }
 
 a:hover {
-  text-decoration-color: var(--accent);
+  text-decoration-color: var(--light);
 }
 
-/* Scrollbars: thin warm thumb, invisible track */
+/* Scrollbars: thin light thumbs on the dark glass, invisible track */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track,
@@ -144,29 +190,31 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(232, 226, 214, 0.13);
+  background: rgba(255, 255, 255, 0.16);
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 8px;
+  border-radius: var(--pill);
   min-height: 28px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 226, 214, 0.26);
+  background: rgba(255, 255, 255, 0.28);
   background-clip: padding-box;
   border: 2px solid transparent;
 }
 
-/* Text fields */
+/* Text fields: a faint wash with its outline drawn inside, lavender when focused */
 .field {
   width: 100%;
-  height: 30px;
+  height: 32px;
   padding: 0 10px;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--bg-input);
+  border-radius: 9px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--text);
-  transition: border-color var(--fast) ease;
+  caret-color: var(--light);
+  transition: box-shadow var(--base) var(--ease-out), background-color var(--base) var(--ease-out);
   user-select: text;
 }
 
@@ -177,17 +225,20 @@ textarea::placeholder {
 }
 
 .field:hover {
-  border-color: var(--line-strong);
+  box-shadow: inset 0 0 0 1px var(--edge-2);
 }
 
+/* A field draws its own lavender ring, so it skips the global focus outline */
 .field:focus {
-  border-color: var(--accent-line);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(196, 194, 252, 0.5), 0 0 0 3px rgba(132, 130, 246, 0.15);
+}
+
+.field:focus-visible {
+  outline: none;
 }
 
 .field[aria-invalid='true'] {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 3px var(--danger-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 133, 149, 0.6), 0 0 0 3px var(--danger-soft);
 }
 
 input:-webkit-autofill,
@@ -195,7 +246,7 @@ input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--text);
   -webkit-box-shadow: 0 0 0 40px var(--bg-input) inset;
-  caret-color: var(--text);
+  caret-color: var(--light);
 }
 
 input[type='search']::-webkit-search-cancel-button {
@@ -208,7 +259,7 @@ input[type='search']::-webkit-search-cancel-button {
     linear-gradient(-45deg, transparent 45%, var(--text-3) 45%, var(--text-3) 55%, transparent 55%);
 }
 
-/* Checkboxes and radios */
+/* Checkboxes and radios: a dark well, lavender and lit when on */
 input[type='checkbox'],
 input[type='radio'] {
   appearance: none;
@@ -216,15 +267,16 @@ input[type='radio'] {
   height: 16px;
   margin: 0;
   flex: none;
-  border: 1px solid var(--line-strong);
-  background: var(--bg-input);
+  border: 0;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
   display: inline-grid;
   place-content: center;
-  transition: background var(--fast) ease, border-color var(--fast) ease;
+  transition: background-color var(--base) var(--ease-out), box-shadow var(--base) var(--ease-out);
 }
 
 input[type='checkbox'] {
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 input[type='radio'] {
@@ -253,8 +305,8 @@ input[type='radio']::before {
 
 input[type='checkbox']:checked,
 input[type='radio']:checked {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--light);
+  box-shadow: 0 0 10px var(--light-glow);
 }
 
 input[type='checkbox']:checked::before,
@@ -262,12 +314,17 @@ input[type='radio']:checked::before {
   transform: scale(1);
 }
 
-input[type='checkbox']:hover,
-input[type='radio']:hover {
-  border-color: var(--text-3);
+input[type='checkbox']:not(:checked):hover,
+input[type='radio']:not(:checked):hover {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
 }
 
-/* Buttons */
+input[type='checkbox']:focus-visible,
+input[type='radio']:focus-visible {
+  outline-offset: 2px;
+}
+
+/* Buttons: glass pills. The primary one is lit white, and its violet spill grows on hover. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -275,66 +332,71 @@ input[type='radio']:hover {
   gap: 6px;
   height: 28px;
   padding: 0 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--line-strong);
-  background: var(--bg-raised);
+  border-radius: var(--pill);
+  border: 0;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 var(--edge), inset 0 0 0 1px var(--line);
   color: var(--text);
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
-  transition: background var(--fast) ease, border-color var(--fast) ease, color var(--fast) ease;
+  transition: background-color var(--base) var(--ease-out), box-shadow 250ms var(--ease-out), color var(--base) var(--ease-out),
+    transform 150ms var(--ease-out);
 }
 
 .btn:hover:not(:disabled) {
-  background: #2a2c32;
-  border-color: #4a4f58;
+  background: rgba(255, 255, 255, 0.11);
 }
 
 .btn:active:not(:disabled) {
-  background: #24262b;
+  transform: scale(0.96);
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--lit);
+  box-shadow: var(--lit-shadow);
+  color: var(--lit-ink);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--lit);
+  box-shadow: var(--lit-shadow-hover);
 }
 
 .btn.danger {
   color: var(--danger);
 }
 
+.btn.danger:hover:not(:disabled) {
+  background: rgba(255, 91, 112, 0.14);
+}
+
 .btn.ghost {
   background: transparent;
-  border-color: transparent;
+  box-shadow: none;
   color: var(--text-2);
 }
 
 .btn.ghost:hover:not(:disabled) {
   background: var(--bg-hover);
-  border-color: transparent;
   color: var(--text);
 }
 
 .icon-btn {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
-  color: var(--text-2);
-  transition: background var(--fast) ease, color var(--fast) ease;
+  color: var(--text-3);
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
 .icon-btn:hover:not(:disabled) {
@@ -344,6 +406,13 @@ input[type='radio']:hover {
 
 .icon-btn:active:not(:disabled) {
   background: var(--bg-active);
+}
+
+.icon-btn[aria-pressed='true'],
+.icon-btn.on {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 var(--edge);
+  color: var(--text);
 }
 
 .icon-btn:disabled {
@@ -357,17 +426,23 @@ input[type='radio']:hover {
   flex: none;
 }
 
+/* Keycaps: a lit top, a dark base */
 kbd {
+  display: inline-block;
+  min-width: 18px;
   font-family: var(--font-ui);
   font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
   padding: 1px 5px;
-  border-radius: 4px;
-  border: 1px solid var(--line-strong);
-  border-bottom-width: 2px;
+  border-radius: 6px;
   color: var(--text-2);
-  background: var(--bg-raised);
+  text-align: center;
+  background: linear-gradient(180deg, #262b3b 0%, #191c27 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 0 #06070b;
 }
 
+/* A project's tile tint, from the colour picked for it */
 .thread {
   --thread: var(--t-slate);
 }
@@ -381,8 +456,64 @@ kbd {
 .thread[data-color='walnut'] { --thread: var(--t-walnut); }
 .thread[data-color='slate'] { --thread: var(--t-slate); }
 
+/* A project without an icon: its initial on a tile in its tint */
+.project-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 5px;
+  background: var(--thread);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.project-icon {
+  flex: none;
+  border-radius: 4px;
+}
+
+/* A chat Claude is working in: the violet thinking light, the one thing that pulses */
+.live-dot {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 8px var(--brand-glow);
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.6;
+    transform: scale(0.82);
+    box-shadow: 0 0 3px var(--brand-glow);
+  }
+}
+
+/* A running server: a lit LED */
+.led {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok), 0 0 14px rgba(79, 209, 139, 0.5);
+}
+
 .selectable {
   user-select: text;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --float: #161926;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

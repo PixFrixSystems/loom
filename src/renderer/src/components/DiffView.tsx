@@ -46,7 +46,7 @@ export function DiffView({ tab, visible = true }: { tab: DiffTab; active: boolea
         useInlineViewWhenSpaceIsLimited: true,
         renderSideBySideInlineBreakpoint: 640,
         fontFamily: "'Cascadia Code', 'Cascadia Mono', Consolas, monospace",
-        fontSize: 13,
+        fontSize: 12.5,
         lineHeight: 20,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
@@ -89,7 +89,7 @@ export function DiffView({ tab, visible = true }: { tab: DiffTab; active: boolea
 
   return (
     <div className="diffview">
-      <div className="file-head thread" data-color={project?.color}>
+      <div className="file-head">
         <ProjectMark project={project} />
         {project ? <span className="chat-head-project">{project.name}</span> : null}
         <span className="chat-head-path selectable" title={tab.path}>

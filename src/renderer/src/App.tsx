@@ -11,6 +11,8 @@ import { Workspace } from './components/Workspace'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
 import { tabsInOrder, useStore } from './store'
+import wordmark from './assets/brand/loom-wordmark.webp'
+import wordmark2x from './assets/brand/loom-wordmark@2x.webp'
 
 /**
  * The key a shortcut means, by its place on the keyboard: with a Greek layout active, Ctrl+W
@@ -148,7 +150,7 @@ export function App(): ReactNode {
     // Never so wide together that the work area is squeezed out in a narrow window.
     '--sbw': s.sidebarOpen ? `min(${s.sidebarWidth}px, 30vw)` : '0px',
     '--rpw': s.rightPanelOpen ? `min(${s.rightPanelWidth}px, 35vw)` : '0px',
-    '--filebar': s.tabs.some(inFileRow) ? '32px' : '0px'
+    '--filebar': s.tabs.some(inFileRow) ? '30px' : '0px'
   } as CSSProperties
 
   return (
@@ -156,7 +158,7 @@ export function App(): ReactNode {
       {s.sidebarOpen ? (
         <>
           <div className="brand">
-            <span className="brand-name">Loom</span>
+            <img className="brand-wordmark" src={wordmark} srcSet={`${wordmark} 2x, ${wordmark2x} 4x`} alt="Loom" draggable={false} />
           </div>
           <Sidebar />
           <Resizer side="left" />

@@ -139,16 +139,16 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
 
   return (
     <div className="preview">
-      <div className="file-head preview-bar thread" data-color={project?.color}>
+      <div className="file-head preview-bar">
         <ProjectMark project={project} />
         <span className="preview-nav">
-          <button className="icon-btn small" title="Back" disabled={!nav.back} onClick={() => view.current?.goBack()}>
+          <button className="icon-btn" title="Back" disabled={!nav.back} onClick={() => view.current?.goBack()}>
             <ArrowLeft />
           </button>
-          <button className="icon-btn small" title="Forward" disabled={!nav.forward} onClick={() => view.current?.goForward()}>
+          <button className="icon-btn" title="Forward" disabled={!nav.forward} onClick={() => view.current?.goForward()}>
             <ArrowRight />
           </button>
-          <button className="icon-btn small" title="Reload (F5)" onClick={() => (ready.current ? view.current?.reload() : go(address))}>
+          <button className="icon-btn" title="Reload (F5)" onClick={() => (ready.current ? view.current?.reload() : go(address))}>
             {loading ? <LoaderCircle className="spin" /> : <RotateCw />}
           </button>
         </span>
@@ -179,7 +179,7 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
           {DEVICES.map(({ width, label, Icon }) => (
             <button
               key={label}
-              className={device === width ? 'on' : undefined}
+              className={`icon-btn${device === width ? ' on' : ''}`}
               title={label}
               aria-label={label}
               aria-pressed={device === width}
@@ -189,10 +189,10 @@ export function PreviewView({ tab, active }: { tab: BrowserTab; active: boolean;
             </button>
           ))}
         </span>
-        <button className="icon-btn small preview-devtools" title="Developer tools (F12)" onClick={() => view.current?.openDevTools()}>
+        <button className="icon-btn preview-devtools" title="Developer tools (F12)" onClick={() => view.current?.openDevTools()}>
           <Bug />
         </button>
-        <button className="icon-btn small" title="Open in your browser" onClick={() => void window.loom.openExternal(address)}>
+        <button className="icon-btn" title="Open in your browser" onClick={() => void window.loom.openExternal(address)}>
           <ExternalLink />
         </button>
       </div>

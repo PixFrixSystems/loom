@@ -14,6 +14,8 @@ import { ProjectMark } from './ProjectMark'
 import { ServerView } from './ServerView'
 import { SettingsView } from './SettingsView'
 import { TerminalView } from './TerminalView'
+import wordmark from '../assets/brand/loom-wordmark.webp'
+import wordmark2x from '../assets/brand/loom-wordmark@2x.webp'
 
 type Rect = { left: number; top: number; width: number; height: number }
 
@@ -44,7 +46,9 @@ function Welcome(): ReactNode {
   return (
     <div className="welcome">
       <div className="welcome-inner">
-        <h1>Loom</h1>
+        <h1 className="welcome-title">
+          <img className="welcome-wordmark" src={wordmark} srcSet={`${wordmark} 1x, ${wordmark2x} 2x`} alt="Loom" draggable={false} />
+        </h1>
         <p>All your projects in one window. Chats, files and terminals from any project share the tab bar above.</p>
         <div className="welcome-actions">
           {s.projects.length ? (

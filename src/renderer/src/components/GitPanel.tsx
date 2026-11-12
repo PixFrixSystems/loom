@@ -317,7 +317,7 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
         </button>
         <span className="git-head-actions">
           <button
-            className="git-sync"
+            className={`git-sync${changes.behind ? ' is-due' : ''}`}
             title={changes.behind ? `Pull ${changes.behind} new commit${changes.behind === 1 ? '' : 's'}` : 'Pull: get new commits from GitHub'}
             disabled={!!busy || !changes.upstream}
             onClick={() => void run('pull', () => window.loom.gitPull(dir), 'Up to date with the remote.')}
@@ -382,7 +382,7 @@ export function GitPanel({ project }: { project: Project }): ReactNode {
         />
         <div className="git-commit-actions">
           <button
-            className="btn ghost"
+            className="btn"
             disabled={nothing || !!busy}
             title={
               pickedFiles.length

@@ -1,4 +1,4 @@
-import { LoaderCircle, Square } from 'lucide-react'
+import { Square } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { AgentTask } from '@shared/types'
 
@@ -24,7 +24,8 @@ export function AgentTasks({ tabId, tasks }: { tabId: string; tasks: AgentTask[]
         const meta = [t.agentType && t.agentType !== t.description ? t.agentType : '', t.lastTool ?? '', t.toolUses ? `${t.toolUses} ${t.toolUses === 1 ? 'tool use' : 'tool uses'}` : '', elapsed(Date.now() - t.startedAt)].filter(Boolean)
         return (
           <div key={t.id} className="agent-row">
-            <LoaderCircle className="spin agent-spin" aria-hidden="true" />
+            {/* A lit violet LED rather than a spinner: only the thinking dot may loop. */}
+            <span className="agent-led" aria-hidden="true" />
             <div className="agent-text">
               <span className="agent-desc selectable" title={t.description}>
                 {t.description}

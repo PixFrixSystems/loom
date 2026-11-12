@@ -9,28 +9,33 @@ import { relPath, shortPath } from '../lib/paths'
 import { useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 
+/**
+ * The brand's terminal: an inset well darker than the pane, ANSI colours from the same family as
+ * the code colours. Bright black is the comment grey rather than near black, so dimmed output
+ * (hints, timings) stays readable.
+ */
 export const THEME = {
-  background: '#17191c',
-  foreground: '#e8e4dc',
-  cursor: '#84c3b0',
-  cursorAccent: '#17191c',
-  selectionBackground: '#6fb5a150',
-  black: '#2a2d33',
-  red: '#e27d6b',
-  green: '#a8c47f',
-  yellow: '#dcb05a',
-  blue: '#6f97c8',
-  magenta: '#c59bd6',
-  cyan: '#6fb5a1',
-  white: '#d8d3ca',
-  brightBlack: '#6d6963',
-  brightRed: '#ee9787',
-  brightGreen: '#bdd699',
-  brightYellow: '#ebc679',
-  brightBlue: '#8fb0d9',
-  brightMagenta: '#d6b3e3',
-  brightCyan: '#8fcab8',
-  brightWhite: '#f3efe8'
+  background: '#080a10',
+  foreground: '#d9dce6',
+  cursor: '#c8c6fa',
+  cursorAccent: '#080a10',
+  selectionBackground: '#4b47b8a0',
+  black: '#0a0c12',
+  red: '#ff8595',
+  green: '#4fd18b',
+  yellow: '#f0c38a',
+  blue: '#9fb0ff',
+  magenta: '#c8c6fa',
+  cyan: '#8fd3c4',
+  white: '#d9dce6',
+  brightBlack: '#5f667a',
+  brightRed: '#ffa3af',
+  brightGreen: '#72dca3',
+  brightYellow: '#f4d2a8',
+  brightBlue: '#b6c3ff',
+  brightMagenta: '#dcdafc',
+  brightCyan: '#a9ddd1',
+  brightWhite: '#f2f3f7'
 }
 
 export function TerminalView({ tab, active, visible = active }: { tab: TerminalTab; active: boolean; visible?: boolean }): ReactNode {
@@ -47,7 +52,7 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
     if (!host.current) return
     const t = new Terminal({
       fontFamily: "'Cascadia Mono', 'Cascadia Code', Consolas, monospace",
-      fontSize: 13,
+      fontSize: 12.5,
       lineHeight: 1.2,
       cursorBlink: true,
       allowProposedApi: true,
@@ -157,7 +162,7 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
 
   return (
     <div className="termview">
-      <div className="file-head thread" data-color={project?.color}>
+      <div className="file-head">
         <ProjectMark project={project} />
         {project ? <span className="chat-head-project">{project.name}</span> : null}
         <span className="chat-head-path">{where === tab.cwd || !project ? shortPath(tab.cwd, home) : where}</span>

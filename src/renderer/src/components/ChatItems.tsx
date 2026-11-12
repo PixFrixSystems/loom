@@ -1,5 +1,5 @@
 import { Check, ChevronRight, Copy, ImageIcon, TriangleAlert } from 'lucide-react'
-import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ChatItem, ImagePreview } from '@shared/types'
 import { formatDuration } from '../lib/paths'
 import { useStore } from '../store'
@@ -87,7 +87,8 @@ function IoRow({ label, text, lines, tone, copy }: { label: string; text: string
     <div className={`io-row${tone ? ` io-${tone}` : ''}`}>
       <span className="io-label">{label}</span>
       <div className="io-main">
-        <pre ref={pre} className={`io-text selectable${cut && !all ? ' is-cut' : ''}`} style={all ? undefined : { maxHeight: `${lines * 1.5}em` }}>
+        {/* Lines are 1.6em tall in the well, as chat.css sets them. */}
+        <pre ref={pre} className={`io-text selectable${cut && !all ? ' is-cut' : ''}`} style={all ? undefined : { maxHeight: `${lines * 1.6}em` }}>
           {text}
         </pre>
         {cut || all ? (
@@ -297,6 +298,45 @@ export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: Ch
       return <div className="turn-done">Worked for {formatDuration(item.ms)}</div>
   }
 })
+
+const STILL = window.matchMedia('(prefers-reduced-motion: reduce)')
+const RISE: Keyframe[] = [
+  { opacity: 0, transform: 'translateY(4px)' },
+  { opacity: 1, transform: 'none' }
+]
+/** 350ms on the brand's ease-out curve, the same as --ease-out in base.css. */
+const RISE_TIMING: KeyframeAnimationOptions = { duration: 350, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+
+/**
+ * A step arriving in the chat fades in and rises 4px into place. Played with the Web Animations
+ * API rather than a CSS animation: a hidden tab is display: none, and showing it again would replay
+ * a CSS animation on every step in it.
+ */
+export function rise(el: HTMLElement | null): void {
+  if (el && !STILL.matches) el.animate(RISE, RISE_TIMING)
+}
+
+const NO_ARRIVALS = new Set<string>()
+
+/**
+ * The steps that have just arrived, to rise in. A chat drawn whole (opened, its history loaded,
+ * earlier messages shown) appears as it is, so only a few new steps at a time count. Replies and
+ * thoughts are left out: they take the place of the live ones already on screen.
+ */
+export function useArrivals(items: ChatItem[], shown: boolean): Set<string> {
+  const drawn = useRef<Set<string> | null>(null)
+  const fresh = useMemo(() => {
+    const before = drawn.current
+    if (!before || !shown) return NO_ARRIVALS
+    const added = items.filter((i) => !before.has(i.id))
+    if (!added.length || added.length > 3) return NO_ARRIVALS
+    return new Set(added.filter((i) => i.kind !== 'assistant' && i.kind !== 'thinking').map((i) => i.id))
+  }, [items, shown])
+  useEffect(() => {
+    drawn.current = new Set(items.map((i) => i.id))
+  }, [items])
+  return fresh
+}
 
 /** Which dot a step gets on the timeline. */
 export function timelineClass(item: ChatItem): string {

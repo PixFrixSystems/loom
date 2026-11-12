@@ -1,58 +1,64 @@
-/* Code colours in chat, matched to the editor theme */
+/* Code colours in replies: the brand syntax palette, the same as the file view. Plain code text
+   (#d4d8e4) comes from the code well in chat.css; function names stay in it. */
 .hljs-comment,
 .hljs-quote {
-  color: #8f8a81;
-  font-style: italic;
+  color: #5f667a;
 }
 
+/* Keywords, tags, selectors and headings */
 .hljs-keyword,
-.hljs-selector-tag,
 .hljs-literal,
-.hljs-doctag {
-  color: #c59bd6;
+.hljs-doctag,
+.hljs-meta,
+.hljs-tag,
+.hljs-name,
+.hljs-section,
+.hljs-selector-tag,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-pseudo {
+  color: #9fb0ff;
+}
+
+/* Properties and attributes */
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-selector-attr,
+.hljs-link {
+  color: #8fd3c4;
 }
 
 .hljs-string,
 .hljs-regexp,
-.hljs-addition {
-  color: #a8c47f;
+.hljs-char.escape_,
+.hljs-meta .hljs-string {
+  color: #f0c38a;
+}
+
+/* Types and variables */
+.hljs-type,
+.hljs-built_in,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-variable,
+.hljs-variable.language_,
+.hljs-template-variable {
+  color: #e2a6ff;
 }
 
 .hljs-number,
-.hljs-symbol,
-.hljs-bullet {
-  color: #d9a86c;
+.hljs-symbol {
+  color: #f0a3ab;
 }
 
-.hljs-title,
-.hljs-section,
-.hljs-title.function_ {
-  color: #7fb5c8;
-}
-
-.hljs-type,
-.hljs-built_in,
-.hljs-title.class_ {
-  color: #d6b257;
-}
-
-.hljs-attr,
-.hljs-attribute,
-.hljs-variable,
-.hljs-template-variable,
-.hljs-name,
-.hljs-selector-class,
-.hljs-selector-id {
-  color: #d88e7a;
-}
-
-.hljs-meta,
-.hljs-tag {
-  color: #919eaf;
+/* Diffs written in a reply */
+.hljs-addition {
+  color: #4fd18b;
 }
 
 .hljs-deletion {
-  color: #e27d6b;
+  color: #ff8595;
 }
 
 .hljs-emphasis {
@@ -60,5 +66,5 @@
 }
 
 .hljs-strong {
-  font-weight: 600;
+  font-weight: 650;
 }

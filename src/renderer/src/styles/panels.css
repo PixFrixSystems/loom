@@ -8,20 +8,42 @@
   min-width: 0;
 }
 
+/* The header of every non-chat pane (files, terminals, server output, the browser, diffs):
+   the project in its own weight, then the path or command in the code face. */
 .file-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
+  gap: 7px;
+  height: 32px;
   flex: none;
-  padding: 0 8px 0 14px;
-  border-bottom: 1px solid var(--line-soft);
-  font-size: 12.5px;
   min-width: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.file-head .chat-head-project {
+  color: var(--text-2);
+  font-weight: 650;
+}
+
+.file-head .chat-head-path {
+  color: var(--text-3);
+  font-family: var(--font-code);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* An icon button at the end sits closer to the edge, so its glyph (not its hover box) lines up
+   with the 12px inset. A split pane's own padding for its close button still wins over this. */
+.file-head:has(> .icon-btn:last-child) {
+  padding-right: 6px;
 }
 
 .file-head .btn {
-  height: 26px;
+  height: 24px;
   padding: 0 10px;
 }
 
@@ -50,18 +72,20 @@
 .file-unavailable {
   padding: 48px 32px;
   color: var(--text-2);
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 .file-unavailable p {
+  max-width: 60ch;
   margin: 0 0 14px;
 }
 
+/* Terminals are wells: darker than the pane around them */
 .term-host {
   flex: 1;
   min-height: 0;
   padding: 8px 4px 4px 12px;
-  background: #17191c;
+  background: var(--bg-sunken);
 }
 
 .term-host .xterm {
@@ -69,12 +93,12 @@
 }
 
 .term-host .xterm .xterm-scrollable-element > .scrollbar > .slider {
-  background: rgba(232, 226, 214, 0.13) !important;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-radius: var(--pill);
 }
 
 .term-host .xterm .xterm-scrollable-element > .scrollbar > .slider:hover {
-  background: rgba(232, 226, 214, 0.26) !important;
+  background: rgba(255, 255, 255, 0.28) !important;
 }
 
 /* ---------- Right panel ---------- */
@@ -86,42 +110,54 @@
   min-height: 0;
   overflow: hidden;
   background: var(--bg-shell);
-  border-left: 1px solid var(--line-soft);
+  border-left: 1px solid var(--line);
 }
 
 .pane-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 6px 6px 8px;
+  gap: 8px;
+  padding: 8px 8px 8px 10px;
 }
 
+/* A recessed track with a glass key in it; the corners are concentric (track 10 = key 8 + 2). */
 .segmented {
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  background: var(--bg-input);
-  border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .segmented button {
+  display: inline-flex;
+  align-items: center;
   height: 24px;
-  padding: 0 12px;
+  padding: 0 11px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: transparent;
-  color: var(--text-2);
-  font-size: 12.5px;
-  transition: background var(--fast) ease, color var(--fast) ease;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--base) var(--ease-out), box-shadow var(--base) var(--ease-out), color var(--base) var(--ease-out),
+    transform 150ms var(--ease-out);
 }
 
 .segmented button:hover {
   color: var(--text);
 }
 
+.segmented button:active {
+  transform: scale(0.97);
+}
+
 .segmented button[aria-selected='true'] {
-  background: var(--bg-active);
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--edge);
   color: var(--text);
 }
 
@@ -134,19 +170,21 @@
 
 .pane-tools {
   display: flex;
+  align-items: center;
   gap: 4px;
-  padding: 2px 6px 8px 8px;
+  padding: 0 8px 8px 10px;
 }
 
 .pane-tools .field {
   height: 28px;
+  font-size: 12.5px;
 }
 
 .pane-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 4px 14px;
+  padding: 0 6px 14px;
 }
 
 .pane-note {
@@ -161,6 +199,7 @@
   padding: 16px;
 }
 
+/* Rows in the files tree, the Claude list and quick open */
 .tree-row,
 .config-row,
 .palette-row {
@@ -168,25 +207,28 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: 24px;
-  padding-right: 8px;
+  min-height: 28px;
+  padding: 6px 8px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--text-2);
   font-size: 12.5px;
+  line-height: 16px;
   text-align: left;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
 .tree-row:hover,
 .config-row:hover,
 .palette-row:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
 }
 
 .tree-row.active {
-  background: var(--bg-active);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   color: var(--text);
 }
 
@@ -205,7 +247,7 @@
   height: 12px;
   flex: none;
   color: var(--text-3);
-  transition: transform var(--fast) var(--ease-out);
+  transition: transform var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
 .tree-chev.open {
@@ -217,6 +259,16 @@
   height: 14px;
   flex: none;
   color: var(--text-3);
+  transition: color var(--base) var(--ease-out);
+}
+
+.tree-row:hover .tree-icon,
+.tree-row:hover .tree-chev,
+.tree-row.active .tree-icon,
+.config-row:hover .tree-icon,
+.palette-row:hover .tree-icon,
+.palette-row.active .tree-icon {
+  color: var(--text);
 }
 
 .tree-name {
@@ -235,17 +287,38 @@
   white-space: nowrap;
   text-align: right;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-family: var(--font-code);
+  font-size: 11px;
 }
 
 .config-section h3 {
-  margin: 12px 10px 4px;
+  margin: 14px 10px 4px;
   color: var(--text-3);
   font-size: 12px;
   font-weight: 600;
 }
 
-/* ---------- Quick open ---------- */
+/* ---------- Floating layers: quick open, the confirm dialog, toasts ---------- */
+@keyframes panel-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes panel-layer-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes panel-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
 /* ---------- The question before something can't be undone ---------- */
 .confirm-backdrop {
   position: fixed;
@@ -255,8 +328,8 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 18vh;
-  background: rgba(8, 9, 10, 0.45);
-  animation: fade 120ms ease;
+  background: rgba(5, 6, 10, 0.5);
+  animation: panel-scrim-in 180ms var(--ease-out);
   -webkit-app-region: no-drag;
 }
 
@@ -265,19 +338,22 @@
   flex-direction: column;
   gap: 10px;
   width: min(440px, 92vw);
-  padding: 18px 20px 16px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-l);
+  padding: 20px 20px 16px;
+  background: var(--float);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-radius: 14px;
   box-shadow: var(--shadow-pop);
-  animation: pop 140ms var(--ease-out);
+  transform-origin: top center;
+  animation: panel-layer-in 180ms var(--ease-out);
 }
 
 .confirm-title {
   margin: 0;
   color: var(--text);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 680;
+  letter-spacing: -0.015em;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -300,8 +376,8 @@
   overflow: auto;
   list-style: none;
   background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text);
   font-size: 12.5px;
   line-height: 1.6;
@@ -322,7 +398,20 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 8px;
+}
+
+/* Destructive choices, here and in the Changes panel: red text on a red-tinted pill. Never violet. */
+.confirm-actions .btn.danger,
+.btn.danger-btn {
+  background: rgba(255, 91, 112, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 133, 149, 0.16), inset 0 0 0 1px rgba(255, 133, 149, 0.24);
+  color: var(--danger);
+}
+
+.confirm-actions .btn.danger:hover:not(:disabled),
+.btn.danger-btn:hover:not(:disabled) {
+  background: rgba(255, 91, 112, 0.2);
 }
 
 /* ---------- Toasts: what didn't work, briefly ---------- */
@@ -342,29 +431,32 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 9px 8px 9px 12px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
+  padding: 9px 6px 9px 14px;
+  background: var(--float);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-radius: var(--radius-l);
   box-shadow: var(--shadow-pop);
-  color: var(--text);
+  color: var(--text-2);
   font-size: 12.5px;
   line-height: 1.45;
-  animation: pop 140ms var(--ease-out);
+  transform-origin: bottom right;
+  animation: panel-toast-in 220ms var(--ease-out);
 }
 
 .toast > span {
   flex: 1;
   min-width: 0;
+  padding-top: 1px;
   overflow-wrap: anywhere;
 }
 
 .toast-close {
   flex: none;
-  font-size: 15px;
-  line-height: 1;
+  margin: -2px 0;
 }
 
+/* ---------- Quick open ---------- */
 .palette-backdrop {
   position: fixed;
   inset: 0;
@@ -372,39 +464,44 @@
   display: flex;
   justify-content: center;
   padding-top: 12vh;
-  background: rgba(8, 9, 10, 0.35);
-  animation: fade 120ms ease;
+  background: rgba(5, 6, 10, 0.4);
+  animation: panel-scrim-in 180ms var(--ease-out);
+  -webkit-app-region: no-drag;
 }
 
 .palette {
   display: flex;
   flex-direction: column;
+  align-self: flex-start;
   width: min(640px, 92vw);
   max-height: 60vh;
   overflow: hidden;
-  background: var(--bg-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  background: var(--float);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-radius: var(--radius-l);
   box-shadow: var(--shadow-pop);
-  animation: pop 140ms var(--ease-out);
-  align-self: flex-start;
+  transform-origin: top center;
+  animation: panel-layer-in 180ms var(--ease-out);
 }
 
+/* The search sits borderless on top; one line divides it from the list. */
 .palette-input {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px 6px 6px;
+  padding: 6px 12px 6px 6px;
   border-bottom: 1px solid var(--line);
 }
 
 .palette-input .field,
 .palette-input .field:focus,
+.palette-input .field:focus-visible,
 .palette-input .field:hover {
-  height: 34px;
-  border-color: transparent;
+  height: 36px;
   background: transparent;
   box-shadow: none;
+  outline: none;
   font-size: 14px;
 }
 
@@ -414,22 +511,33 @@
   gap: 7px;
   color: var(--text-2);
   font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
+}
+
+.palette-project kbd {
+  margin-left: 2px;
 }
 
 .palette-list {
   overflow: auto;
-  padding: 4px;
+  padding: 6px;
 }
 
 .palette-row {
-  height: 30px;
-  padding-left: 10px;
+  min-height: 30px;
+  padding: 7px 8px 7px 10px;
 }
 
 .palette-row.active {
-  background: var(--accent-soft);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--text);
+}
+
+/* The typed letters inside a file name, lit */
+.palette-match {
+  background: none;
+  color: var(--light);
 }
 
 /* ---------- Settings ---------- */
@@ -437,44 +545,49 @@
   width: 100%;
   height: 100%;
   overflow: auto;
+  container-type: inline-size;
 }
 
 .settings-inner {
-  max-width: 780px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 32px 32px 72px;
+  padding: 36px 32px 72px;
 }
 
 .settings h1 {
-  margin: 0 0 22px;
-  font-size: 22px;
-  font-weight: 600;
+  margin: 0 0 26px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .set-section {
-  margin-bottom: 30px;
+  margin-bottom: 34px;
 }
 
 .set-section h2 {
   margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.015em;
 }
 
 .set-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
   gap: 28px;
-  padding: 14px 0;
-  border-top: 1px solid var(--line-soft);
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
 }
 
 .set-title {
   color: var(--text);
-  font-weight: 500;
+  font-weight: 560;
 }
 
 .set-hint {
+  max-width: 52ch;
   margin-top: 3px;
   color: var(--text-3);
   font-size: 12.5px;
@@ -492,10 +605,11 @@
   gap: 8px;
 }
 
+/* Choices with a line of detail are option cards: the chosen one lit lavender from its edge. */
 .radio-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   width: 100%;
 }
 
@@ -506,29 +620,64 @@
   gap: 10px;
 }
 
-.radio-row input,
-.check-row input {
+.radio-row {
+  padding: 10px 12px;
+  border-radius: var(--radius-l);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background-color 250ms var(--ease-out), box-shadow 250ms var(--ease-out);
+}
+
+.radio-row:hover:not(:has(input:checked)) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.radio-row:has(input:checked) {
+  background: rgba(132, 130, 246, 0.1);
+  box-shadow: inset 0 1px 0 rgba(214, 212, 253, 0.3), inset 0 0 0 1px rgba(196, 194, 252, 0.35);
+}
+
+/* The whole card shows keyboard focus, not the small circle inside it */
+.radio-row input:focus-visible {
+  outline: none;
+}
+
+.radio-row:has(input:focus-visible) {
+  outline: 2px solid var(--light);
+  outline-offset: 2px;
+}
+
+.radio-row input {
   margin-top: 2px;
+}
+
+.check-row {
+  align-items: center;
 }
 
 .radio-label {
   display: block;
   color: var(--text);
+  font-weight: 560;
 }
 
 .radio-detail {
   display: block;
-  margin-top: 1px;
+  margin-top: 2px;
   color: var(--text-3);
   font-family: var(--font-code);
-  font-size: 11.5px;
+  font-size: 11px;
   overflow-wrap: anywhere;
 }
 
 .inline-field {
   display: flex;
   gap: 6px;
-  padding-left: 26px;
+  margin-top: 2px;
+}
+
+.inline-field .btn {
+  height: 32px;
 }
 
 .keys {
@@ -539,8 +688,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 7px 0;
-  border-top: 1px solid var(--line-soft);
+  gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
 }
 
 .key-row dt {
@@ -551,9 +701,10 @@
   display: flex;
   gap: 4px;
   margin: 0;
+  white-space: nowrap;
 }
 
-@media (max-width: 1100px) {
+@container (max-width: 640px) {
   .set-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
@@ -570,80 +721,44 @@
 }
 
 .preview-bar {
-  gap: 6px;
+  gap: 4px;
 }
 
-.preview-nav {
+.preview-nav,
+.device-switch {
   display: inline-flex;
   flex: none;
   gap: 1px;
 }
 
+/* The address: a pill, in the code face, lit lavender while you type in it */
 .preview-url {
   flex: 1;
   min-width: 80px;
   height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-input);
+  margin: 0 4px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--pill);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text-2);
-  font: inherit;
-  font-size: 12.5px;
-  transition: border-color var(--fast) ease, box-shadow var(--fast) ease;
+  font-family: var(--font-code);
+  font-size: 11.5px;
+  caret-color: var(--light);
+  transition: background-color var(--base) var(--ease-out), box-shadow var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
 .preview-url:hover {
-  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.07);
 }
 
-.preview-url:focus {
+.preview-url:focus,
+.preview-url:focus-visible {
   outline: none;
-  border-color: var(--accent-line);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(196, 194, 252, 0.5), 0 0 0 3px rgba(132, 130, 246, 0.15);
   color: var(--text);
-}
-
-.device-switch {
-  display: inline-flex;
-  flex: none;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.device-switch button {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-3);
-  transition: background var(--fast) ease, color var(--fast) ease;
-}
-
-.device-switch button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.device-switch button.on {
-  background: var(--bg-active);
-  color: var(--text);
-}
-
-.device-switch button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.device-switch svg {
-  width: 13px;
-  height: 13px;
 }
 
 .preview-stage {
@@ -663,11 +778,11 @@
   background: #fff;
 }
 
-/* Phone and tablet widths: the page at that width, centred */
+/* Phone and tablet widths: the page at that width, centred. The edge is a shadow, so the
+   page keeps every pixel of the width it was given. */
 .preview-stage.is-device .preview-page {
   flex: none;
-  border-left: 1px solid var(--line);
-  border-right: 1px solid var(--line);
+  box-shadow: 0 0 0 1px var(--line-strong);
 }
 
 .preview-failed {
@@ -709,13 +824,23 @@
 
 /* ---------- Changes panel (git) ---------- */
 .seg-count {
-  margin-left: 5px;
-  padding: 0 5px;
-  border-radius: 8px;
-  background: var(--bg-active);
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: var(--radius-s);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-2);
   font-size: 11px;
-  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.segmented button[aria-selected='true'] .seg-count {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
 }
 
 .pane-note svg {
@@ -736,7 +861,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px 8px;
+  padding: 0 8px 10px 10px;
 }
 
 .git-branch {
@@ -746,19 +871,20 @@
   flex: 1;
   min-width: 0;
   height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
+  padding: 0 8px 0 9px;
+  border: 0;
   border-radius: var(--radius);
-  background: var(--bg-input);
-  color: var(--text);
-  font: inherit;
-  font-size: 12.5px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 560;
   text-align: left;
-  transition: border-color var(--fast) ease;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
 .git-branch:hover:not(:disabled) {
-  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
 }
 
 .git-branch svg {
@@ -766,6 +892,11 @@
   height: 14px;
   flex: none;
   color: var(--text-3);
+}
+
+.git-branch .git-branch-caret {
+  width: 12px;
+  height: 12px;
 }
 
 .git-branch-name {
@@ -782,6 +913,7 @@
   gap: 2px;
 }
 
+/* Pull and push: quiet when up to date, bright with a count when something is waiting */
 .git-sync {
   display: inline-flex;
   align-items: center;
@@ -789,15 +921,14 @@
   gap: 3px;
   min-width: 28px;
   height: 28px;
-  padding: 0 6px;
+  padding: 0 7px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
-  color: var(--text-2);
-  font: inherit;
+  color: var(--text-3);
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  transition: background var(--fast) ease, color var(--fast) ease;
+  font-weight: 600;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out), transform 150ms var(--ease-out);
 }
 
 .git-sync:hover:not(:disabled) {
@@ -805,12 +936,22 @@
   color: var(--text);
 }
 
+.git-sync:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
 .git-sync:disabled {
   opacity: 0.4;
 }
 
 .git-sync.is-due {
-  color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 var(--edge), inset 0 0 0 1px var(--line);
+  color: var(--text);
+}
+
+.git-sync.is-due:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.11);
 }
 
 .git-sync svg {
@@ -821,39 +962,42 @@
 .git-newbranch {
   display: flex;
   gap: 6px;
-  padding: 0 8px 8px;
+  padding: 0 8px 10px 10px;
 }
 
 .git-newbranch .btn {
-  height: 30px;
-  padding: 0 10px;
-  font-size: 12.5px;
+  height: 32px;
 }
 
+/* Text fields here match the app's .field: a faint wash, the outline inside, lavender on focus */
 .git-input {
   width: 100%;
-  padding: 6px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-input);
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--text);
-  font: inherit;
   font-size: 12.5px;
-  transition: border-color var(--fast) ease, box-shadow var(--fast) ease;
+  caret-color: var(--light);
+  transition: box-shadow var(--base) var(--ease-out), background-color var(--base) var(--ease-out);
+  user-select: text;
 }
 
 .git-input::placeholder {
   color: var(--text-3);
+  opacity: 1;
 }
 
-.git-input:hover:not(:disabled) {
-  border-color: var(--line-strong);
+.git-input:hover:not(:disabled):not(:focus) {
+  box-shadow: inset 0 0 0 1px var(--edge-2);
 }
 
-.git-input:focus {
+.git-input:focus,
+.git-input:focus-visible {
   outline: none;
-  border-color: var(--accent-line);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(196, 194, 252, 0.5), 0 0 0 3px rgba(132, 130, 246, 0.15);
 }
 
 .git-input:disabled {
@@ -863,15 +1007,29 @@
 .git-commit {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 0 8px 8px;
+  gap: 8px;
+  padding: 0 8px 10px 10px;
 }
 
 .git-message {
-  min-height: 58px;
+  height: auto;
+  min-height: 64px;
   max-height: 220px;
+  padding: 8px 10px;
   line-height: 1.45;
   resize: vertical;
+}
+
+/* The corner grip that resizes the message: two faint strokes instead of the browser's hatching */
+.git-message::-webkit-resizer {
+  background: linear-gradient(
+    135deg,
+    transparent 0 45%,
+    rgba(255, 255, 255, 0.28) 45% 55%,
+    transparent 55% 70%,
+    rgba(255, 255, 255, 0.28) 70% 80%,
+    transparent 80%
+  );
 }
 
 .git-commit-actions {
@@ -880,17 +1038,12 @@
   gap: 6px;
 }
 
-.git-commit-actions .btn {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12.5px;
-}
-
 .git-note {
-  margin: 0 8px 8px;
-  padding: 7px 9px;
-  border-radius: var(--radius);
-  background: var(--bg-raised);
+  margin: 0 8px 10px 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text-2);
   font-size: 12px;
   line-height: 1.45;
@@ -898,12 +1051,22 @@
 }
 
 .git-note.tone-err {
-  background: var(--danger-soft);
+  background: rgba(255, 91, 112, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 133, 149, 0.22);
   color: var(--danger);
 }
 
 .git-note .note-toggle {
-  margin-left: 6px;
+  margin-left: 8px;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+  text-underline-offset: 3px;
+}
+
+.git-note .note-toggle:hover {
+  text-decoration-color: var(--text);
 }
 
 .git-note .note-detail {
@@ -915,7 +1078,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 4px 12px;
+  padding: 0 6px 12px;
 }
 
 .git-section {
@@ -927,30 +1090,29 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: 26px;
-  padding: 0 4px 0 6px;
+  height: 28px;
+  padding: 0 4px 0 8px;
   border: 0;
   background: transparent;
   color: var(--text-3);
-  font: inherit;
   font-size: 12px;
   font-weight: 600;
   text-align: left;
 }
 
 .git-history-toggle {
-  border-radius: 5px;
+  border-radius: var(--radius);
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
 .git-history-toggle:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-2);
 }
 
 .git-count {
   color: var(--text-3);
   font-weight: 400;
-  font-variant-numeric: tabular-nums;
 }
 
 .git-section-actions {
@@ -967,23 +1129,24 @@
 .git-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  height: 24px;
-  padding: 0 4px 0 8px;
+  min-height: 28px;
+  padding: 4px 4px 4px 8px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--text-2);
-  font: inherit;
   font-size: 12.5px;
+  line-height: 16px;
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
 .git-row:hover,
 .git-row:focus-visible {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   outline: none;
 }
@@ -992,34 +1155,37 @@
   background: var(--danger-soft);
 }
 
-/* Git's own status letters are data, so they keep the code face */
+/* Git's status letters as small badges, tinted by what happened to the file */
 .git-letter {
+  display: inline-grid;
+  place-items: center;
   flex: none;
-  width: 14px;
-  font-family: var(--font-code);
-  font-size: 11.5px;
-  font-weight: 600;
-  text-align: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.s-M,
-.s-T {
+.git-letter.s-M,
+.git-letter.s-T {
+  background: var(--warn-soft);
   color: var(--warn);
 }
 
-.s-A,
-.s-U {
+.git-letter.s-A,
+.git-letter.s-U {
+  background: var(--ok-soft);
   color: var(--ok);
 }
 
-.s-D,
-.s-x {
+.git-letter.s-D,
+.git-letter.s-x {
+  background: var(--danger-soft);
   color: var(--danger);
-}
-
-.s-R,
-.s-C {
-  color: var(--accent);
 }
 
 .git-row .tree-name.is-deleted {
@@ -1031,7 +1197,7 @@
   display: none;
   flex: none;
   gap: 1px;
-  margin-left: auto;
+  margin: -3px 0 -3px auto;
 }
 
 .git-row:hover .git-actions,
@@ -1047,12 +1213,12 @@
 .git-confirm {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin: 2px 4px 6px 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--bg-raised);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--line-strong);
   color: var(--text-2);
   font-size: 12px;
   line-height: 1.45;
@@ -1065,18 +1231,7 @@
 
 .git-confirm .btn {
   height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-.btn.danger-btn {
-  border-color: rgba(226, 125, 107, 0.5);
-  background: transparent;
-  color: var(--danger);
-}
-
-.btn.danger-btn:hover:not(:disabled) {
-  background: var(--danger-soft);
+  padding: 0 11px;
 }
 
 .git-commit-row {
@@ -1084,19 +1239,25 @@
   align-items: baseline;
   gap: 8px;
   width: 100%;
-  padding: 4px 4px 4px 24px;
+  padding: 6px 8px 6px 26px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--text-2);
-  font: inherit;
   font-size: 12.5px;
+  line-height: 16px;
   text-align: left;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
 }
 
-.git-commit-row:hover,
+.git-commit-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
 .git-commit-row.open {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   color: var(--text);
 }
 
@@ -1111,11 +1272,43 @@
 .git-commit-when {
   flex: none;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .git-commit-files {
-  padding: 2px 0 6px 16px;
+  padding: 2px 0 6px 18px;
+}
+
+/* Files picked with Ctrl+click and Shift+click */
+.git-row.selected {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.git-row.selected:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* What to do with the picked files: a small glass bar at the foot of the panel */
+.git-picked {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin: 6px 8px 8px;
+  padding: 3px 4px 3px 12px;
+  border-radius: var(--radius-l);
+  background: var(--glass);
+  box-shadow: var(--glass-shadow);
+}
+
+.git-picked-count {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* ---------- Diff tab ---------- */
@@ -1130,14 +1323,16 @@
 .diff-label {
   flex: none;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: 11.5px;
   white-space: nowrap;
 }
 
+/* A diff is a well, like a terminal: darker than the pane while it loads and around the editor */
 .diff-host {
   position: relative;
   flex: 1;
   min-height: 0;
+  background: var(--bg-sunken);
 }
 
 .diff-editor {
@@ -1160,35 +1355,6 @@
   text-align: center;
 }
 
-/* Files picked with Ctrl+click and Shift+click */
-.git-row.selected {
-  background: var(--accent-soft);
-  color: var(--text);
-}
-
-.git-row.selected:hover {
-  background: rgba(111, 181, 161, 0.2);
-}
-
-.git-picked {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-  margin: 6px 8px 8px;
-  padding: 3px 4px 3px 10px;
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius);
-  background: var(--accent-soft);
-}
-
-.git-picked-count {
-  flex: 1;
-  min-width: 0;
-  color: var(--text);
-  font-size: 12px;
-}
-
 /* ---------- Getting started ---------- */
 .start {
   width: 100%;
@@ -1199,7 +1365,7 @@
 .start-inner {
   max-width: 660px;
   margin: 0 auto;
-  padding: 48px 32px 72px;
+  padding: 44px 32px 72px;
 }
 
 .start-head {
@@ -1211,17 +1377,18 @@
 }
 
 .start-head h1 {
-  margin: 0 0 8px;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .start-head p {
   max-width: 60ch;
   margin: 0;
   color: var(--text-2);
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.6;
 }
 
@@ -1231,15 +1398,16 @@
 
 .start-warn {
   margin: 0 0 24px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--warn-soft);
+  padding: 10px 14px;
+  border-radius: var(--radius-l);
+  background: rgba(240, 195, 138, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(240, 195, 138, 0.25);
   color: var(--warn);
   font-size: 13px;
   line-height: 1.5;
 }
 
-/* The steps hang on a thread, like a chat's steps: filled when done, a ring for the one to do next. */
+/* The steps hang on a thread, like a chat's steps: lit when done, a lavender ring for the one to do next. */
 .start-steps {
   margin: 0;
   padding: 0;
@@ -1249,17 +1417,17 @@
 .start-step {
   position: relative;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 16px;
-  padding-bottom: 30px;
+  grid-template-columns: 19px minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: 28px;
 }
 
 .start-step::after {
   content: '';
   position: absolute;
-  top: 26px;
-  bottom: 4px;
-  left: 10.5px;
+  top: 25px;
+  bottom: 3px;
+  left: 9px;
   width: 1px;
   background: var(--line-strong);
 }
@@ -1271,38 +1439,39 @@
 .start-mark {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1.5px solid var(--line-strong);
+  width: 19px;
+  height: 19px;
   border-radius: 50%;
-  background: var(--bg);
-  color: var(--accent-ink);
-  transition: background var(--base) var(--ease-out), border-color var(--base) var(--ease-out);
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+  color: var(--lit-ink);
+  transition: background-color 300ms var(--ease-out), box-shadow 300ms var(--ease-out);
 }
 
 .start-step.is-current .start-mark {
-  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--light);
 }
 
 .start-step.is-done .start-mark {
-  border-color: var(--accent);
-  background: var(--accent);
+  background: var(--light);
+  box-shadow: 0 0 12px var(--light-glow);
 }
 
 .start-mark svg {
-  width: 13px;
-  height: 13px;
-  stroke-width: 3;
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.5;
 }
 
 .start-body h2 {
-  margin: 1px 0 6px;
-  font-size: 15px;
-  font-weight: 600;
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 19px;
 }
 
 .start-body p {
-  max-width: 62ch;
+  max-width: 56ch;
   margin: 0 0 8px;
   color: var(--text-2);
   font-size: 13.5px;
@@ -1316,9 +1485,9 @@
 
 .start-body .start-label {
   margin: 14px 0 6px;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .start-status {
@@ -1343,50 +1512,72 @@
   height: 30px;
 }
 
-.start-thread {
-  width: 3px;
-  height: 12px;
-  border-radius: 2px;
-  background: var(--thread);
-}
-
 .start-folders,
 .start-modes {
   display: flex;
   flex-direction: column;
-  gap: 1px;
   max-width: 580px;
 }
 
+/* The folder list is a shallow well; rows inside keep concentric corners (12 = 8 + 4). */
 .start-folders {
+  gap: 1px;
   padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-l);
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.start-modes {
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .start-folder,
 .start-mode {
   display: grid;
   gap: 10px;
-  padding: 7px 8px;
-  border-radius: 6px;
   cursor: pointer;
-  transition: background var(--fast) ease;
+  transition: background-color 250ms var(--ease-out), box-shadow 250ms var(--ease-out);
 }
 
 .start-folder {
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
+  padding: 6px 8px;
+  border-radius: var(--radius);
 }
 
+.start-folder:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Permission modes are option cards: the chosen one lit lavender from its edge */
 .start-mode {
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: start;
+  padding: 10px 12px;
+  border-radius: var(--radius-l);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
-.start-folder:hover,
-.start-mode:hover {
-  background: var(--bg-hover);
+.start-mode:hover:not(:has(input:checked)) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.start-mode:has(input:checked) {
+  background: rgba(132, 130, 246, 0.1);
+  box-shadow: inset 0 1px 0 rgba(214, 212, 253, 0.3), inset 0 0 0 1px rgba(196, 194, 252, 0.35);
+}
+
+.start-mode input:focus-visible {
+  outline: none;
+}
+
+.start-mode:has(input:focus-visible) {
+  outline: 2px solid var(--light);
+  outline-offset: 2px;
 }
 
 .start-folder-text {
@@ -1401,10 +1592,19 @@
   font-size: 13px;
 }
 
+.start-folder-name {
+  font-weight: 560;
+}
+
+.start-mode-label {
+  font-weight: 650;
+}
+
 .start-folder-path {
   overflow: hidden;
   color: var(--text-3);
-  font-size: 12px;
+  font-family: var(--font-code);
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1412,16 +1612,15 @@
 .start-folder-meta {
   color: var(--text-3);
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .start-mode-desc {
   display: block;
-  margin-top: 1px;
+  margin-top: 2px;
   color: var(--text-3);
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 .start-label-row {
@@ -1441,52 +1640,56 @@
   margin-left: 4px;
   color: var(--text-3);
   font-weight: 400;
-  font-variant-numeric: tabular-nums;
 }
 
 .start-link,
 .start-more {
-  padding: 0;
+  padding: 2px 0;
   border: 0;
   background: none;
-  color: var(--accent);
-  font: inherit;
+  color: var(--text-2);
   font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+  text-underline-offset: 3px;
+  transition: color var(--base) var(--ease-out), text-decoration-color var(--base) var(--ease-out);
 }
 
 .start-link:hover,
 .start-more:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--text);
+  text-decoration-color: var(--text);
 }
 
 .start-more {
   align-self: flex-start;
-  margin: 6px 8px 4px;
+  margin: 4px 8px;
 }
 
 /* Tick boxes and choices use Loom's own (base.css); the choices sit level with their first line. */
 .start-mode .radio {
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .start-tips {
   margin-top: 8px;
   padding-top: 24px;
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--line);
 }
 
 .start-tips h2 {
-  margin: 0 0 12px;
-  color: var(--text-2);
-  font-size: 13px;
-  font-weight: 600;
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .start-tips dl {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 9px 18px;
+  gap: 10px 18px;
   margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.5;
@@ -1494,6 +1697,7 @@
 
 .start-tips dt {
   color: var(--text);
+  white-space: nowrap;
 }
 
 .start-tips dd {
@@ -1505,21 +1709,6 @@
   margin: 0;
   color: var(--text-3);
   font-size: 12.5px;
-}
-
-kbd {
-  display: inline-block;
-  min-width: 20px;
-  padding: 0 6px;
-  border: 1px solid var(--line-strong);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  background: var(--bg-raised);
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  line-height: 18px;
-  text-align: center;
 }
 
 .visually-hidden {

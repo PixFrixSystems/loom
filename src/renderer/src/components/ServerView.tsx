@@ -22,7 +22,7 @@ export function ServerView({ tab, active, visible = active }: { tab: ServerTab; 
     if (!host.current) return
     const t = new Terminal({
       fontFamily: "'Cascadia Mono', 'Cascadia Code', Consolas, monospace",
-      fontSize: 13,
+      fontSize: 12.5,
       lineHeight: 1.2,
       cursorBlink: false,
       convertEol: true,
@@ -110,7 +110,7 @@ export function ServerView({ tab, active, visible = active }: { tab: ServerTab; 
 
   return (
     <div className="termview">
-      <div className="file-head thread" data-color={project?.color}>
+      <div className="file-head">
         <ProjectMark project={project} />
         {project ? <span className="chat-head-project">{project.name}</span> : null}
         <span className="chat-head-path">{server?.target.command ?? tab.title}</span>

@@ -1,4 +1,4 @@
-import { ArrowUp, Cpu, Gauge, Paperclip, ShieldCheck, Square, Workflow, X } from 'lucide-react'
+import { ArrowUp, Cpu, Gauge, Paperclip, ShieldCheck, Square, X } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type PermissionMode, type SlashCommandInfo } from '@shared/types'
 import { EMPTY_CHAT, useStore } from '../store'
@@ -359,72 +359,83 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
         }}
         spellCheck={false}
       />
+      {/* The options on the left, wrapping when they must; Send stays at the bottom right. */}
       <div className="composer-bar">
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files) void addFiles(e.target.files)
-            e.target.value = ''
-          }}
-        />
-        <button className="icon-btn" title="Attach images" onClick={() => fileInput.current?.click()}>
-          <Paperclip />
-        </button>
-        <Dropdown
-          className="composer-pick"
-          icon={<Cpu />}
-          value={modelValue}
-          options={models.map((m) => ({ value: m.value, label: m.label, description: m.description }))}
-          label={modelLabel}
-          onChange={(v) => s.setModel(tab.id, v || null)}
-          title={`Model: ${modelLabel}`}
-          placement="above"
-        />
-        <Dropdown
-          className={`composer-pick mode-${modeValue || 'unset'}`}
-          icon={<ShieldCheck />}
-          value={modeValue}
-          options={MODE_OPTIONS}
-          label={modeValue ? undefined : 'Claude default mode'}
-          onChange={(v) => v && s.setMode(tab.id, v)}
-          title={`Permission mode: ${modeLabel}`}
-          placement="above"
-        />
-        {efforts.length ? (
+        <div className="composer-opts">
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files) void addFiles(e.target.files)
+              e.target.value = ''
+            }}
+          />
+          <button className="icon-btn" title="Attach images" onClick={() => fileInput.current?.click()}>
+            <Paperclip />
+          </button>
           <Dropdown
             className="composer-pick"
-            icon={<Gauge />}
-            value={effortValue}
-            options={effortOptions}
-            label={effortValue ? EFFORT_LABELS[effortValue] : defaultEffort ? EFFORT_LABELS[defaultEffort] : 'Effort'}
-            onChange={(v) => s.setEffort(tab.id, v || null)}
-            title={`Effort: ${effortLabel}. How hard Claude thinks before answering`}
+            icon={<Cpu />}
+            value={modelValue}
+            options={models.map((m) => ({ value: m.value, label: m.label, description: m.description }))}
+            label={modelLabel}
+            onChange={(v) => s.setModel(tab.id, v || null)}
+            title={`Model: ${modelLabel}`}
             placement="above"
           />
-        ) : null}
-        <button
-          className={`toggle-chip${tab.ultracode ? ' on' : ''}`}
-          aria-pressed={tab.ultracode === true}
-          title={`Ultracode ${tab.ultracode ? 'on' : 'off'}: Claude plans big jobs as workflows of several agents. Uses more of your limits.`}
-          onClick={() => s.setUltracode(tab.id, !tab.ultracode)}
-        >
-          <Workflow />
-          <span className="chip-label">Ultracode</span>
-        </button>
-        <span className="composer-spacer" />
-        <ContextMeter info={chat.context} />
-        {busy ? (
-          <button className="send stop" title="Stop (Esc)" onClick={() => s.interrupt(tab.id)}>
-            <Square />
+          <Dropdown
+            className={`composer-pick mode-${modeValue || 'unset'}`}
+            icon={<ShieldCheck />}
+            value={modeValue}
+            options={MODE_OPTIONS}
+            label={modeValue ? undefined : 'Claude default mode'}
+            onChange={(v) => v && s.setMode(tab.id, v)}
+            title={`Permission mode: ${modeLabel}`}
+            placement="above"
+          />
+          {efforts.length ? (
+            <Dropdown
+              className="composer-pick pick-effort"
+              icon={<Gauge />}
+              value={effortValue}
+              options={effortOptions}
+              label={effortValue ? EFFORT_LABELS[effortValue] : defaultEffort ? EFFORT_LABELS[defaultEffort] : 'Effort'}
+              onChange={(v) => s.setEffort(tab.id, v || null)}
+              title={`Effort: ${effortLabel}. How hard Claude thinks before answering`}
+              placement="above"
+            />
+          ) : null}
+          <button
+            className={`ultra-switch${tab.ultracode ? ' on' : ''}`}
+            role="switch"
+            aria-checked={tab.ultracode === true}
+            title={`Ultracode ${tab.ultracode ? 'on' : 'off'}: Claude plans big jobs as workflows of several agents. Uses more of your limits.`}
+            onClick={() => s.setUltracode(tab.id, !tab.ultracode)}
+          >
+            <span className="switch-track" aria-hidden="true" />
+            Ultracode
           </button>
-        ) : null}
-        <button className="send" title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'} disabled={(!text.trim() && !images.length) || chat.moving} onClick={submit}>
-          <ArrowUp />
-        </button>
+          <ContextMeter info={chat.context} />
+        </div>
+        <div className="composer-send">
+          {busy ? (
+            <button className="send stop" title="Stop (Esc)" aria-label="Stop" onClick={() => s.interrupt(tab.id)}>
+              <Square />
+            </button>
+          ) : null}
+          <button
+            className="send"
+            title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'}
+            aria-label="Send"
+            disabled={(!text.trim() && !images.length) || chat.moving}
+            onClick={submit}
+          >
+            <ArrowUp />
+          </button>
+        </div>
       </div>
     </div>
   )

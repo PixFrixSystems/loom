@@ -102,9 +102,9 @@ function windowOptions(): BrowserWindowConstructorOptions {
   return {
     show: false,
     title: 'Loom',
-    backgroundColor: '#1a1c20',
+    backgroundColor: '#0c0e15',
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#16181b', symbolColor: '#a8a49b', height: 38 },
+    titleBarOverlay: { color: '#12141b', symbolColor: '#a9afbf', height: 42 },
     icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

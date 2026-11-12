@@ -1,10 +1,12 @@
-import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, Compass, FileText, GitCompare, Globe, LoaderCircle, MessageSquare, PanelLeft, PanelRight, Plus, Server, Settings, SquareTerminal, X } from 'lucide-react'
+import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare, Globe, MessageSquare, PanelLeft, PanelRight, Plus, Server, Settings, SquareTerminal, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Tab } from '@shared/types'
 import { inFileRow, paneOfTab } from '../lib/layout'
 import { chatWorking, useStore, type MenuItem } from '../store'
 import { LayoutButton } from './LayoutMenu'
 import { ProjectMark } from './ProjectMark'
+import mark from '../assets/brand/loom-mark.webp'
+import mark2x from '../assets/brand/loom-mark@2x.webp'
 
 type StripState = { over: boolean; left: boolean; right: boolean }
 
@@ -71,7 +73,8 @@ function TabIcon({ tab }: { tab: Tab }): ReactNode {
   if (tab.kind === 'chat') return <MessageSquare />
   if (tab.kind === 'file') return <FileText />
   if (tab.kind === 'diff') return <GitCompare />
-  if (tab.kind === 'start') return <Compass />
+  // Get started carries the loop from the logo, the one small place the mark appears in a tab.
+  if (tab.kind === 'start') return <img className="tab-mark" src={mark} srcSet={`${mark} 1x, ${mark2x} 2x`} alt="" draggable={false} />
   if (tab.kind === 'terminal') return <SquareTerminal />
   if (tab.kind === 'server') return <Server />
   if (tab.kind === 'browser') return <Globe />
@@ -204,8 +207,8 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
       onDoubleClick={() => tab.kind === 'chat' && setRenaming(true)}
       onContextMenu={menu}
     >
-      <span className="tab-icon">{running ? <LoaderCircle className="spin" /> : detached ? <AppWindow /> : <TabIcon tab={tab} />}</span>
-      <ProjectMark project={project} fallback="tab-noicon" size={14} />
+      <span className="tab-icon">{running ? <span className="live-dot" role="img" aria-label="Claude is working" /> : detached ? <AppWindow /> : <TabIcon tab={tab} />}</span>
+      <ProjectMark project={project} size={14} />
       {project && !compact ? <span className="tab-project">{project.name}</span> : null}
       {renaming ? (
         <input

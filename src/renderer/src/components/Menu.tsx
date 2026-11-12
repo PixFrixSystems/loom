@@ -244,8 +244,8 @@ export function Dropdown<T extends string>({
       >
         {icon}
         <span className="dropdown-value">{label ?? current?.label ?? value}</span>
-        <svg className="dropdown-caret" viewBox="0 0 10 6" aria-hidden="true">
-          <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        <svg className="dropdown-caret" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="m4.5 6.5 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       {open

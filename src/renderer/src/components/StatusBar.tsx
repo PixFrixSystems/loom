@@ -1,4 +1,4 @@
-import { CircleArrowUp, GitBranch, LoaderCircle, RefreshCw } from 'lucide-react'
+import { CircleArrowUp, GitBranch, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { UsageLimit, UsageSnapshot } from '@shared/types'
@@ -176,7 +176,7 @@ export function StatusBar(): ReactNode {
     <footer className="statusbar">
       {project ? (
         <span className="sb-item thread" data-color={project.color} title={project.path}>
-          <ProjectMark project={project} fallback="sb-thread" size={14} />
+          <ProjectMark project={project} size={14} />
           {project.name}
         </span>
       ) : null}
@@ -200,7 +200,7 @@ export function StatusBar(): ReactNode {
       ) : null}
       {running ? (
         <span className="sb-item">
-          <LoaderCircle className="spin" />
+          <span className="live-dot" aria-hidden="true" />
           {running === 1 ? '1 chat working' : `${running} chats working`}
           {agents ? <span className="sb-muted">{agents === 1 ? '1 agent' : `${agents} agents`}</span> : null}
         </span>

@@ -70,7 +70,7 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
         theme: 'loom',
         automaticLayout: true,
         fontFamily: "'Cascadia Code', 'Cascadia Mono', Consolas, monospace",
-        fontSize: 13,
+        fontSize: 12.5,
         lineHeight: 20,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
@@ -202,7 +202,7 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
 
   return (
     <div className="fileview">
-      <div className="file-head thread" data-color={project?.color}>
+      <div className="file-head">
         <ProjectMark project={project} />
         {project ? <span className="chat-head-project">{project.name}</span> : null}
         <span className="chat-head-path selectable" title={tab.path}>

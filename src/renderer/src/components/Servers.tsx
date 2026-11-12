@@ -276,7 +276,7 @@ function ServersPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => v
         const p = projects.find((pp) => pp.id === x.projectId)
         return (
           <div key={x.id} className="srv-row thread" data-color={p?.color}>
-            <ProjectMark project={p} fallback="sb-thread" size={14} />
+            <ProjectMark project={p} size={14} />
             <div className="srv-row-text">
               <span className="srv-row-name">{p?.name ?? 'Removed project'}</span>
               <span className="srv-row-cmd" title={x.target.detail}>

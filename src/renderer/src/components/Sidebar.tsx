@@ -4,7 +4,6 @@ import {
   GitBranch,
   FolderPlus,
   Layers,
-  LoaderCircle,
   MessageSquarePlus,
   Play,
   Plus,
@@ -69,9 +68,16 @@ function GitMark({ git }: { git: GitStatus | null | undefined }): ReactNode {
     git.ahead ? `${git.ahead} to push` : '',
     git.behind ? `${git.behind} to pull` : ''
   ]
+  // What waits, in words, as the website shows it; nothing to say when it's all up to date.
+  const waiting = git.changes ? `${git.changes} to commit` : git.ahead ? `${git.ahead} to push` : git.behind ? `${git.behind} to pull` : ''
   return (
-    <span className={`git-mark${git.remote ? '' : ' is-local'}`} title={lines.filter(Boolean).join('\n')} aria-label={lines[0]}>
+    <span
+      className={`git-mark${waiting ? ' is-waiting' : ''}${git.remote ? '' : ' is-local'}`}
+      title={lines.filter(Boolean).join('\n')}
+      aria-label={lines[0]}
+    >
       <GitBranch />
+      {waiting ? <span className="git-mark-text">{waiting}</span> : null}
     </span>
   )
 }
@@ -97,7 +103,7 @@ function useProjectActivity(): Record<string, Activity> {
 }
 
 function ActivityMark({ activity }: { activity: Activity }): ReactNode {
-  if (activity === 'running') return <LoaderCircle className="spin activity" aria-label="Claude is working" />
+  if (activity === 'running') return <span className="live-dot" role="img" aria-label="Claude is working" title="Claude is working" />
   if (activity === 'waiting') return <span className="dot dot-warn" title="Waiting for your approval" />
   if (activity === 'unread') return <span className="dot dot-accent" title="New reply" />
   return null
@@ -191,7 +197,7 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
             }
           },
           {
-            label: 'No icon, show the colour thread',
+            label: 'No icon, show its initial',
             checked: project.iconMode === 'none',
             onSelect: () => s.updateProject(project.id, { iconMode: 'none' })
           }
@@ -268,7 +274,7 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
         title={project.path}
       >
         <ChevronRight className="chev" />
-        <ProjectMark project={project} fallback="project-thread" />
+        <ProjectMark project={project} size={18} />
         {editing ? (
           <InlineEdit
             value={project.name}
