@@ -18,6 +18,11 @@ function level(l: UsageLimit, stopAt: number | null): 'ok' | 'warn' | 'stop' {
   return 'ok'
 }
 
+/** The model a weekly limit of its own belongs to ("Fable week" is Fable's), else null. */
+function modelWeek(l: UsageLimit): string | null {
+  return l.label !== 'Week' && l.label.endsWith(' week') ? l.label.slice(0, -' week'.length) : null
+}
+
 function resetText(ms: number | null): string {
   if (!ms) return ''
   const d = new Date(ms)
@@ -66,7 +71,7 @@ function UsagePopover({ usage, anchor, onClose }: { usage: UsageSnapshot; anchor
         usage.limits.map((l) => (
           <div key={l.key} className={`usage-row${l.active ? '' : ' inactive'}`}>
             <div className="usage-line">
-              <span className="usage-label">{l.label === '5h' ? '5-hour session' : l.label === 'Week' ? 'This week' : l.label}</span>
+              <span className="usage-label">{l.label === '5h' ? '5-hour session' : l.label === 'Week' ? 'This week' : modelWeek(l) ? `${modelWeek(l)}, this week` : l.label}</span>
               <span className={`usage-pct lvl-${level(l, usage.stopAt)}`}>{Math.round(l.percent)}% used</span>
             </div>
             <Bar l={l} stopAt={usage.stopAt} />
@@ -102,7 +107,9 @@ function UsageMeters(): ReactNode {
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   if (!usage || !usage.available) return null
   const shown = usage.limits.filter((l) => l.active && (l.label === '5h' || l.label === 'Week'))
-  const list = shown.length ? shown : usage.limits.filter((l) => l.active).slice(0, 2)
+  const base = shown.length ? shown : usage.limits.filter((l) => l.active).slice(0, 2)
+  // Models with a weekly limit of their own (Fable, say) get a meter too, counting or not.
+  const list = [...base, ...usage.limits.filter((l) => modelWeek(l) && !base.includes(l))]
   return (
     <>
       <button
@@ -113,8 +120,8 @@ function UsageMeters(): ReactNode {
       >
         {list.length ? (
           list.map((l) => (
-            <span key={l.key} className="meter">
-              <span className="meter-label">{l.label}</span>
+            <span key={l.key} className="meter" title={modelWeek(l) ? `${modelWeek(l)} this week: ${Math.round(l.percent)}% used` : undefined}>
+              <span className="meter-label">{modelWeek(l) ?? l.label}</span>
               <Bar l={l} stopAt={usage.stopAt} />
               <span className={`meter-pct lvl-${level(l, usage.stopAt)}`}>{Math.round(l.percent)}%</span>
             </span>
