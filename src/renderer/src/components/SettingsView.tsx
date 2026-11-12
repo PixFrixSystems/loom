@@ -1,6 +1,7 @@
-import { LogIn, LogOut, RefreshCw } from 'lucide-react'
+import { BellRing, LogIn, LogOut, Play, RefreshCw } from 'lucide-react'
+import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useState, type ReactNode } from 'react'
-import type { AuthStatus, ClaudeSource, LoomSettings, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
+import type { AuthStatus, ClaudeSource, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
 import { timeAgo } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
@@ -104,6 +105,85 @@ function AccountRow(): ReactNode {
           <button className="btn primary" disabled={busy === 'out'} onClick={signIn}>
             <LogIn /> Sign in
           </button>
+        ) : null}
+      </div>
+    </Row>
+  )
+}
+
+/**
+ * How Loom tells you a chat is done (or needs an answer) while you're in another window: a Windows
+ * notification, a sound of Loom's own, or both. Says so when Windows has notifications off.
+ */
+function NotifyRow({
+  notifyWhenDone,
+  sound,
+  volume,
+  update
+}: {
+  notifyWhenDone: boolean
+  sound: NotifySound
+  volume: number
+  update: (patch: Partial<LoomSettings>) => void
+}): ReactNode {
+  const [windowsOff, setWindowsOff] = useState(false)
+  useEffect(() => {
+    const look = (): void => void window.loom.notifyOff().then(setWindowsOff)
+    look()
+    // Back from Windows' settings: look again.
+    window.addEventListener('focus', look)
+    return () => window.removeEventListener('focus', look)
+  }, [])
+  return (
+    <Row title="Notify me" hint="When a chat finishes, or Claude needs an answer, while you're in another window.">
+      <div className="notify-controls">
+        <label className="check-row">
+          <input type="checkbox" checked={notifyWhenDone} onChange={(e) => update({ notifyWhenDone: e.target.checked })} />
+          <span>Windows notification</span>
+        </label>
+        <div className="notify-sound">
+          <span className="notify-sound-label">Sound</span>
+          <Dropdown<NotifySound>
+            value={sound}
+            options={TONES}
+            onChange={(v) => {
+              update({ notifySound: v })
+              playTone(v, volume)
+            }}
+          />
+          <button className="icon-btn" title="Play this sound" aria-label="Play this sound" disabled={sound === 'off'} onClick={() => playTone(sound, volume)}>
+            <Play />
+          </button>
+        </div>
+        <label className="notify-volume">
+          <span className="notify-sound-label">Volume</span>
+          <input
+            type="range"
+            className="range"
+            min={0}
+            max={100}
+            step={5}
+            value={volume}
+            disabled={sound === 'off'}
+            style={{ ['--fill' as string]: `${volume}%` }}
+            aria-valuetext={`${volume}%`}
+            onChange={(e) => update({ notifyVolume: Number(e.target.value) })}
+            // A preview once you let go, not on every step of the drag.
+            onPointerUp={(e) => playTone(sound, Number(e.currentTarget.value))}
+            onKeyUp={(e) => e.key.startsWith('Arrow') && playTone(sound, Number(e.currentTarget.value))}
+          />
+          <span className="notify-volume-value">{volume}%</span>
+        </label>
+        <button className="btn" onClick={() => window.loom.notifyTest()}>
+          <BellRing /> Send a test
+        </button>
+        {windowsOff && notifyWhenDone ? (
+          <p className="notify-warn">
+            Windows has notifications turned off, so it won&apos;t show Loom&apos;s. A sound still plays if you pick one.{' '}
+            <button className="link-btn" onClick={() => window.loom.notifySettings()}>
+              Open Windows notification settings
+            </button>
+          </p>
         ) : null}
       </div>
     </Row>
@@ -221,12 +301,7 @@ export function SettingsView(): ReactNode {
               </button>
             </div>
           </Row>
-          <Row title="Notify me" hint="A Windows notification when Claude finishes while Loom is in the background.">
-            <label className="check-row">
-              <input type="checkbox" checked={st.notifyWhenDone} onChange={(e) => update({ notifyWhenDone: e.target.checked })} />
-              <span>When a chat finishes</span>
-            </label>
-          </Row>
+          <NotifyRow notifyWhenDone={st.notifyWhenDone} sound={st.notifySound ?? 'off'} volume={st.notifyVolume ?? DEFAULT_VOLUME} update={update} />
         </section>
 
         <section className="set-section">

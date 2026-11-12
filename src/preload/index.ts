@@ -20,6 +20,7 @@ import type {
   ImageAttachment,
   LoginState,
   ModelOption,
+  NotifySound,
   InstallStep,
   PermissionMode,
   PermissionResponse,
@@ -63,6 +64,17 @@ const api = {
   dirsExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('fs:dirsExist', paths),
   subfolders: (dir: string): Promise<SubFolder[]> => ipcRenderer.invoke('fs:subfolders', dir),
   reveal: (path: string): Promise<void> => ipcRenderer.invoke('app:reveal', path),
+  /** Whether Windows has notifications switched off, for every app or for Loom */
+  notifyOff: (): Promise<boolean> => ipcRenderer.invoke('app:notifyOff'),
+  /** Sends a test notification (and plays the sound), even with Loom in front */
+  notifyTest: (): void => ipcRenderer.send('app:notifyTest'),
+  /** Opens Windows' notification settings */
+  notifySettings: (): void => ipcRenderer.send('app:notifySettings'),
+  onNotifySound: (cb: (sound: NotifySound) => void): (() => void) => {
+    const listener = (_e: unknown, sound: NotifySound): void => cb(sound)
+    ipcRenderer.on('app:notifySound', listener)
+    return () => ipcRenderer.removeListener('app:notifySound', listener)
+  },
   /** Puts an image (a data: URL) on the clipboard; false when it isn't one */
   copyImage: (dataUrl: string): Promise<boolean> => ipcRenderer.invoke('app:copyImage', dataUrl),
   reportUnsaved: (names: string[]): void => ipcRenderer.send('app:unsaved', names),

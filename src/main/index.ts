@@ -1,4 +1,5 @@
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, Notification, shell, session, type BrowserWindowConstructorOptions } from 'electron'
+import { execFile } from 'node:child_process'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { installingUpdate, setupUpdates } from './updates'
@@ -116,6 +117,8 @@ function windowOptions(): BrowserWindowConstructorOptions {
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: false,
+      // Notification sounds play while Loom is in the background, without a click first.
+      autoplayPolicy: 'no-user-gesture-required',
       // Browser tabs show sites in a <webview>, locked down below.
       webviewTag: true
     }
@@ -287,14 +290,32 @@ function whatQuittingLoses(busy: number, unsaved: string[], doing: string): { me
   }
 }
 
-function notify(title: string, body: string): void {
-  if (!settings().notifyWhenDone || !win || BrowserWindow.getFocusedWindow() || !Notification.isSupported()) return
-  const n = new Notification({ title, body, silent: false })
+/**
+ * Tells you about a finished chat, or one that needs an answer, while you're in another window: a
+ * Windows notification and/or a sound Loom plays itself. `test` sends both now, even in front.
+ */
+function notify(title: string, body: string, test = false): void {
+  if (!win || (!test && BrowserWindow.getFocusedWindow())) return
+  const sound = settings().notifySound
+  if (sound && sound !== 'off' && !win.webContents.isDestroyed()) win.webContents.send('app:notifySound', sound)
+  if ((!settings().notifyWhenDone && !test) || !Notification.isSupported()) return
+  // The sound, when there is one, is Loom's own: Windows stays quiet then.
+  const n = new Notification({ title, body, silent: !!sound && sound !== 'off' })
   n.on('click', () => {
     win?.show()
     win?.focus()
   })
   n.show()
+}
+
+/** Whether Windows itself has notifications switched off, for all apps or for Loom. */
+function windowsNotificationsOff(): Promise<boolean> {
+  const query = (key: string, value: string): Promise<string> =>
+    new Promise((resolve) => execFile('reg', ['query', key, '/v', value], { windowsHide: true, timeout: 5000 }, (_e, out) => resolve(String(out ?? ''))))
+  return Promise.all([
+    query('HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications', 'ToastEnabled'),
+    query(`HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\${APP_ID}`, 'Enabled')
+  ]).then(([all, mine]) => /ToastEnabled\s+REG_DWORD\s+0x0\b/i.test(all) || /Enabled\s+REG_DWORD\s+0x0\b/i.test(mine))
 }
 
 // The model menu follows the account: each plan limits reading also asks which models it has, so
@@ -361,6 +382,9 @@ function registerIpc(): void {
   ipcMain.handle('fs:dirsExist', (_e, paths: string[]) => dirsExist(paths))
   ipcMain.handle('fs:subfolders', (_e, dir: string) => listSubfolders(dir))
   ipcMain.handle('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
+  ipcMain.handle('app:notifyOff', () => windowsNotificationsOff())
+  ipcMain.on('app:notifyTest', () => notify('Loom', 'This is how Loom tells you a chat is done.', true))
+  ipcMain.on('app:notifySettings', () => void shell.openExternal('ms-settings:notifications'))
   // An image from a chat onto the clipboard, as an image other apps can paste.
   ipcMain.handle('app:copyImage', async (_e, dataUrl: string) => {
     const image = typeof dataUrl === 'string' && dataUrl.startsWith('data:image/') ? nativeImage.createFromDataURL(dataUrl) : null

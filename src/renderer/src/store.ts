@@ -51,6 +51,7 @@ import {
   type PresetName
 } from './lib/layout'
 import { baseName, isInside, joinPath, normPath, parentDir, projectForPath, shortPath, thumbnailOf, uid } from './lib/paths'
+import { playTone } from './lib/tones'
 
 export interface ChatRuntime {
   items: ChatItem[]
@@ -616,6 +617,7 @@ export const useStore = create<Store>((set, get) => {
       void window.loom.serverList().then((servers) => set({ servers }))
       window.loom.onUsage((usage) => set({ usage }))
       window.loom.onModels((models) => models.length && set({ knownModels: models }))
+      window.loom.onNotifySound((sound) => playTone(sound, get().settings.notifyVolume))
       void window.loom.getUsage().then((usage) => usage && set({ usage }))
     },
 

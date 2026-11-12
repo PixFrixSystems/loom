@@ -1809,3 +1809,58 @@
   max-width: 45%;
   font-family: var(--font-ui);
 }
+
+/* Notify me: Windows notification, a sound of Loom's own, a test */
+.notify-controls {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.notify-sound {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notify-sound-label {
+  color: var(--text-2);
+}
+
+.notify-warn {
+  max-width: 420px;
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--light);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(200, 198, 250, 0.35);
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration-color: var(--light);
+}
+
+.notify-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.notify-volume-value {
+  min-width: 3.5ch;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

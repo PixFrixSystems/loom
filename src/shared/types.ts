@@ -231,6 +231,8 @@ export interface InstallStep {
 export type ClaudeSource = 'bundled' | 'installed' | 'custom'
 export type ShellChoice = 'powershell' | 'cmd' | 'gitbash'
 
+export type NotifySound = 'off' | 'chime' | 'glass' | 'pluck' | 'rise'
+
 export interface LoomSettings {
   claudeSource: ClaudeSource
   claudeCustomPath: string
@@ -242,6 +244,10 @@ export interface LoomSettings {
   defaultEffort?: EffortLevel | null
   defaultUltracode?: boolean
   notifyWhenDone: boolean
+  /** A sound Loom plays itself when it would notify; works even with Windows notifications off */
+  notifySound?: NotifySound
+  /** How loud that sound plays, 0 to 100 */
+  notifyVolume?: number
   /** Days to keep the copies a moved chat leaves in ~/.claude/chat-backups; 0 keeps them forever */
   keepChatBackupsDays?: number
 }
