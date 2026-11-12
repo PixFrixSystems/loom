@@ -1221,14 +1221,44 @@
 }
 
 /* Where a skill in the / menu comes from */
-.cmd-src {
-  flex: none;
-  margin-left: auto;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--bg-hover);
+/* The / list in groups: where the skills come from heads each one, and stays in view while it scrolls */
+.cmd-group + .cmd-group {
+  margin-top: 4px;
+}
+
+.cmd-group-head {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px 4px;
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cmd-group-count {
   color: var(--text-3);
-  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Arrowing up keeps the picked row clear of the group heading stuck above it */
+.cmd {
+  scroll-margin-top: 30px;
+}
+
+.cmd-hint {
+  flex: 0 1 auto;
+  max-width: 35%;
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-code);
+  font-size: 12px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

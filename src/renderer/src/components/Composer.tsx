@@ -22,12 +22,12 @@ const EFFORT_LABELS: Record<EffortLevel, string> = {
 const ALL_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 const BUILTIN_COMMANDS: SlashCommandInfo[] = [
-  { name: 'compact', description: 'Summarize the conversation to free up context' },
-  { name: 'clear', description: 'Start the conversation over' },
-  { name: 'context', description: 'Show how much context is used' },
-  { name: 'cost', description: 'Show what this chat has used' },
-  { name: 'init', description: 'Create a CLAUDE.md for this project' },
-  { name: 'review', description: 'Review the current changes' }
+  { name: 'compact', description: 'Summarize the conversation to free up context', builtin: true },
+  { name: 'clear', description: 'Start the conversation over', builtin: true },
+  { name: 'context', description: 'Show how much context is used', builtin: true },
+  { name: 'cost', description: 'Show what this chat has used', builtin: true },
+  { name: 'init', description: 'Create a CLAUDE.md for this project', builtin: true },
+  { name: 'review', description: 'Review the current changes', builtin: true }
 ]
 
 /** Claude takes images of these types, each up to 5 MB, a few per message. */
@@ -37,12 +37,18 @@ const SENDABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 /** Longest side a converted image keeps; Claude scales larger ones down anyway. */
 const MAX_SIDE = 2000
 
-/** Where a skill comes from, in words: Claude Code says "user", "project" or names the plugin. */
-function sourceLabel(source: string): string {
-  if (source === 'user') return 'your skill'
-  if (source === 'project') return 'this project'
-  if (source.startsWith('plugin')) return 'plugin'
-  return source
+/** The heading a command is listed under: Claude Code says "user", "project", or names the source. */
+function groupOf(c: SlashCommandInfo): string {
+  if (c.builtin) return 'Claude Code'
+  if (c.source === 'user') return 'Your skills'
+  if (c.source === 'project') return 'This project'
+  if (c.source === 'claude.ai sync') return 'From claude.ai'
+  return c.source ? c.source.replace(/^plugin:?\s*/i, '') || 'Plugins' : 'Other'
+}
+
+/** Groups in the order they're listed: what's closest to this work first, Claude Code's own last. */
+function groupRank(label: string): number {
+  return ['This project', 'Your skills'].includes(label) ? ['This project', 'Your skills'].indexOf(label) : label === 'From claude.ai' ? 8 : label === 'Claude Code' ? 9 : label === 'Other' ? 10 : 5
 }
 
 function tokens(n: number): string {
@@ -163,15 +169,33 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   useEffect(() => setCmdDismissed(false), [text])
 
   const query = text.match(/^\/(\S*)$/)?.[1] ?? null
-  const commands = useMemo(() => {
+  // Grouped by where they come from; within a group, names starting with what you typed first,
+  // then names containing it, then (from three letters on) descriptions mentioning it.
+  const groups = useMemo(() => {
     if (query === null || cmdDismissed) return []
     const list = chat.commands.length ? chat.commands : BUILTIN_COMMANDS
     const q = query.toLowerCase()
-    // Everything that matches, names starting with what you typed first.
-    return list
-      .filter((c) => c.name.toLowerCase().includes(q))
-      .sort((a, b) => Number(b.name.toLowerCase().startsWith(q)) - Number(a.name.toLowerCase().startsWith(q)))
+    const score = (c: SlashCommandInfo): number => {
+      const name = c.name.toLowerCase()
+      const short = name.slice(name.lastIndexOf(':') + 1)
+      if (name.startsWith(q) || short.startsWith(q)) return 0
+      if (name.includes(q)) return 1
+      if (q.length >= 3 && c.description.toLowerCase().includes(q)) return 2
+      return -1
+    }
+    const byGroup = new Map<string, { c: SlashCommandInfo; s: number }[]>()
+    for (const c of list) {
+      const s = score(c)
+      if (s < 0) continue
+      const g = groupOf(c)
+      if (!byGroup.has(g)) byGroup.set(g, [])
+      byGroup.get(g)!.push({ c, s })
+    }
+    return [...byGroup.entries()]
+      .sort(([a], [b]) => groupRank(a) - groupRank(b) || a.localeCompare(b))
+      .map(([label, rows]) => ({ label, items: rows.sort((x, y) => x.s - y.s || x.c.name.localeCompare(y.c.name)).map((r) => r.c) }))
   }, [query, cmdDismissed, chat.commands])
+  const commands = useMemo(() => groups.flatMap((g) => g.items), [groups])
   const cmdList = useRef<HTMLDivElement>(null)
 
   useEffect(() => setCmdIndex(0), [query, commands.length])
@@ -262,24 +286,36 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
       {commands.length ? (
         <div className="cmd-list" role="listbox" ref={cmdList}>
           {!chat.commands.length ? <div className="cmd-loading">Loading your skills and commands</div> : null}
-          {commands.map((c, i) => (
-            <button
-              key={c.name}
-              role="option"
-              aria-selected={i === cmdIndex}
-              className={`cmd${i === cmdIndex ? ' active' : ''}`}
-              // Moving, not resting: the list appearing under a still pointer doesn't change the pick.
-              onMouseMove={() => i !== cmdIndex && setCmdIndex(i)}
-              onMouseDown={(e) => {
-                e.preventDefault()
-                setText(`/${c.name} `)
-                ta.current?.focus()
-              }}
-            >
-              <span className="cmd-name">/{c.name}</span>
-              <span className="cmd-desc">{c.description}</span>
-              {c.source && !c.builtin ? <span className="cmd-src">{sourceLabel(c.source)}</span> : null}
-            </button>
+          {groups.map((g) => (
+            <div key={g.label} className="cmd-group" role="group" aria-label={g.label}>
+              <div className="cmd-group-head">
+                {g.label}
+                <span className="cmd-group-count">{g.items.length}</span>
+              </div>
+              {g.items.map((c) => {
+                const i = commands.indexOf(c)
+                return (
+                  <button
+                    key={`${g.label}:${c.name}`}
+                    role="option"
+                    aria-selected={i === cmdIndex}
+                    className={`cmd${i === cmdIndex ? ' active' : ''}`}
+                    // Moving, not resting: the list appearing under a still pointer doesn't change the pick.
+                    onMouseMove={() => i !== cmdIndex && setCmdIndex(i)}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setText(`/${c.name} `)
+                      ta.current?.focus()
+                    }}
+                    title={c.description}
+                  >
+                    <span className="cmd-name">/{c.name}</span>
+                    {c.hint ? <span className="cmd-hint">{c.hint}</span> : null}
+                    <span className="cmd-desc">{c.description}</span>
+                  </button>
+                )
+              })}
+            </div>
           ))}
         </div>
       ) : null}

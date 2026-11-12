@@ -355,6 +355,8 @@ export interface SlashCommandInfo {
   builtin?: boolean
   /** Where a skill comes from, as Claude Code labels it: user, project, a plugin */
   source?: string
+  /** What it takes after the name, such as "<file>" */
+  hint?: string
 }
 
 /** How full a chat's context window is, in tokens. */

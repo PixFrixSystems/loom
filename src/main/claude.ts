@@ -268,7 +268,8 @@ function toCommandInfo(c: SlashCommand): SlashCommandInfo {
     name: c.name,
     description: m ? c.description.slice(0, m.index).trim() : c.description,
     builtin: c.builtin === true,
-    source: m ? m[1] : undefined
+    source: m ? m[1] : undefined,
+    hint: c.argumentHint?.trim() || undefined
   }
 }
 
