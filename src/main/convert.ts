@@ -127,9 +127,17 @@ const SUMMARY_PREFIXES = [
   'This conversation was compacted'
 ]
 
+/** What Claude Code writes in place of a message when a turn was stopped. */
+const INTERRUPTED = /^\[Request interrupted by user[^\]]*\]$/
+
+/**
+ * Text Claude Code or an editor adds around what the person typed: reminders, and the file or
+ * selection VS Code sends along (ide_opened_file, ide_selection, ide_diagnostics).
+ */
 function stripTags(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    .replace(/<(ide_[a-z_]+)>[\s\S]*?<\/\1>/g, '')
     .replace(/<artifact-content-authored-by-others\/>/g, '')
     .trim()
 }
@@ -149,10 +157,14 @@ export function userTextItem(
 ): ChatItem | null {
   const raw = text.trim()
   if (!raw && !images) return null
-  if (SUMMARY_PREFIXES.some((p) => raw.includes(p))) {
-    return { kind: 'note', id, tone: 'summary', text: 'Earlier messages were summarized', detail: truncate(stripTags(raw), 40000) }
+  // Markers count only where Claude Code puts them, at the start: a message that merely
+  // mentions one (quoting a log, say) is still the person's message.
+  const lead = stripTags(raw)
+  if (SUMMARY_PREFIXES.some((p) => lead.startsWith(p))) {
+    return { kind: 'note', id, tone: 'summary', text: 'Earlier messages were summarized', detail: truncate(lead, 40000) }
   }
-  if (raw.includes('<command-name>')) {
+  if (INTERRUPTED.test(lead)) return { kind: 'note', id, tone: 'info', text: 'Interrupted' }
+  if (/^<command-(name|message|args)>/.test(raw)) {
     const name = tagValue(raw, 'command-name')
     const args = tagValue(raw, 'command-args')
     return { kind: 'user', id, text: `${name.startsWith('/') ? name : `/${name}`}${args ? ` ${args}` : ''}`, images: 0, ts }
@@ -162,7 +174,7 @@ export function userTextItem(
     return out ? { kind: 'note', id, tone: 'info', text: firstLine(out, 200), detail: truncate(out, MAX_RESULT) } : null
   }
   if (raw.startsWith('<local-command-caveat>')) return null
-  if (raw.includes('<task-notification>')) {
+  if (raw.startsWith('<task-notification>')) {
     const summary = tagValue(raw, 'summary') || 'A background task finished'
     return { kind: 'note', id, tone: 'info', text: firstLine(summary, 200) }
   }
