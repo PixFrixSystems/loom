@@ -54,9 +54,6 @@ import { baseName, isInside, joinPath, normPath, parentDir, projectForPath, shor
 
 export interface ChatRuntime {
   items: ChatItem[]
-  partial: string
-  /** Claude thinking right now: since when, and the text so far (it arrives in bursts) */
-  thinking: { text: string; since: number } | null
   status: ChatStatus
   error?: string
   permissions: PermissionRequest[]
@@ -73,7 +70,34 @@ export interface ChatRuntime {
   context?: ContextInfo
   /** Sub-agents and background tasks running now */
   tasks: AgentTask[]
+  /** Images waiting in the message box */
+  attachments: ImageAttachment[]
 }
+
+/**
+ * What streams in many times a second: the reply being written and the thought in progress, per
+ * chat tab. Kept apart from the main store so a streaming chat redraws only itself.
+ */
+export const useLive = create<{ partial: Record<string, string>; thinking: Record<string, { text: string; since: number } | null> }>(() => ({
+  partial: {},
+  thinking: {}
+}))
+
+function clearLive(tabId: string, which: 'all' | 'thinking' = 'all'): void {
+  const l = useLive.getState()
+  if (!(tabId in l.thinking) && (which === 'thinking' || !(tabId in l.partial))) return
+  useLive.setState((s) => {
+    const thinking = { ...s.thinking }
+    delete thinking[tabId]
+    if (which === 'thinking') return { thinking }
+    const partial = { ...s.partial }
+    delete partial[tabId]
+    return { thinking, partial }
+  })
+}
+
+/** A chat with nothing in it yet; a shared value, so selectors that fall back to it stay stable. */
+export const EMPTY_CHAT: ChatRuntime = Object.freeze(newChatRuntime()) as ChatRuntime
 
 /** This window shows one tab that was moved out of the main window. */
 export const POPOUT_TAB = new URLSearchParams(location.search).get('popout')
@@ -268,6 +292,7 @@ interface Store extends PersistedState {
   refreshUsage: (force?: boolean) => Promise<void>
   respond: (tabId: string, requestId: string, response: PermissionResponse) => void
   setDraft: (tabId: string, draft: string) => void
+  setAttachments: (tabId: string, attachments: ImageAttachment[]) => void
   handleChatEvent: (tabId: string, event: ChatEvent) => void
 
   refreshSessions: (force?: boolean) => Promise<void>
@@ -297,11 +322,10 @@ interface Store extends PersistedState {
 export function newChatRuntime(): ChatRuntime {
   return {
     items: [],
-    partial: '',
-    thinking: null,
     status: 'idle',
     permissions: [],
     tasks: [],
+    attachments: [],
     historyState: 'none',
     historyTotal: 0,
     permissionMode: null,
@@ -350,6 +374,8 @@ function chatTitleFrom(text: string): string {
 export const useStore = create<Store>((set, get) => {
   const patchChat = (tabId: string, fn: (c: ChatRuntime) => Partial<ChatRuntime>): void => {
     set((s) => {
+      // Late news for a tab that has closed (a history load, a last event) stays dropped.
+      if (!s.tabs.some((t) => t.id === tabId)) return s
       const cur = s.chats[tabId] ?? newChatRuntime()
       return { chats: { ...s.chats, [tabId]: { ...cur, ...fn(cur) } } }
     })
@@ -705,6 +731,7 @@ export const useStore = create<Store>((set, get) => {
       const fileDrafts = { ...s.fileDrafts }
       delete fileDrafts[tabId]
       set({ tabs, layout, activeTabId, chats, terminals, dirtyFiles, detached, fileDrafts })
+      clearLive(tabId)
       if (activeTabId) get().activate(activeTabId)
     },
     popOut: (tabId, at) => {
@@ -905,7 +932,8 @@ export const useStore = create<Store>((set, get) => {
         draft: '',
         error: undefined,
         status: c.status === 'idle' || c.status === 'stopped' || c.status === 'error' ? 'starting' : c.status,
-        startedAt: Date.now()
+        // A message added mid-turn doesn't restart the turn's clock.
+        startedAt: c.status === 'running' || c.status === 'starting' ? c.startedAt : Date.now()
       }))
       try {
         await ensureOpened(tab)
@@ -1116,7 +1144,13 @@ export const useStore = create<Store>((set, get) => {
       patchChat(tabId, (c) => ({ permissions: c.permissions.filter((p) => p.requestId !== requestId) }))
       void window.loom.chatRespond(tabId, requestId, response)
     },
-    setDraft: (tabId, draft) => patchChat(tabId, () => ({ draft })),
+    setDraft: (tabId, draft) => {
+      patchChat(tabId, () => ({ draft }))
+      // On the tab too, so a half-written message survives a restart or an update.
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (tab?.kind === 'chat' && (tab.draft ?? '') !== draft) get().updateTab(tabId, { draft: draft || undefined } as Partial<ChatTab>)
+    },
+    setAttachments: (tabId, attachments) => patchChat(tabId, () => ({ attachments })),
 
     handleChatEvent: (tabId, ev) => {
       switch (ev.type) {
@@ -1148,22 +1182,22 @@ export const useStore = create<Store>((set, get) => {
           })
           break
         case 'partial':
-          patchChat(tabId, () => ({ partial: ev.text }))
+          useLive.setState((l) => ({ partial: { ...l.partial, [tabId]: ev.text } }))
           break
         case 'thinking-partial':
-          patchChat(tabId, (c) => ({ thinking: { text: ev.text, since: c.thinking?.since ?? Date.now() } }))
+          useLive.setState((l) => ({ thinking: { ...l.thinking, [tabId]: { text: ev.text, since: l.thinking[tabId]?.since ?? Date.now() } } }))
           break
         case 'partial-clear':
-          patchChat(tabId, () => ({ partial: '', thinking: null }))
+          clearLive(tabId)
           break
         case 'status':
+          // Stopped or done mid-thought: nothing more is coming for the live thinking.
+          if (ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle') clearLive(tabId, 'thinking')
           patchChat(tabId, (c) => ({
             status: ev.status,
             error: ev.error,
             // A turn Claude started by itself has no send to time it from.
             ...(ev.status === 'running' && c.status !== 'running' && c.status !== 'starting' ? { startedAt: Date.now() } : {}),
-            // Stopped or done mid-thought: nothing more is coming for the live thinking.
-            ...(ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle' ? { thinking: null } : {}),
             items:
               ev.status === 'stopped' || ev.status === 'error' || ev.status === 'idle'
                 ? c.items.map((it) => (it.kind === 'tool' && it.status === 'running' && ev.status !== 'idle' ? { ...it, status: 'done' as const } : it))

@@ -320,6 +320,35 @@
 .md table {
   border-collapse: collapse;
   font-size: 13px;
+  /* The reply's "anywhere" would let a column shrink to one letter; the wrapper scrolls instead. */
+  overflow-wrap: normal;
+}
+
+.md th,
+.md td {
+  overflow-wrap: break-word;
+}
+
+/* Copy a whole reply, shown on hover */
+.msg-assistant {
+  position: relative;
+}
+
+.msg-actions {
+  display: flex;
+  justify-content: flex-end;
+  height: 0;
+  opacity: 0;
+  transition: opacity var(--fast) ease;
+}
+
+.msg-assistant:hover .msg-actions,
+.msg-actions:focus-within {
+  opacity: 1;
+}
+
+.msg-actions .icon-btn {
+  margin-top: -6px;
 }
 
 .md th,

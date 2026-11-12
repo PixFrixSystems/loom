@@ -38,6 +38,14 @@ function resolvePath(p: string, cwd: string): string {
   return `${cwd.replace(/[\\/]+$/, '')}\\${clean.replace(/^\.?[\\/]/, '').replace(/\//g, '\\')}`
 }
 
+/** A link's target that is a file in the project: a relative path, or a Windows one. */
+function fileHref(href: string): boolean {
+  if (/^[A-Za-z]:[\\/]/.test(href)) return true
+  return !/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith('#') && !href.startsWith('//')
+}
+
+const openPath = (p: string, cwd: string): void => useStore.getState().openFile(resolvePath(decodeURI(p.split('#')[0]), cwd))
+
 function makeComponents(cwd: string): Components {
   return {
     a: ({ href, children }) => (
@@ -45,7 +53,10 @@ function makeComponents(cwd: string): Components {
         href={href}
         onClick={(e) => {
           e.preventDefault()
-          if (href && /^https?:/i.test(href)) void window.loom.openExternal(href)
+          if (!href) return
+          // Web links go to the browser; links to files open them in a tab.
+          if (/^https?:/i.test(href)) void window.loom.openExternal(href)
+          else if (fileHref(href)) openPath(href, cwd)
         }}
         title={href}
       >
@@ -68,8 +79,10 @@ function makeComponents(cwd: string): Components {
           <code
             className="path-link"
             role="link"
+            tabIndex={0}
             title="Open in a tab"
             onClick={() => useStore.getState().openFile(resolvePath(text.trim(), cwd))}
+            onKeyDown={(e) => e.key === 'Enter' && useStore.getState().openFile(resolvePath(text.trim(), cwd))}
           >
             {children}
           </code>
@@ -85,10 +98,27 @@ function makeComponents(cwd: string): Components {
   }
 }
 
-export const Markdown = memo(function Markdown({ text, cwd }: { text: string; cwd: string }): ReactNode {
+// Built once per folder: new components on every draw would make React rebuild every link,
+// code block and table, losing selection and clicks while a reply streams in.
+const componentCache = new Map<string, Components>()
+function componentsFor(cwd: string): Components {
+  let c = componentCache.get(cwd)
+  if (!c) {
+    c = makeComponents(cwd)
+    componentCache.set(cwd, c)
+  }
+  return c
+}
+
+const REMARK = [remarkGfm]
+const HIGHLIGHT = [[rehypeHighlight, { detect: false, ignoreMissing: true }]] as const
+const NONE: [] = []
+
+/** `streaming`: a reply still being written, drawn without syntax colours until it's done. */
+export const Markdown = memo(function Markdown({ text, cwd, streaming = false }: { text: string; cwd: string; streaming?: boolean }): ReactNode {
   return (
     <div className="md selectable">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: false, ignoreMissing: true }]]} components={makeComponents(cwd)}>
+      <ReactMarkdown remarkPlugins={REMARK} rehypePlugins={streaming ? NONE : (HIGHLIGHT as never)} components={componentsFor(cwd)}>
         {text}
       </ReactMarkdown>
     </div>

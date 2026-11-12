@@ -1,7 +1,7 @@
 import { ArrowUp, Cpu, Gauge, Paperclip, ShieldCheck, Square, Workflow, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type PermissionMode, type SlashCommandInfo } from '@shared/types'
-import { useStore } from '../store'
+import { EMPTY_CHAT, useStore } from '../store'
 import { Dropdown } from './Menu'
 
 export const MODE_OPTIONS: { value: PermissionMode; label: string; description: string }[] = [
@@ -30,7 +30,12 @@ const BUILTIN_COMMANDS: SlashCommandInfo[] = [
   { name: 'review', description: 'Review the current changes' }
 ]
 
+/** Claude takes images of these types, each up to 5 MB, a few per message. */
 const MAX_IMAGE = 5 * 1024 * 1024
+const MAX_IMAGES = 8
+const SENDABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+/** Longest side a converted image keeps; Claude scales larger ones down anyway. */
+const MAX_SIDE = 2000
 
 /** Where a skill comes from, in words: Claude Code says "user", "project" or names the plugin. */
 function sourceLabel(source: string): string {
@@ -65,41 +70,79 @@ function ContextMeter({ info }: { info?: ContextInfo }): ReactNode {
   )
 }
 
-function readImage(file: File): Promise<ImageAttachment | null> {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith('image/') || file.size > MAX_IMAGE) return resolve(null)
+function asDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
     const r = new FileReader()
-    r.onload = () => {
-      const url = String(r.result)
-      resolve({ mediaType: file.type, data: url.slice(url.indexOf(',') + 1), name: file.name || 'image' })
-    }
-    r.onerror = () => resolve(null)
-    r.readAsDataURL(file)
+    r.onload = () => resolve(String(r.result))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(blob)
   })
 }
 
-export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }): ReactNode {
-  const s = useStore()
-  const chat = s.chat(tab.id)
-  const [text, setText] = useState(chat.draft)
-  const [images, setImages] = useState<ImageAttachment[]>([])
+/**
+ * An image ready to send. Types Claude takes, under 5 MB, go as they are; anything else the browser
+ * can draw (a big screenshot, a BMP or SVG) is redrawn smaller as PNG, or JPEG when PNG is too big.
+ * Null, with the reason, when it can't be made to fit.
+ */
+async function readImage(file: File): Promise<{ image: ImageAttachment | null; problem?: string }> {
+  const name = file.name || 'image'
+  if (SENDABLE.has(file.type) && file.size <= MAX_IMAGE) {
+    const url = await asDataUrl(file)
+    return { image: { mediaType: file.type, data: url.slice(url.indexOf(',') + 1), name } }
+  }
+  const src = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    img.src = src
+    await img.decode()
+    const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
+    canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+    const blob = (type: string, q?: number): Promise<Blob | null> => new Promise((r) => canvas.toBlob(r, type, q))
+    let out = await blob('image/png')
+    if (!out || out.size > MAX_IMAGE) out = await blob('image/jpeg', 0.88)
+    if (!out || out.size > MAX_IMAGE) return { image: null, problem: `${name} is too big to send, even made smaller.` }
+    const url = await asDataUrl(out)
+    return { image: { mediaType: out.type, data: url.slice(url.indexOf(',') + 1), name } }
+  } catch {
+    return { image: null, problem: `${name} couldn't be read as an image.` }
+  } finally {
+    URL.revokeObjectURL(src)
+  }
+}
+
+export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }): ReactNode {
+  const s = useStore.getState()
+  const chat = useStore((st) => st.chats[tab.id]) ?? EMPTY_CHAT
+  const knownModels = useStore((st) => st.knownModels)
+  const settings = useStore((st) => st.settings)
+  const defaultEffort = useStore((st) => st.info?.defaultEffort ?? null)
+  const [text, setText] = useState(chat.draft || tab.draft || '')
+  const images = chat.attachments
+  const setImages = (fn: (cur: ImageAttachment[]) => ImageAttachment[]): void => useStore.getState().setAttachments(tab.id, fn(useStore.getState().chat(tab.id).attachments))
   const [cmdIndex, setCmdIndex] = useState(0)
+  // Esc or a click elsewhere puts the / list away until the text changes.
+  const [cmdDismissed, setCmdDismissed] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const ta = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const busy = chat.status === 'running' || chat.status === 'starting'
-  const models = s.knownModels.length ? s.knownModels : DEFAULT_MODELS
+  const models = knownModels.length ? knownModels : DEFAULT_MODELS
   const modelValue = tab.model ?? ''
-  const modeValue: PermissionMode | '' = tab.permissionMode ?? chat.permissionMode ?? s.settings.defaultPermissionMode ?? ''
+  const modeValue: PermissionMode | '' = tab.permissionMode ?? chat.permissionMode ?? settings.defaultPermissionMode ?? ''
   const modelInfo = models.find((m) => m.value === modelValue || (!!chat.activeModel && m.resolved === chat.activeModel))
   const efforts = modelInfo?.efforts ?? ALL_EFFORTS
-  const defaultEffort = s.info?.defaultEffort ?? null
   const effortValue: EffortLevel | '' = tab.effort ?? ''
   const effortOptions = [
     { value: '' as EffortLevel | '', label: defaultEffort ? `Default (${EFFORT_LABELS[defaultEffort]})` : 'Default', description: 'What your Claude settings use' },
     ...efforts.map((e) => ({ value: e as EffortLevel | '', label: EFFORT_LABELS[e] }))
   ]
+  const modelLabel = models.find((m) => m.value === modelValue)?.label ?? (modelValue || 'Default')
+  const modeLabel = MODE_OPTIONS.find((m) => m.value === modeValue)?.label ?? 'Claude default mode'
+  const effortLabel = effortValue ? EFFORT_LABELS[effortValue] : defaultEffort ? EFFORT_LABELS[defaultEffort] : 'Default'
 
   useEffect(() => {
     ta.current?.focus({ preventScroll: true })
@@ -117,19 +160,21 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
     return () => clearTimeout(t)
   }, [text, tab.id])
 
+  useEffect(() => setCmdDismissed(false), [text])
+
+  const query = text.match(/^\/(\S*)$/)?.[1] ?? null
   const commands = useMemo(() => {
-    const m = text.match(/^\/(\S*)$/)
-    if (!m) return []
+    if (query === null || cmdDismissed) return []
     const list = chat.commands.length ? chat.commands : BUILTIN_COMMANDS
-    const q = m[1].toLowerCase()
+    const q = query.toLowerCase()
     // Everything that matches, names starting with what you typed first.
     return list
       .filter((c) => c.name.toLowerCase().includes(q))
       .sort((a, b) => Number(b.name.toLowerCase().startsWith(q)) - Number(a.name.toLowerCase().startsWith(q)))
-  }, [text, chat.commands])
+  }, [query, cmdDismissed, chat.commands])
   const cmdList = useRef<HTMLDivElement>(null)
 
-  useEffect(() => setCmdIndex(0), [commands.length])
+  useEffect(() => setCmdIndex(0), [query, commands.length])
   useEffect(() => {
     cmdList.current?.querySelector('.cmd.active')?.scrollIntoView({ block: 'nearest' })
   }, [cmdIndex])
@@ -140,8 +185,15 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
 
   const addFiles = async (files: FileList | File[]): Promise<void> => {
     const list = [...files]
-    const imgs = (await Promise.all(list.filter((f) => f.type.startsWith('image/')).map(readImage))).filter(Boolean) as ImageAttachment[]
-    if (imgs.length) setImages((cur) => [...cur, ...imgs].slice(0, 8))
+    const results = await Promise.all(list.filter((f) => f.type.startsWith('image/')).map(readImage))
+    const problems = results.map((r) => r.problem).filter((p): p is string => !!p)
+    const imgs = results.map((r) => r.image).filter((i): i is ImageAttachment => !!i)
+    if (imgs.length) {
+      const room = MAX_IMAGES - useStore.getState().chat(tab.id).attachments.length
+      if (imgs.length > room) problems.push(`A message takes up to ${MAX_IMAGES} images, so ${imgs.length - Math.max(0, room)} were left out.`)
+      setImages((cur) => [...cur, ...imgs].slice(0, MAX_IMAGES))
+    }
+    for (const p of problems) useStore.getState().showToast(p)
     const others = list.filter((f) => !f.type.startsWith('image/'))
     if (others.length) {
       const paths = others.map((f) => window.loom.pathForFile(f)).filter(Boolean)
@@ -153,17 +205,23 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
     if (!text.trim() && !images.length) return
     void s.send(tab.id, text, images)
     setText('')
-    setImages([])
+    s.setAttachments(tab.id, [])
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (commands.length) {
+      if (e.key === 'Escape') {
+        // Put the list away; Esc again stops Claude.
+        e.preventDefault()
+        setCmdDismissed(true)
+        return
+      }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
         setCmdIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : commands.length - 1)) % commands.length)
         return
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && text !== `/${commands[cmdIndex].name}`)) {
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && text !== `/${commands[cmdIndex].name}`)) {
         e.preventDefault()
         setText(`/${commands[cmdIndex].name} `)
         return
@@ -175,7 +233,7 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
       return
     }
     if (e.key === 'Enter') {
-      const wantsSend = s.settings.sendWithCtrlEnter ? e.ctrlKey : !e.shiftKey && !e.ctrlKey
+      const wantsSend = settings.sendWithCtrlEnter ? e.ctrlKey : !e.shiftKey && !e.ctrlKey
       if (wantsSend && !e.nativeEvent.isComposing) {
         e.preventDefault()
         submit()
@@ -210,7 +268,8 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
               role="option"
               aria-selected={i === cmdIndex}
               className={`cmd${i === cmdIndex ? ' active' : ''}`}
-              onMouseEnter={() => setCmdIndex(i)}
+              // Moving, not resting: the list appearing under a still pointer doesn't change the pick.
+              onMouseMove={() => i !== cmdIndex && setCmdIndex(i)}
               onMouseDown={(e) => {
                 e.preventDefault()
                 setText(`/${c.name} `)
@@ -229,7 +288,7 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
           {images.map((img, i) => (
             <span key={i} className="attachment">
               <img src={`data:${img.mediaType};base64,${img.data}`} alt={img.name} />
-              <button className="attachment-remove" title="Remove" onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}>
+              <button className="attachment-remove" title="Remove" aria-label={`Remove ${img.name}`} onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}>
                 <X />
               </button>
             </span>
@@ -244,7 +303,10 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
         placeholder={busy ? 'Add to the conversation. Esc stops Claude' : 'Ask Claude to work in this folder'}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
+        onBlur={() => commands.length && setCmdDismissed(true)}
         onPaste={(e) => {
+          // Excel and Word put a picture of the cells next to their text: the text is what's meant.
+          if (e.clipboardData.getData('text/plain').trim()) return
           const files = [...e.clipboardData.files]
           if (files.some((f) => f.type.startsWith('image/'))) {
             e.preventDefault()
@@ -273,9 +335,9 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
           icon={<Cpu />}
           value={modelValue}
           options={models.map((m) => ({ value: m.value, label: m.label, description: m.description }))}
-          label={models.find((m) => m.value === modelValue)?.label ?? (modelValue || 'Default')}
+          label={modelLabel}
           onChange={(v) => s.setModel(tab.id, v || null)}
-          title="Model"
+          title={`Model: ${modelLabel}`}
           placement="above"
         />
         <Dropdown
@@ -285,7 +347,7 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
           options={MODE_OPTIONS}
           label={modeValue ? undefined : 'Claude default mode'}
           onChange={(v) => v && s.setMode(tab.id, v)}
-          title="Permission mode"
+          title={`Permission mode: ${modeLabel}`}
           placement="above"
         />
         {efforts.length ? (
@@ -296,14 +358,14 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
             options={effortOptions}
             label={effortValue ? EFFORT_LABELS[effortValue] : defaultEffort ? EFFORT_LABELS[defaultEffort] : 'Effort'}
             onChange={(v) => s.setEffort(tab.id, v || null)}
-            title="Effort: how hard Claude thinks before answering"
+            title={`Effort: ${effortLabel}. How hard Claude thinks before answering`}
             placement="above"
           />
         ) : null}
         <button
           className={`toggle-chip${tab.ultracode ? ' on' : ''}`}
           aria-pressed={tab.ultracode === true}
-          title="Ultracode: Claude plans big jobs as workflows of several agents. Uses more of your limits."
+          title={`Ultracode ${tab.ultracode ? 'on' : 'off'}: Claude plans big jobs as workflows of several agents. Uses more of your limits.`}
           onClick={() => s.setUltracode(tab.id, !tab.ultracode)}
         >
           <Workflow />
@@ -316,10 +378,10 @@ export function Composer({ tab, focusKey }: { tab: ChatTab; focusKey: number }):
             <Square />
           </button>
         ) : null}
-        <button className="send" title={s.settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'} disabled={!text.trim() && !images.length} onClick={submit}>
+        <button className="send" title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'} disabled={!text.trim() && !images.length} onClick={submit}>
           <ArrowUp />
         </button>
       </div>
     </div>
   )
-}
+})

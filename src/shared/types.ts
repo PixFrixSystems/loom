@@ -94,6 +94,8 @@ export interface ChatTab {
   permissionMode?: PermissionMode | null
   effort?: EffortLevel | null
   ultracode?: boolean
+  /** A message typed but not sent yet, kept across restarts */
+  draft?: string
 }
 
 export interface FileTab {

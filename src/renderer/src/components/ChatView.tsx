@@ -2,7 +2,7 @@ import { ArrowDown, FolderOpen, LoaderCircle, SquareTerminal } from 'lucide-reac
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
-import { modelName, useStore } from '../store'
+import { EMPTY_CHAT, modelName, useLive, useStore } from '../store'
 import { AgentTasks } from './AgentTasks'
 import { ChatItemView, LiveThinking, timelineClass } from './ChatItems'
 import { Composer } from './Composer'
@@ -13,10 +13,35 @@ import { RunControl } from './Servers'
 
 const PAGE = 200
 
+const CLOCK = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' })
+
+/**
+ * Text that changes many times a second, passed on at most every `ms`. A long reply being written
+ * is drawn a few times a second instead of on every word.
+ */
+function useThrottled(value: string, ms: number): string {
+  const [shown, setShown] = useState(value)
+  const last = useRef(0)
+  useEffect(() => {
+    const wait = last.current + ms - Date.now()
+    if (wait <= 0 || !value) {
+      last.current = Date.now()
+      setShown(value)
+      return
+    }
+    const t = setTimeout(() => {
+      last.current = Date.now()
+      setShown(value)
+    }, wait)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return value ? shown : ''
+}
+
 function clock(ts?: string): string | null {
   if (!ts) return null
   const d = new Date(ts)
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return Number.isNaN(d.getTime()) ? null : CLOCK.format(d)
 }
 
 function Working({ since }: { since?: number }): ReactNode {
@@ -39,14 +64,21 @@ function Working({ since }: { since?: number }): ReactNode {
 }
 
 export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTab; active: boolean; visible?: boolean }): ReactNode {
-  const s = useStore()
-  const chat = s.chat(tab.id)
-  const project = s.projects.find((p) => p.id === tab.projectId)
+  const s = useStore.getState()
+  const chat = useStore((st) => st.chats[tab.id]) ?? EMPTY_CHAT
+  const project = useStore((st) => st.projects.find((p) => p.id === tab.projectId))
+  const knownModels = useStore((st) => st.knownModels)
+  const homeDir = useStore((st) => st.info?.homeDir)
+  const rawPartial = useLive((l) => l.partial[tab.id] ?? '')
+  const thinking = useLive((l) => l.thinking[tab.id] ?? null)
+  const partial = useThrottled(rawPartial, rawPartial.length < 3000 ? 50 : rawPartial.length < 15000 ? 150 : 300)
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const [atBottom, setAtBottom] = useState(true)
   const [limit, setLimit] = useState(PAGE)
   const [focusKey, setFocusKey] = useState(0)
+  /** The scroll height before "Show earlier messages", to keep your place after they're added above. */
+  const grownFrom = useRef<number | null>(null)
 
   useEffect(() => {
     if (shown && tab.sessionId && chat.historyState === 'none') void s.loadHistory(tab.id)
@@ -58,7 +90,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   }, [active])
 
   const busy = chat.status === 'running' || chat.status === 'starting'
-  const visible = chat.items.length > limit ? chat.items.slice(-limit) : chat.items
+  const visible = useMemo(() => (chat.items.length > limit ? chat.items.slice(-limit) : chat.items), [chat.items, limit])
   const hidden = chat.items.length - visible.length
   // The time sits over each of your messages, and over Claude's text when the minute has moved on.
   const rows = useMemo(() => {
@@ -74,16 +106,35 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     })
   }, [visible])
 
+  // Your own message just went in: show it and what comes next, wherever you had scrolled to.
+  const lastItem = chat.items[chat.items.length - 1]
+  useLayoutEffect(() => {
+    if (lastItem?.kind === 'user') stick.current = true
+  }, [lastItem?.id])
+
   useLayoutEffect(() => {
     const el = scroller.current
-    if (el && stick.current) el.scrollTop = el.scrollHeight
-  }, [chat.items, chat.partial, chat.thinking, chat.permissions.length, chat.tasks.length, busy, shown])
+    if (!el) return
+    if (grownFrom.current !== null) {
+      // Earlier messages went in above: stay on what you were reading.
+      el.scrollTop += el.scrollHeight - grownFrom.current
+      grownFrom.current = null
+      return
+    }
+    if (stick.current) el.scrollTop = el.scrollHeight
+  }, [chat.items, partial, thinking, chat.permissions.length, chat.tasks.length, busy, shown, limit])
 
+  // Scrolling up lets go of the bottom at once, before the next words pull the view back down.
+  const letGo = (): void => {
+    stick.current = false
+  }
   const onScroll = (): void => {
     const el = scroller.current
     if (!el) return
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-    stick.current = near
+    const left = el.scrollHeight - el.scrollTop - el.clientHeight
+    // Only reaching the very bottom follows new output again.
+    if (left < 4) stick.current = true
+    const near = left < 80
     if (near !== atBottom) setAtBottom(near)
   }
 
@@ -91,7 +142,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     ? normPath(tab.cwd) === normPath(project.path)
       ? ''
       : relPath(tab.cwd, project.path)
-    : shortPath(tab.cwd, s.info?.homeDir)
+    : shortPath(tab.cwd, homeDir)
   const empty = !chat.items.length && !busy && chat.historyState !== 'loading'
 
   return (
@@ -106,7 +157,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         </span>
         {where ? <span className="chat-head-path">{where}</span> : null}
         <span className="chat-head-spacer" />
-        {chat.activeModel ? <span className="chat-head-meta">{modelName(chat.activeModel, s.knownModels)}</span> : null}
+        {chat.activeModel ? <span className="chat-head-meta">{modelName(chat.activeModel, knownModels)}</span> : null}
         <RunControl projectId={tab.projectId} />
         <button className="icon-btn" title="Open a terminal here" onClick={() => s.newTerminal(tab.projectId)}>
           <SquareTerminal />
@@ -116,7 +167,14 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         </button>
       </div>
 
-      <div className="chat-scroll" ref={scroller} onScroll={onScroll}>
+      <div
+        className="chat-scroll"
+        ref={scroller}
+        onScroll={onScroll}
+        onWheel={(e) => e.deltaY < 0 && letGo()}
+        onKeyDown={(e) => ['PageUp', 'ArrowUp', 'Home'].includes(e.key) && letGo()}
+        onPointerDown={(e) => e.target === e.currentTarget && letGo()}
+      >
         <div className="chat-column">
           {chat.historyState === 'loading' ? (
             <div className="history-loading">
@@ -125,7 +183,13 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
           ) : null}
           {chat.historyState === 'error' ? <div className="note tone-error"><div className="note-line">This conversation could not be loaded. {chat.error}</div></div> : null}
           {hidden > 0 ? (
-            <button className="load-earlier" onClick={() => setLimit((l) => l + PAGE)}>
+            <button
+              className="load-earlier"
+              onClick={() => {
+                grownFrom.current = scroller.current?.scrollHeight ?? null
+                setLimit((l) => l + PAGE)
+              }}
+            >
               Show earlier messages ({hidden.toLocaleString()})
             </button>
           ) : null}
@@ -154,15 +218,15 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               </div>
             )
           )}
-          {chat.thinking ? (
+          {thinking ? (
             <div className="tl tl-run tl-thinking-live">
-              <LiveThinking text={chat.thinking.text} since={chat.thinking.since} />
+              <LiveThinking text={thinking.text} since={thinking.since} />
             </div>
           ) : null}
-          {chat.partial ? (
+          {partial ? (
             <div className="tl tl-text">
               <div className="msg-assistant streaming">
-                <Markdown text={chat.partial} cwd={tab.cwd} />
+                <Markdown text={partial} cwd={tab.cwd} streaming />
               </div>
             </div>
           ) : null}
@@ -171,7 +235,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               <AgentTasks tabId={tab.id} tasks={chat.tasks} />
             </div>
           ) : null}
-          {busy && !chat.partial && !chat.thinking && !chat.permissions.length ? (
+          {busy && !partial && !thinking && !chat.permissions.length ? (
             <div className="tl tl-run tl-working">
               <Working since={chat.startedAt} />
             </div>

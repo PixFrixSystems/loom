@@ -49,13 +49,13 @@ function StepTime({ ms, title }: { ms: number | undefined; title: string }): Rea
   )
 }
 
-function CopyButton({ text }: { text: string }): ReactNode {
+function CopyButton({ text, title = 'Copy' }: { text: string; title?: string }): ReactNode {
   const [done, setDone] = useState(false)
   return (
     <button
       className="icon-btn small io-copy"
-      title={done ? 'Copied' : 'Copy'}
-      aria-label="Copy"
+      title={done ? 'Copied' : title}
+      aria-label={title}
       onClick={() => {
         void navigator.clipboard.writeText(text)
         setDone(true)
@@ -72,9 +72,16 @@ function IoRow({ label, text, lines, tone, copy }: { label: string; text: string
   const pre = useRef<HTMLPreElement>(null)
   const [all, setAll] = useState(false)
   const [cut, setCut] = useState(false)
+  // Measured again whenever it changes size: output that arrived while its tab was hidden
+  // measures nothing until the tab shows, and a pane's width changes where lines wrap.
   useLayoutEffect(() => {
     const el = pre.current
-    if (el && !all) setCut(el.scrollHeight > el.clientHeight + 2)
+    if (!el || all) return
+    const measure = (): void => setCut(el.scrollHeight > el.clientHeight + 2)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [text, all])
   return (
     <div className={`io-row${tone ? ` io-${tone}` : ''}`}>
@@ -147,7 +154,7 @@ export const ToolRow = memo(function ToolRow({ item }: { item: ToolItem }): Reac
             </div>
           ) : null}
           {out ? (
-            <IoRow label={failed ? 'ERROR' : 'OUT'} text={out} lines={item.detail ? 6 : 8} tone={failed ? 'err' : undefined} />
+            <IoRow label={failed ? 'ERROR' : 'OUT'} text={out} lines={item.detail ? 6 : 8} tone={failed ? 'err' : undefined} copy />
           ) : running ? (
             <div className="io-row">
               <span className="io-label">OUT</span>
@@ -275,6 +282,9 @@ export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: Ch
       return (
         <div className="msg-assistant">
           <Markdown text={item.text} cwd={cwd} />
+          <div className="msg-actions">
+            <CopyButton text={item.text} title="Copy this reply" />
+          </div>
         </div>
       )
     case 'thinking':
