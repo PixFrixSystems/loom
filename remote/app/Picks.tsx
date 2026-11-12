@@ -37,15 +37,18 @@ function Sheet({
   onClose: () => void
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null)
+  const body = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const dialog = ref.current
     if (dialog && !dialog.open) dialog.showModal()
+    // Focus goes to the sheet itself, not to its first button, which would show a ring nobody asked for.
+    body.current?.focus({ preventScroll: true })
     return () => dialog?.close()
   }, [])
   return (
     // Esc, the phone's back gesture and a tap outside all close it.
     <dialog ref={ref} className="sheet" aria-label={title} onClose={onClose} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet-body">
+      <div ref={body} className="sheet-body" tabIndex={-1}>
         <div className="sheet-head">
           <h2>{title}</h2>
           <button className="btn ghost" onClick={onClose}>

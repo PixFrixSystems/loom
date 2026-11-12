@@ -1578,6 +1578,9 @@ html::-webkit-scrollbar-thumb:hover {
 .composer {
   display: grid;
   flex: none;
+  /* One column that may be narrower than what is in it: Safari gives a message box a wide
+     minimum, which would push the Send button off the screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
@@ -1657,7 +1660,7 @@ html::-webkit-scrollbar-thumb:hover {
 }
 
 .sheet[open] {
-  display: flex;
+  display: block;
 }
 
 @starting-style {
@@ -1677,16 +1680,16 @@ html::-webkit-scrollbar-thumb:hover {
 }
 
 .sheet-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+/* The sheet takes the keyboard's focus as a whole, so no button in it starts out ringed */
+.sheet-body:focus {
+  outline: none;
 }
 
 .sheet-head {
   display: flex;
-  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -1705,24 +1708,31 @@ html::-webkit-scrollbar-thumb:hover {
 }
 
 .sheet-hint {
-  flex: none;
   margin: 0 0 10px;
   color: var(--text-3);
   font-size: 14.5px;
 }
 
+/* A long list (every model of the account) scrolls inside the sheet. Its height is a plain
+   number worked out from the sheet's, and the choices are plain blocks in it: Safari sizes
+   neither grid rows nor "flex: 1" by their content inside a box that is only as tall as allowed. */
 .sheet-list {
-  display: grid;
-  flex: 1;
-  align-content: start;
-  gap: 6px;
-  /* A long list (every model of the account) scrolls inside the sheet */
-  min-height: 0;
+  max-height: calc(82vh - 128px - env(safe-area-inset-bottom));
+  max-height: calc(82dvh - 128px - env(safe-area-inset-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   /* Room for the focus ring and the lit edge of the first and last choice */
   margin: 0 -4px;
   padding: 2px 4px;
+}
+
+.sheet-list .option {
+  width: 100%;
+}
+
+.sheet-list .option + .option {
+  margin-top: 6px;
 }
 
 .sheet .option-label {

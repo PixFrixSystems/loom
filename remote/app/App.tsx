@@ -327,7 +327,7 @@ function Composer({ tabId, working, off }: { tabId: string; working: boolean; of
           ref={box}
           className="composer-box"
           rows={1}
-          placeholder={off ?? (working ? 'Add to what Claude is doing' : 'Message Claude')}
+          placeholder={off ?? (working ? 'Add a message' : 'Message Claude')}
           aria-label="Message"
           disabled={!!off}
           value={text}
