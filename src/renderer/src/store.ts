@@ -766,14 +766,27 @@ export const useStore = create<Store>((set, get) => {
         return free.sort((a, b) => a.d - b.d)[0]?.id ?? null
       }
       let layout = s.layout
-      for (const p of panesOf(layout)) {
+      let focusedPane = s.focusedPane
+      for (const p of panesOf(s.layout)) {
         if (p.tabId !== tabId) continue
+        const list = panesOf(layout)
+        if (list.length > 1) {
+          // With the screen split, the pane goes with what it showed and the others take its room;
+          // the keyboard moves to its neighbour, as closing a pane does.
+          const at = list.findIndex((x) => x.id === p.id)
+          layout = removePane(layout, p.id)
+          if (focusedPane === p.id) {
+            const left = panesOf(layout)
+            focusedPane = left[Math.max(0, Math.min(at - 1, left.length - 1))].id
+          }
+          continue
+        }
         const next = replacement()
         layout = setPaneTab(layout, p.id, next)
         onScreen.add(next)
       }
       // Closing something else while Settings is open keeps Settings in front.
-      const activeTabId = s.activeTabId !== tabId && isOverlayTab(tabs.find((t) => t.id === s.activeTabId)) ? s.activeTabId : (paneById(layout, s.focusedPane)?.tabId ?? null)
+      const activeTabId = s.activeTabId !== tabId && isOverlayTab(tabs.find((t) => t.id === s.activeTabId)) ? s.activeTabId : (paneById(layout, focusedPane)?.tabId ?? null)
       const chats = { ...s.chats }
       delete chats[tabId]
       const terminals = { ...s.terminals }
@@ -787,7 +800,7 @@ export const useStore = create<Store>((set, get) => {
       // Chats with history, files, previews and diffs can come back; a shell or a dev server can't.
       const reopenable = (tab.kind === 'chat' && tab.sessionId) || tab.kind === 'file' || tab.kind === 'browser' || tab.kind === 'diff'
       const closedTabs = reopenable ? [...s.closedTabs.filter((t) => t.id !== tabId), tab].slice(-20) : s.closedTabs
-      set({ tabs, layout, activeTabId, chats, terminals, dirtyFiles, detached, fileDrafts, closedTabs })
+      set({ tabs, layout, focusedPane, activeTabId, chats, terminals, dirtyFiles, detached, fileDrafts, closedTabs })
       clearLive(tabId)
       if (activeTabId) get().activate(activeTabId)
     },
