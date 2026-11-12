@@ -38,12 +38,16 @@ export function ServerView({ tab, active, visible = active }: { tab: ServerTab; 
     fit.current = f
 
     t.attachCustomKeyEventHandler((e) => {
-      if (e.type === 'keydown' && e.ctrlKey && e.key === 'c' && t.hasSelection()) {
-        void navigator.clipboard.writeText(t.getSelection())
-        t.clearSelection()
+      if (e.defaultPrevented) return false
+      if (e.type === 'keydown' && e.ctrlKey && e.code === 'KeyC') {
+        // Copies a selection; with none, stops the server, as Ctrl+C does in a terminal.
+        if (t.hasSelection()) {
+          void navigator.clipboard.writeText(t.getSelection())
+          t.clearSelection()
+        } else useStore.getState().stopServer(tab.serverId)
         return false
       }
-      if (e.ctrlKey && ['Tab', 'w', 't', 'p', 'b'].includes(e.key)) return false
+      if (e.ctrlKey && (e.key === 'Tab' || ['KeyW', 'KeyT', 'KeyP', 'KeyB'].includes(e.code))) return false
       return true
     })
 

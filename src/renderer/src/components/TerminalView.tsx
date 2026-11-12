@@ -69,18 +69,19 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
     setError(null)
 
     t.attachCustomKeyEventHandler((e) => {
-      // Ctrl+C copies when there is a selection; Ctrl+V pastes.
-      if (e.type === 'keydown' && e.ctrlKey && e.key === 'c' && t.hasSelection()) {
+      // A key Loom already used as a shortcut (Ctrl+\ to split, Ctrl+3 for a tab...) isn't also
+      // typed into the shell, where it would mean something else.
+      if (e.defaultPrevented) return false
+      // Ctrl+C copies when there is a selection.
+      if (e.type === 'keydown' && e.ctrlKey && e.code === 'KeyC' && t.hasSelection()) {
         void navigator.clipboard.writeText(t.getSelection())
         t.clearSelection()
         return false
       }
-      if (e.type === 'keydown' && e.ctrlKey && e.key === 'v') {
-        void navigator.clipboard.readText().then((text) => window.loom.ptyWrite(tab.id, text))
-        return false
-      }
-      // Leave app shortcuts to the app.
-      if (e.ctrlKey && ['Tab', 'w', 't', 'p', 'b'].includes(e.key)) return false
+      // Ctrl+V: the browser's own paste event reaches the terminal; doing it here too pasted twice.
+      if (e.ctrlKey && e.code === 'KeyV') return false
+      // Leave app shortcuts to the app, by key position so a Greek layout works too.
+      if (e.ctrlKey && (e.key === 'Tab' || ['KeyW', 'KeyT', 'KeyP', 'KeyB'].includes(e.code))) return false
       return true
     })
 
