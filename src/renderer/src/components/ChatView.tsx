@@ -5,7 +5,7 @@ import { normPath, relPath, shortPath } from '../lib/paths'
 import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
 import { AgentTasks } from './AgentTasks'
 import { ChatItemView, LiveThinking, timelineClass } from './ChatItems'
-import { Composer } from './Composer'
+import { Composer, composers } from './Composer'
 import { Markdown } from './Markdown'
 import { PermissionCard } from './PermissionCard'
 import { ProjectMark } from './ProjectMark'
@@ -105,6 +105,44 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   /** The content's height at the last change, and when it last got shorter while you were scrolled up */
   const lastHeight = useRef(0)
   const shrankAt = useRef(0)
+  const root = useRef<HTMLDivElement>(null)
+  const [dragFiles, setDragFiles] = useState(false)
+
+  // Typing anywhere in the chat you're working in writes in its message box, and Esc stops
+  // Claude, wherever the keyboard is in it: after a click in the conversation, say.
+  useEffect(() => {
+    if (!active) return
+    let downInside = false
+    const onDown = (e: PointerEvent): void => {
+      downInside = !!root.current?.contains(e.target as Node)
+    }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.defaultPrevented || e.isComposing) return
+      const el = document.activeElement as HTMLElement | null
+      const loose = !el || el === document.body
+      if (!(loose ? downInside : root.current?.contains(el))) return
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return
+      if (document.querySelector('.confirm-backdrop, .menu, [role="dialog"]')) return
+      if (e.key === 'Escape') {
+        const status = useStore.getState().chat(tab.id).status
+        if (status === 'running' || status === 'starting') {
+          e.preventDefault()
+          useStore.getState().interrupt(tab.id)
+        }
+        return
+      }
+      // A character (AltGr ones too), not a shortcut. Space keeps scrolling the conversation.
+      const typed = e.key.length === 1 && e.key !== ' ' && ((!e.ctrlKey && !e.metaKey && !e.altKey) || e.getModifierState('AltGraph'))
+      // Focusing the box before the key lands sends the character there.
+      if (typed) composers.get(tab.id)?.focus()
+    }
+    window.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [active, tab.id])
 
   useEffect(() => {
     if (shown && tab.sessionId && chat.historyState === 'none') void s.loadHistory(tab.id)
@@ -176,7 +214,26 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   const empty = !chat.items.length && !busy && chat.historyState !== 'loading'
 
   return (
-    <div className="chat">
+    <div
+      ref={root}
+      className={`chat${dragFiles ? ' drag-files' : ''}`}
+      // Files dropped anywhere on the chat go to its message box: images attach, others are mentioned.
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files') || chat.moving) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        if (!dragFiles) setDragFiles(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragFiles(false)
+      }}
+      onDrop={(e) => {
+        setDragFiles(false)
+        if (!e.dataTransfer.files.length || chat.moving) return
+        e.preventDefault()
+        composers.get(tab.id)?.addFiles([...e.dataTransfer.files])
+      }}
+    >
       <div className="chat-head thread" data-color={project?.color}>
         <ProjectMark project={project} />
         <span className="chat-head-project" title={tab.cwd}>

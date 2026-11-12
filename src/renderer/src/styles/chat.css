@@ -896,7 +896,8 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.composer.drag-over {
+/* Files dragged over the chat: the message box is where they go */
+.chat.drag-files .composer {
   border-style: dashed;
   border-color: var(--accent);
 }

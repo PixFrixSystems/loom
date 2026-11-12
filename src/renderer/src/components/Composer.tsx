@@ -33,6 +33,12 @@ const BUILTIN_COMMANDS: SlashCommandInfo[] = [
 /** Claude takes images of these types, each up to 5 MB, a few per message. */
 const MAX_IMAGE = 5 * 1024 * 1024
 const MAX_IMAGES = 8
+
+/**
+ * Each chat's message box, for the rest of the chat to reach: typing anywhere in a chat writes
+ * here, and files dropped anywhere on it are attached here.
+ */
+export const composers = new Map<string, { focus: () => void; addFiles: (files: File[]) => void }>()
 const SENDABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 /** Longest side a converted image keeps; Claude scales larger ones down anyway. */
 const MAX_SIDE = 2000
@@ -131,7 +137,6 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   const [cmdIndex, setCmdIndex] = useState(0)
   // Esc or a click elsewhere puts the / list away until the text changes.
   const [cmdDismissed, setCmdDismissed] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
   const ta = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -225,6 +230,17 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
     }
   }
 
+  // The latest addFiles, for the chat around this box to call.
+  const addRef = useRef(addFiles)
+  addRef.current = addFiles
+  useEffect(() => {
+    const api = { focus: () => ta.current?.focus({ preventScroll: true }), addFiles: (files: File[]) => void addRef.current(files) }
+    composers.set(tab.id, api)
+    return () => {
+      if (composers.get(tab.id) === api) composers.delete(tab.id)
+    }
+  }, [tab.id])
+
   const submit = (): void => {
     if ((!text.trim() && !images.length) || chat.moving) return
     void s.send(tab.id, text, images)
@@ -266,23 +282,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   }
 
   return (
-    <div
-      className={`composer${dragOver ? ' drag-over' : ''}`}
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) {
-          e.preventDefault()
-          setDragOver(true)
-        }
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        setDragOver(false)
-        if (e.dataTransfer.files.length) {
-          e.preventDefault()
-          void addFiles(e.dataTransfer.files)
-        }
-      }}
-    >
+    <div className="composer">
       {commands.length ? (
         <div className="cmd-list" role="listbox" ref={cmdList}>
           {!chat.commands.length ? <div className="cmd-loading">Loading your skills and commands</div> : null}

@@ -100,7 +100,7 @@ A copy built this way runs the Claude Code that `npm install` brings along (or y
 | Sidebar | Ctrl+B |
 | Files, Git and Claude panel | Ctrl+Alt+B |
 | Settings | Ctrl+, |
-| Stop Claude | Esc in the message box |
+| Stop Claude | Esc anywhere in the chat |
 | Save a file | Ctrl+S |
 
 ## Good to know
