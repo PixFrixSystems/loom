@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { createReadStream, createWriteStream, existsSync, promises as fsp, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { createInterface } from 'node:readline'
+import { pipeline } from 'node:stream/promises'
 import { execFile, execFileSync } from 'node:child_process'
 import type {
   CanUseTool,
@@ -75,10 +75,13 @@ function exeBehindShim(cmd: string): string | null {
   return null
 }
 
-// Only a found path is kept, so a Claude Code installed while Loom is open is picked up.
+// A found path is kept; "not found" only for a few seconds, so a Claude Code installed while
+// Loom is open is picked up without running where.exe on every check.
 let installedCache: string | null = null
+let missingUntil = 0
 function installedClaudePath(): string | null {
   if (installedCache && existsSync(installedCache)) return installedCache
+  if (Date.now() < missingUntil) return null
   const candidates: string[] = []
   try {
     const out = execFileSync('where.exe', ['claude'], { encoding: 'utf8', windowsHide: true, timeout: 4000 })
@@ -98,6 +101,7 @@ function installedClaudePath(): string | null {
     join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe')
   )
   installedCache = candidates.find((p) => existsSync(p)) ?? null
+  if (!installedCache) missingUntil = Date.now() + 10_000
   return installedCache
 }
 
@@ -375,6 +379,11 @@ class ChatSession {
   private pending = new Map<string, (r: PermissionResponse) => void>()
   private partial = ''
   private busy = false
+  private status: ChatStatus = 'idle'
+  /** Set by Stop, so the turn's end reads as stopped rather than as an error */
+  private stopRequested = false
+  /** Questions waiting for an answer, re-sent to a window that takes the chat over */
+  private requests = new Map<string, PermissionRequest>()
   private thinking = ''
   /** Inside a thinking block: the chat shows "Thinking" from its start, text or not */
   private thinkingOn = false
@@ -403,12 +412,18 @@ class ChatSession {
     this.held ??= []
   }
 
-  /** Points the chat at another window and sends it whatever was held back on the way. */
+  /**
+   * Points the chat at another window and sends it whatever was held back on the way. Then the
+   * current state, for a window that starts from scratch (a reload, or a hand-back that lost its
+   * copy): whether Claude is working, and any question still waiting for an answer.
+   */
   rebind(web: WebContents): void {
     this.web = web
     const held = this.held
     this.held = null
     for (const event of held ?? []) this.emit(event)
+    this.emit({ type: 'status', status: this.status })
+    for (const request of this.requests.values()) this.emit({ type: 'permission', request })
   }
 
   private emit(event: ChatEvent): void {
@@ -421,6 +436,7 @@ class ChatSession {
 
   private setStatus(status: ChatStatus, error?: string): void {
     this.busy = status === 'starting' || status === 'running'
+    this.status = status
     this.emit({ type: 'status', status, error })
   }
 
@@ -554,7 +570,18 @@ class ChatSession {
       }
       case 'result': {
         this.clearPartial()
-        const error = m.subtype === 'success' ? (m.is_error ? m.result : undefined) : m.errors?.join('\n') || 'The turn ended with an error.'
+        // Pressing Stop ends the turn with an internal diagnostic as its "error"; that's a stop.
+        const stopped = this.stopRequested && m.subtype !== 'success'
+        this.stopRequested = false
+        const errors = m.subtype === 'success' ? [] : (m.errors ?? []).filter((e) => !e.startsWith('[ede_diagnostic]'))
+        const error = stopped
+          ? undefined
+          : m.subtype === 'success'
+            ? m.is_error
+              ? m.result
+              : undefined
+            : errors.join('\n') || 'The turn ended with an error.'
+        if (stopped) this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'info', text: 'Stopped' }] })
         if (error) this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text: truncate(error, 2000) }] })
         this.emit({ type: 'turn-done', costUsd: m.total_cost_usd, durationMs: m.duration_ms, error })
         void this.refreshContext()
@@ -677,12 +704,14 @@ class ChatSession {
         canAlwaysAllow: !!suggestions?.length
       }
     }
+    this.requests.set(requestId, request)
     this.emit({ type: 'permission', request })
 
     return new Promise<PermissionResult>((resolve) => {
       const finish = (result: PermissionResult): void => {
         if (!this.pending.has(requestId)) return
         this.pending.delete(requestId)
+        this.requests.delete(requestId)
         this.emit({ type: 'permission-done', requestId })
         resolve(result)
       }
@@ -696,7 +725,9 @@ class ChatSession {
       case 'allow':
         return { behavior: 'allow', updatedInput: input }
       case 'allow-always':
-        return { behavior: 'allow', updatedInput: input, updatedPermissions: suggestions }
+        // Claude Code suggests saving the rule in the project's settings file, which would allow it
+        // in every later chat too. The button says "for this chat", so keep it to this session.
+        return { behavior: 'allow', updatedInput: input, updatedPermissions: suggestions?.map((u) => ({ ...u, destination: 'session' as const })) }
       case 'answer':
         return { behavior: 'allow', updatedInput: { ...input, answers: r.answers } }
       case 'approve-plan':
@@ -715,6 +746,7 @@ class ChatSession {
     for (const [id, respond] of [...this.pending]) {
       respond({ decision: 'deny', message })
       this.pending.delete(id)
+      this.requests.delete(id)
     }
   }
 
@@ -724,8 +756,21 @@ class ChatSession {
 
   async send(text: string, images: ImageAttachment[]): Promise<void> {
     if (!this.q) {
+      if (!executableFor(this.settings())) {
+        this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text: MISSING_CLAUDE }] })
+        this.setStatus('error', MISSING_CLAUDE)
+        return
+      }
       this.setStatus('starting')
-      await this.start()
+      try {
+        await this.start()
+      } catch (e) {
+        this.q = null
+        const text = (e as Error).message || 'Claude Code could not be started.'
+        this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text }] })
+        this.setStatus('error', text)
+        return
+      }
     }
     const content = [
       ...images.map((img) => ({
@@ -740,6 +785,7 @@ class ChatSession {
   }
 
   async interrupt(): Promise<void> {
+    if (this.busy) this.stopRequested = true
     this.rejectPending('Stopped by the user.')
     try {
       await this.q?.interrupt()
@@ -893,6 +939,10 @@ export async function writeCommitMessage(cwd: string, files: string, diff: strin
         abortController: abort,
         systemPrompt: { type: 'preset', preset: 'claude_code' },
         pathToClaudeCodeExecutable: executableFor(settings),
+        // The diff is text from the repository; nothing in it should be able to run anything.
+        tools: [],
+        mcpServers: {},
+        strictMcpConfig: true,
         canUseTool: async () => ({ behavior: 'deny', message: 'Write the message only.' })
       }
     })) {
@@ -937,14 +987,33 @@ export async function moveSession(sessionId: string, fromCwd: string, toCwd: str
   const part = `${dest}.moving`
   const pattern = new RegExp(`"cwd":"${escapeRegExp(JSON.stringify(fromCwd).slice(1, -1))}"`, 'gi')
   const replacement = `"cwd":${JSON.stringify(toCwd)}`
+  // A function, so "$" in a path is taken literally.
+  const fix = (line: string): string => line.replace(pattern, () => replacement)
   try {
     await fsp.mkdir(destDir, { recursive: true })
-    const out = createWriteStream(part, { encoding: 'utf8' })
-    const lines = createInterface({ input: createReadStream(src, { encoding: 'utf8' }), crlfDelay: Infinity })
-    for await (const line of lines) {
-      if (!out.write(`${line.replace(pattern, replacement)}\n`)) await new Promise((r) => out.once('drain', r))
-    }
-    await new Promise<void>((resolve, reject) => out.end((e?: Error | null) => (e ? reject(e) : resolve())))
+    // Lines end only at "\n": text inside a message can hold U+2028 and U+2029, which readline
+    // would treat as line ends and so split one JSON record into broken pieces. Pieces of a long
+    // line are collected and joined once, so a 16 MB line isn't copied over and over.
+    await pipeline(
+      createReadStream(src, { encoding: 'utf8' }),
+      async function* (source: AsyncIterable<string>) {
+        let pieces: string[] = []
+        for await (const chunk of source) {
+          let start = 0
+          let nl = chunk.indexOf('\n')
+          while (nl !== -1) {
+            pieces.push(chunk.slice(start, nl))
+            yield `${fix(pieces.join(''))}\n`
+            pieces = []
+            start = nl + 1
+            nl = chunk.indexOf('\n', start)
+          }
+          if (start < chunk.length) pieces.push(chunk.slice(start))
+        }
+        if (pieces.length) yield fix(pieces.join(''))
+      },
+      createWriteStream(part, { encoding: 'utf8' })
+    )
   } catch (e) {
     await fsp.rm(part, { force: true })
     return { ok: false, error: `The chat could not be copied: ${(e as Error).message}` }
@@ -952,21 +1021,22 @@ export async function moveSession(sessionId: string, fromCwd: string, toCwd: str
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const backups = join(homedir(), '.claude', 'chat-backups')
-  await fsp.mkdir(backups, { recursive: true })
   const side = join(dirname(src), sessionId)
   try {
-    // A copy of the original first; then the moved chat goes in place; only then does the original go.
-    // A failure at any point leaves the chat whole in at least one place.
+    // A copy of the original first, then the moved chat goes in place.
+    await fsp.mkdir(backups, { recursive: true })
     await fsp.copyFile(src, join(backups, `${sessionId}-moved-${stamp}.jsonl`))
     if (!sameFolder && existsSync(side)) await fsp.cp(side, join(destDir, sessionId), { recursive: true })
     await fsp.rename(part, dest)
-    if (!sameFolder) {
-      await fsp.rm(src, { force: true })
-      if (existsSync(side)) await fsp.rename(side, join(backups, `${sessionId}-moved-${stamp}`))
-    }
   } catch (e) {
     await fsp.rm(part, { force: true })
     return { ok: false, error: `The chat could not be moved: ${(e as Error).message}` }
+  }
+  // The chat is whole in its new place, so the move has happened. Tidying up the old copy can
+  // fail (a locked file) without undoing that; at worst the chat is listed in both projects.
+  if (!sameFolder) {
+    await fsp.rm(src, { force: true }).catch((e) => console.error('[move] the old copy stays', e))
+    if (existsSync(side)) await fsp.rename(side, join(backups, `${sessionId}-moved-${stamp}`)).catch((e) => console.error('[move] the old folder stays', e))
   }
   sessionCache = null
   cwdCache.delete(sessionId)
