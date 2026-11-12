@@ -202,9 +202,14 @@ export async function gitCommit(dir: string, message: string, stageAll: boolean,
   let args = ['commit', '-F', '-']
   if (only.length) {
     const rels = only.map((p) => toRel(root, p))
-    // New files must be known to git before a commit can name them.
-    const r = await attempt(['add', '-A', '--', ...rels], root)
-    if (!r.ok) return r
+    // New files must be known to git before a commit can name them. Only files on disk are added:
+    // a staged deletion or a rename's old name is in neither the folder nor the index, and git add
+    // fails on it. The commit takes those as they are.
+    const present = only.filter((p) => existsSync(p)).map((p) => toRel(root, p))
+    if (present.length) {
+      const r = await attempt(['add', '-A', '--', ...present], root)
+      if (!r.ok) return r
+    }
     args = ['commit', '-F', '-', '--only', '--', ...rels]
   } else if (stageAll) {
     const r = await attempt(['add', '-A', '--', '.'], dir)
