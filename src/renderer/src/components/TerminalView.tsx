@@ -57,7 +57,10 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
       cursorBlink: true,
       allowProposedApi: true,
       scrollback: 8000,
-      theme: THEME
+      theme: THEME,
+      // Programs print links as terminal hyperlinks too (Claude Code's sign-in address, for one):
+      // those open in the browser like plain ones, instead of xterm's own prompt and window.
+      linkHandler: { activate: (_e, uri) => void window.loom.openExternal(uri) }
     })
     const f = new FitAddon()
     t.loadAddon(f)

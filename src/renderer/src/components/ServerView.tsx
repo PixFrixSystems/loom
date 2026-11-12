@@ -28,7 +28,8 @@ export function ServerView({ tab, active, visible = active }: { tab: ServerTab; 
       convertEol: true,
       allowProposedApi: true,
       scrollback: 10000,
-      theme: THEME
+      theme: THEME,
+      linkHandler: { activate: (_e, uri) => void window.loom.openExternal(uri) }
     })
     const f = new FitAddon()
     t.loadAddon(f)
