@@ -17,6 +17,7 @@ import type {
   SlashCommand
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
+  AgentTask,
   AuthStatus,
   ChatEvent,
   ChatStartOptions,
@@ -384,6 +385,9 @@ class ChatSession {
   private stopRequested = false
   /** Questions waiting for an answer, re-sent to a window that takes the chat over */
   private requests = new Map<string, PermissionRequest>()
+  /** Sub-agents and background tasks still running */
+  private tasks = new Map<string, AgentTask>()
+  private tasksTimer: NodeJS.Timeout | null = null
   private thinking = ''
   /** Inside a thinking block: the chat shows "Thinking" from its start, text or not */
   private thinkingOn = false
@@ -424,6 +428,7 @@ class ChatSession {
     for (const event of held ?? []) this.emit(event)
     this.emit({ type: 'status', status: this.status })
     for (const request of this.requests.values()) this.emit({ type: 'permission', request })
+    this.emit({ type: 'tasks', tasks: [...this.tasks.values()] })
   }
 
   private emit(event: ChatEvent): void {
@@ -440,9 +445,28 @@ class ChatSession {
     this.emit({ type: 'status', status, error })
   }
 
-  /** In the middle of a turn. An open session between turns doesn't count. */
+  /**
+   * In the middle of a turn, or with sub-agents still at work after it (they report back and
+   * Claude carries on). An open session between turns doesn't count.
+   */
   get running(): boolean {
-    return this.busy
+    return this.busy || this.tasks.size > 0
+  }
+
+  /** Sends the running tasks, at most a few times a second while they report progress. */
+  private sendTasks(now = false): void {
+    if (this.tasksTimer && !now) return
+    if (this.tasksTimer) clearTimeout(this.tasksTimer)
+    const flush = (): void => {
+      this.tasksTimer = null
+      this.emit({ type: 'tasks', tasks: [...this.tasks.values()] })
+    }
+    if (now) flush()
+    else this.tasksTimer = setTimeout(flush, 250)
+  }
+
+  stopTask(taskId: string): void {
+    void this.q?.stopTask(taskId).catch(() => undefined)
   }
 
   get query(): Query | null {
@@ -612,6 +636,50 @@ class ChatSession {
       if (content.trim()) {
         this.emit({ type: 'items', items: [{ kind: 'note', id: m.uuid, tone: 'info', text: content.split('\n')[0].slice(0, 240), detail: content.includes('\n') ? truncate(content, 8000) : undefined }] })
       }
+    } else if (sub === 'task_started') {
+      const t = m as unknown as {
+        task_id: string
+        description?: string
+        subagent_type?: string
+        task_type?: string
+        is_backgrounded?: boolean
+        ambient?: boolean
+        skip_transcript?: boolean
+      }
+      // Housekeeping tasks (watchers and the like) aren't work the person started.
+      if (t.ambient || t.skip_transcript) return
+      this.tasks.set(t.task_id, {
+        id: t.task_id,
+        description: t.description || t.subagent_type || 'Background task',
+        agentType: t.subagent_type,
+        taskType: t.task_type,
+        background: !!t.is_backgrounded,
+        startedAt: Date.now()
+      })
+      this.sendTasks(true)
+    } else if (sub === 'task_progress') {
+      const t = m as unknown as { task_id: string; description?: string; last_tool_name?: string; summary?: string; usage?: { tool_uses?: number } }
+      const cur = this.tasks.get(t.task_id)
+      if (!cur) return
+      this.tasks.set(t.task_id, {
+        ...cur,
+        description: t.description || cur.description,
+        lastTool: t.last_tool_name ?? cur.lastTool,
+        toolUses: t.usage?.tool_uses ?? cur.toolUses,
+        summary: t.summary ?? cur.summary
+      })
+      this.sendTasks()
+    } else if (sub === 'task_updated') {
+      const t = m as unknown as { task_id: string; patch?: { status?: string; description?: string; is_backgrounded?: boolean } }
+      const cur = this.tasks.get(t.task_id)
+      if (!cur) return
+      const status = t.patch?.status
+      if (status && status !== 'running' && status !== 'pending' && status !== 'paused') this.tasks.delete(t.task_id)
+      else this.tasks.set(t.task_id, { ...cur, description: t.patch?.description || cur.description, background: t.patch?.is_backgrounded ?? cur.background })
+      this.sendTasks(true)
+    } else if (sub === 'task_notification') {
+      const t = m as unknown as { task_id: string }
+      if (this.tasks.delete(t.task_id)) this.sendTasks(true)
     } else if (sub === 'api_retry') {
       const r = m as { attempt: number; max_retries: number; error: string }
       this.emit({ type: 'items', items: [{ kind: 'note', id: m.uuid, tone: 'info', text: `${errorText(r.error)} Retrying (${r.attempt} of ${r.max_retries}).` }] })

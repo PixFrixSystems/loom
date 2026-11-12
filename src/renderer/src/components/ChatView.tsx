@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import type { ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
 import { modelName, useStore } from '../store'
+import { AgentTasks } from './AgentTasks'
 import { ChatItemView, LiveThinking, timelineClass } from './ChatItems'
 import { Composer } from './Composer'
 import { Markdown } from './Markdown'
@@ -76,7 +77,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   useLayoutEffect(() => {
     const el = scroller.current
     if (el && stick.current) el.scrollTop = el.scrollHeight
-  }, [chat.items, chat.partial, chat.thinking, chat.permissions.length, busy, shown])
+  }, [chat.items, chat.partial, chat.thinking, chat.permissions.length, chat.tasks.length, busy, shown])
 
   const onScroll = (): void => {
     const el = scroller.current
@@ -163,6 +164,11 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
               <div className="msg-assistant streaming">
                 <Markdown text={chat.partial} cwd={tab.cwd} />
               </div>
+            </div>
+          ) : null}
+          {chat.tasks.length ? (
+            <div className="tl tl-run tl-agents">
+              <AgentTasks tabId={tab.id} tasks={chat.tasks} />
             </div>
           ) : null}
           {busy && !chat.partial && !chat.thinking && !chat.permissions.length ? (

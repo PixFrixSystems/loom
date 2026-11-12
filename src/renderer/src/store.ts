@@ -31,6 +31,7 @@ import {
   type Tab,
   type TabSnapshot,
   type UpdateStatus,
+  type AgentTask,
   type UsageSnapshot
 } from '@shared/types'
 import {
@@ -69,6 +70,8 @@ export interface ChatRuntime {
   startedAt?: number
   /** How full the context window is */
   context?: ContextInfo
+  /** Sub-agents and background tasks running now */
+  tasks: AgentTask[]
 }
 
 /** This window shows one tab that was moved out of the main window. */
@@ -99,7 +102,12 @@ export interface ConfirmRequest {
 
 /** A chat in the middle of something: a turn, a question for you, or agents still running. */
 export function chatBusy(c: ChatRuntime | undefined): boolean {
-  return !!c && (c.status === 'running' || c.status === 'starting' || c.permissions.length > 0)
+  return !!c && (chatWorking(c) || c.permissions.length > 0)
+}
+
+/** Claude, or agents it started, at work in this chat. */
+export function chatWorking(c: ChatRuntime | undefined): boolean {
+  return !!c && (c.status === 'running' || c.status === 'starting' || (c.tasks?.length ?? 0) > 0)
 }
 
 export interface MenuItem {
@@ -269,6 +277,7 @@ export function newChatRuntime(): ChatRuntime {
     thinking: null,
     status: 'idle',
     permissions: [],
+    tasks: [],
     historyState: 'none',
     historyTotal: 0,
     permissionMode: null,
@@ -1134,7 +1143,14 @@ export const useStore = create<Store>((set, get) => {
           break
         }
         case 'permission':
-          patchChat(tabId, (c) => ({ permissions: [...c.permissions, ev.request], unread: get().activeTabId !== tabId }))
+          // A window that takes a chat over is sent its open questions again: keep one card each.
+          patchChat(tabId, (c) => ({
+            permissions: [...c.permissions.filter((p) => p.requestId !== ev.request.requestId), ev.request],
+            unread: get().activeTabId !== tabId
+          }))
+          break
+        case 'tasks':
+          patchChat(tabId, () => ({ tasks: ev.tasks }))
           break
         case 'permission-done':
           patchChat(tabId, (c) => ({ permissions: c.permissions.filter((p) => p.requestId !== ev.requestId) }))

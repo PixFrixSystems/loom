@@ -41,6 +41,23 @@ export interface Group {
   watchSeen?: string[]
 }
 
+/** A sub-agent or background task Claude started, while it runs. */
+export interface AgentTask {
+  id: string
+  description: string
+  /** The kind of agent ("Explore", "general-purpose"...) for a sub-agent */
+  agentType?: string
+  /** "local_agent", "local_bash", "local_workflow"...; absent from older Claude Code */
+  taskType?: string
+  /** Runs on while the chat does other things, or Claude waits for it */
+  background: boolean
+  startedAt: number
+  lastTool?: string
+  toolUses?: number
+  /** One line on what it is doing, when Claude Code reports one */
+  summary?: string
+}
+
 /** Where the installed app is with updates. */
 export interface UpdateStatus {
   /** False for copies built from source, which update with git */
@@ -344,6 +361,8 @@ export type ChatEvent =
   | { type: 'items'; items: ChatItem[] }
   | { type: 'tool-result'; toolUseId: string; result: string; isError: boolean; ms?: number }
   | { type: 'partial'; text: string }
+  /** The sub-agents and background tasks running in this chat right now */
+  | { type: 'tasks'; tasks: AgentTask[] }
   /** Claude's thinking so far, while it is still thinking */
   | { type: 'thinking-partial'; text: string }
   | { type: 'partial-clear' }

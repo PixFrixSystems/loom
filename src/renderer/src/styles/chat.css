@@ -1345,6 +1345,79 @@
   background: var(--warn);
 }
 
+/* Agents Claude started, while they run */
+.tl-agents {
+  --dot-y: 12px;
+}
+
+.agents {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 6px;
+}
+
+.agents-head {
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 2px 4px 2px 0;
+  border-radius: var(--radius);
+}
+
+.agent-row:hover {
+  background: var(--bg-hover);
+}
+
+.agent-spin {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+
+.agent-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.agent-desc,
+.agent-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-desc {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.agent-summary {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.agent-meta {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Still running: an open ring */
 .tl-run::before {
   background: var(--bg);

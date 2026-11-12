@@ -287,6 +287,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('chat:send', (_e, tabId: string, text: string, images: ImageAttachment[]) => getChat(tabId)?.send(text, images))
   ipcMain.handle('chat:interrupt', (_e, tabId: string) => getChat(tabId)?.interrupt())
+  ipcMain.handle('chat:stopTask', (_e, tabId: string, taskId: string) => getChat(tabId)?.stopTask(taskId))
   ipcMain.handle('chat:setModel', (_e, tabId: string, model: string | null) => getChat(tabId)?.setModel(model))
   ipcMain.handle('chat:setEffort', (_e, tabId: string, effort: EffortLevel | null, ultracode: boolean) =>
     getChat(tabId)?.setEffort(effort, ultracode)

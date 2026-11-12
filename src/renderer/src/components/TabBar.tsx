@@ -2,7 +2,7 @@ import { AppWindow, ChevronDown, ChevronLeft, ChevronRight, Compass, FileText, G
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Tab } from '@shared/types'
 import { inFileRow, paneOfTab } from '../lib/layout'
-import { useStore, type MenuItem } from '../store'
+import { chatWorking, useStore, type MenuItem } from '../store'
 import { LayoutButton } from './LayoutMenu'
 import { ProjectMark } from './ProjectMark'
 
@@ -96,7 +96,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
     if (active) el.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [active])
 
-  const running = chat && (chat.status === 'running' || chat.status === 'starting')
+  const running = chatWorking(chat)
   const sameRow = s.tabs.filter((t) => inFileRow(t) === inFileRow(tab))
   const rowIndex = sameRow.findIndex((t) => t.id === tab.id)
   const waiting = chat && chat.permissions.length > 0

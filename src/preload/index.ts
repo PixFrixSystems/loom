@@ -58,6 +58,7 @@ const api = {
   chatSend: (tabId: string, text: string, images: ImageAttachment[]): Promise<void> =>
     ipcRenderer.invoke('chat:send', tabId, text, images),
   chatInterrupt: (tabId: string): Promise<void> => ipcRenderer.invoke('chat:interrupt', tabId),
+  chatStopTask: (tabId: string, taskId: string): Promise<void> => ipcRenderer.invoke('chat:stopTask', tabId, taskId),
   chatSetModel: (tabId: string, model: string | null): Promise<void> => ipcRenderer.invoke('chat:setModel', tabId, model),
   chatSetMode: (tabId: string, mode: PermissionMode): Promise<void> => ipcRenderer.invoke('chat:setMode', tabId, mode),
   chatSetEffort: (tabId: string, effort: EffortLevel | null, ultracode: boolean): Promise<void> =>

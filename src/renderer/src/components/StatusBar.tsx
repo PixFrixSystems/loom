@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { UsageLimit, UsageSnapshot } from '@shared/types'
 import { timeAgo } from '../lib/paths'
-import { modelName, useStore } from '../store'
+import { chatWorking, modelName, useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { ProjectMark } from './ProjectMark'
 import { ServersStatus } from './Servers'
@@ -150,7 +150,8 @@ export function StatusBar(): ReactNode {
   const project = s.projects.find((p) => p.id === tab?.projectId)
   const git = project ? s.git[project.id] : undefined
   const chat = tab?.kind === 'chat' ? s.chats[tab.id] : undefined
-  const running = Object.values(s.chats).filter((c) => c.status === 'running' || c.status === 'starting').length
+  const running = Object.values(s.chats).filter((c) => chatWorking(c)).length
+  const agents = Object.values(s.chats).reduce((n, c) => n + (c.tasks?.length ?? 0), 0)
   const waiting = Object.values(s.chats).filter((c) => c.permissions.length).length
 
   useEffect(() => {
@@ -194,6 +195,7 @@ export function StatusBar(): ReactNode {
         <span className="sb-item">
           <LoaderCircle className="spin" />
           {running === 1 ? '1 chat working' : `${running} chats working`}
+          {agents ? <span className="sb-muted">{agents === 1 ? '1 agent' : `${agents} agents`}</span> : null}
         </span>
       ) : null}
       {mode ? <span className="sb-item sb-muted">{MODE_OPTIONS.find((m) => m.value === mode)?.label ?? mode}</span> : null}

@@ -15,7 +15,7 @@ import {
 import { useMemo, useState, type ReactNode } from 'react'
 import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary, type SubFolder } from '@shared/types'
 import { baseName, normPath, projectForPath, timeAgo } from '../lib/paths'
-import { useStore, type MenuItem } from '../store'
+import { chatWorking, useStore, type MenuItem } from '../store'
 import { ProjectMark } from './ProjectMark'
 import { defaultTarget, primaryServer, projectRunItems, ServerMark } from './Servers'
 
@@ -87,7 +87,7 @@ function useProjectActivity(): Record<string, Activity> {
       if (t.kind !== 'chat' || !t.projectId) continue
       const c = chats[t.id]
       if (!c) continue
-      const a: Activity = c.permissions.length ? 'waiting' : c.status === 'running' || c.status === 'starting' ? 'running' : c.unread ? 'unread' : null
+      const a: Activity = c.permissions.length ? 'waiting' : chatWorking(c) ? 'running' : c.unread ? 'unread' : null
       const rank = { waiting: 3, running: 2, unread: 1 } as const
       const cur = out[t.projectId]
       if (a && (!cur || rank[a] > rank[cur])) out[t.projectId] = a
