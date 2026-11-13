@@ -271,6 +271,41 @@ export const THEMES: { value: ThemeName; label: string; description: string; fra
   { value: 'monokai', label: 'Monokai', description: 'The classic: pink, green and yellow on olive black', frame: { background: '#1e1f1c', titleBar: '#1e1f1c', symbols: '#d6d5cb' } }
 ]
 
+/** The colours a theme made in Settings starts from, each '#rrggbb'. shared/customTheme.ts works out the rest. */
+export const THEME_SEEDS = [
+  { key: 'background', label: 'Background', hint: 'Panes: chats, Settings, the sidebar' },
+  { key: 'surface', label: 'Surface', hint: 'Your messages, the message box, menus' },
+  { key: 'well', label: 'Well', hint: 'The code editor, terminals, tool output' },
+  { key: 'text', label: 'Text', hint: 'Most text' },
+  { key: 'muted', label: 'Muted text', hint: 'Hints, times, labels' },
+  { key: 'accent', label: 'Accent', hint: 'The one colour that means live, active, selected' },
+  { key: 'ok', label: 'Done', hint: 'Success and additions' },
+  { key: 'warn', label: 'Warning', hint: 'Things to check' },
+  { key: 'danger', label: 'Error', hint: 'Errors and deletions' },
+  { key: 'comment', label: 'Code: comments', hint: 'Comments in code' },
+  { key: 'keyword', label: 'Code: keywords', hint: 'if, return, const' },
+  { key: 'string', label: 'Code: strings', hint: 'Text in quotes' },
+  { key: 'number', label: 'Code: numbers', hint: 'Numbers and attributes' },
+  { key: 'type', label: 'Code: types', hint: 'Types and classes' },
+  { key: 'function', label: 'Code: functions', hint: 'Function names' },
+  { key: 'variable', label: 'Code: variables', hint: 'Variable names' },
+  { key: 'tag', label: 'Code: tags', hint: 'HTML tags, JSON keys' }
+] as const
+
+export type ThemeSeedKey = (typeof THEME_SEEDS)[number]['key']
+export type ThemeSeeds = Record<ThemeSeedKey, string>
+
+/** A theme made in Settings, with Claude's help or by hand */
+export interface CustomTheme {
+  /** 'custom-' and letters, digits and dashes: it ends up in a CSS selector */
+  id: `custom-${string}`
+  name: string
+  colours: ThemeSeeds
+}
+
+/** A built-in theme, or one of the user's own */
+export type ThemeChoice = ThemeName | CustomTheme['id']
+
 export interface LoomSettings {
   claudeSource: ClaudeSource
   claudeCustomPath: string
@@ -297,7 +332,9 @@ export interface LoomSettings {
   /** Days to keep the copies a moved chat leaves in ~/.claude/chat-backups; 0 keeps them forever */
   keepChatBackupsDays?: number
   /** The colour theme; none is Loom's own */
-  theme?: ThemeName
+  theme?: ThemeChoice
+  /** Themes made in Settings. Read through readCustomThemes: the file can be edited by hand. */
+  customThemes?: CustomTheme[]
 }
 
 export interface ModelOption {

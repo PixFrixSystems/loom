@@ -4,8 +4,10 @@ import JsonWorker from 'monaco-editor/language/json/json.worker?worker'
 import CssWorker from 'monaco-editor/language/css/css.worker?worker'
 import HtmlWorker from 'monaco-editor/language/html/html.worker?worker'
 import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker'
+import { customEditor } from '@shared/customTheme'
 import type { ThemeName } from '@shared/types'
 import { useStore } from '../store'
+import { lookKey, lookOf, type Look } from './theme'
 
 self.MonacoEnvironment = {
   getWorker(_id: string, label: string): Worker {
@@ -334,15 +336,35 @@ const EDITOR_THEMES: Record<ThemeName, monaco.editor.IStandaloneThemeData> = {
 }
 for (const [name, theme] of Object.entries(EDITOR_THEMES)) monaco.editor.defineTheme(name, theme)
 
-/** The editor theme for Loom's current theme; an unknown or missing one is Loom's own, as everywhere else */
-export const editorTheme = (): string => {
-  const theme = useStore.getState().settings.theme
-  return theme && theme in EDITOR_THEMES ? theme : 'loom'
+// The user's own themes (and one being previewed) are built from their seeds when the look changes.
+// Monaco keeps a theme by name, so two names take turns: new colours go in under the one not showing.
+let customName = 'custom-b'
+function editorThemeFor(look: Look): string {
+  if (!look.seeds) return look.theme
+  customName = customName === 'custom-a' ? 'custom-b' : 'custom-a'
+  const { colors, tokens } = customEditor(look.seeds)
+  monaco.editor.defineTheme(customName, {
+    base: 'vs-dark',
+    inherit: true,
+    colors,
+    rules: Object.entries(tokens).map(([token, colour]) => ({ token, foreground: colour.slice(1) }))
+  })
+  return customName
 }
 
-// Monaco has one theme for the whole page, so every open editor follows the setting from here.
-useStore.subscribe((now, before) => {
-  if (now.settings.theme !== before.settings.theme) monaco.editor.setTheme(editorTheme())
+let shown = editorThemeFor(lookOf(useStore.getState()))
+let shownKey = lookKey(useStore.getState())
+
+/** The editor theme on screen now, for editors as they open */
+export const editorTheme = (): string => shown
+
+// Monaco has one theme for the whole page, so every open editor follows the look from here.
+useStore.subscribe((s) => {
+  const next = lookKey(s)
+  if (next === shownKey) return
+  shownKey = next
+  shown = editorThemeFor(JSON.parse(next) as Look)
+  monaco.editor.setTheme(shown)
 })
 
 export { monaco }

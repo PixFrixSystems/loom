@@ -4,8 +4,10 @@ import { Terminal, type ITheme } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { customTerminal } from '@shared/customTheme'
 import type { TerminalTab, ThemeName } from '@shared/types'
 import { relPath, shortPath } from '../lib/paths'
+import { lookKey, type Look } from '../lib/theme'
 import { useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 
@@ -175,8 +177,12 @@ const TERMINAL_THEMES: Record<ThemeName, ITheme> = {
   monokai: MONOKAI
 }
 
-/** The terminal colours for a Loom theme. Server output uses them too. */
-export const terminalTheme = (theme: ThemeName | undefined): ITheme => TERMINAL_THEMES[theme ?? 'loom'] ?? LOOM
+/** The terminal colours for the look on screen (a lookKey). Server output uses them too. */
+export function terminalTheme(key: string): ITheme {
+  const look = JSON.parse(key) as Look
+  if (look.seeds) return customTerminal(look.seeds)
+  return look.theme === 'custom' ? LOOM : TERMINAL_THEMES[look.theme]
+}
 
 export function TerminalView({ tab, active, visible = active }: { tab: TerminalTab; active: boolean; visible?: boolean }): ReactNode {
   const host = useRef<HTMLDivElement>(null)
@@ -187,7 +193,7 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
   const [generation, setGeneration] = useState(0)
   const project = useStore((s) => s.projects.find((p) => p.id === tab.projectId))
   const home = useStore((s) => s.info?.homeDir)
-  const theme = useStore((s) => s.settings.theme)
+  const look = useStore(lookKey)
 
   useEffect(() => {
     if (!host.current) return
@@ -198,7 +204,7 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
       cursorBlink: true,
       allowProposedApi: true,
       scrollback: 8000,
-      theme: terminalTheme(useStore.getState().settings.theme),
+      theme: terminalTheme(lookKey(useStore.getState())),
       // Programs print links as terminal hyperlinks too (Claude Code's sign-in address, for one):
       // those open in the browser like plain ones, instead of xterm's own prompt and window.
       linkHandler: { activate: (_e, uri) => void window.loom.openExternal(uri) }
@@ -292,8 +298,8 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
 
   // A new theme recolours the running terminal; its output stays.
   useEffect(() => {
-    if (term.current) term.current.options.theme = terminalTheme(theme)
-  }, [theme])
+    if (term.current) term.current.options.theme = terminalTheme(look)
+  }, [look])
 
   useEffect(() => {
     if (!visible) return
