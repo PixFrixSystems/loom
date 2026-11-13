@@ -173,8 +173,10 @@ export function messageModel(message: unknown): string | null {
   return typeof model === 'string' && model.startsWith('claude-') ? model : null
 }
 
-export function modelNote(model: string, id: string): ChatItem {
-  return { kind: 'note', id: `model:${id}`, tone: 'info', text: `Switched to ${prettyModel(model)}` }
+/** Replies now come from another model: from which to which, when the one before is known. */
+export function modelNote(model: string, id: string, before?: string): ChatItem {
+  const text = before ? `Switched from ${prettyModel(before)} to ${prettyModel(model)}` : `Switched to ${prettyModel(model)}`
+  return { kind: 'note', id: `model:${id}`, tone: 'info', text }
 }
 
 function tagValue(text: string, tag: string): string {
@@ -313,7 +315,7 @@ export function historyToItems(messages: HistoryMessage[]): ChatItem[] {
       // A reply from another model than the one before: say so above it.
       const from = messageModel(msg)
       if (from) {
-        if (model && from !== model) items.push({ ...modelNote(from, m.uuid), ts: m.timestamp })
+        if (model && from !== model) items.push({ ...modelNote(from, m.uuid, model), ts: m.timestamp })
         model = from
       }
       for (const item of assistantItems(msg.content, m.uuid, m.timestamp)) {

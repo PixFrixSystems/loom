@@ -669,7 +669,7 @@ class ChatSession {
         const model = messageModel(m.message)
         if (model) {
           const before = this.lastModel ?? (this.sessionId ? lastModels.get(this.sessionId) : undefined) ?? null
-          if (before && before !== model) items.unshift(modelNote(model, m.uuid))
+          if (before && before !== model) items.unshift(modelNote(model, m.uuid, before))
           this.lastModel = model
           if (this.sessionId) lastModels.set(this.sessionId, model)
         }

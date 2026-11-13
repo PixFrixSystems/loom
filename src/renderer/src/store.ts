@@ -57,6 +57,8 @@ import { playTone } from './lib/tones'
 
 export interface ChatRuntime {
   items: ChatItem[]
+  /** You switched the model and the timeline says so: Claude's own note on the next reply would repeat it */
+  switchNoted?: boolean
   status: ChatStatus
   error?: string
   permissions: PermissionRequest[]
@@ -1076,6 +1078,21 @@ export const useStore = create<Store>((set, get) => {
     },
     interrupt: (tabId) => void window.loom.chatInterrupt(tabId),
     setModel: (tabId, model) => {
+      // In a chat under way, the timeline says from what to what, at once.
+      const tab = get().tabs.find((t) => t.id === tabId)
+      const before = tab?.kind === 'chat' ? (tab.model ?? '') : ''
+      if (tab?.kind === 'chat' && before !== (model ?? '') && get().chat(tabId).items.length) {
+        const known = get().knownModels
+        const name = (v: string): string => {
+          if (v) return modelName(v, known) ?? v
+          const resolved = known.find((m) => m.value === '')?.description?.split(' · ')[0]
+          return resolved ? `the default (${resolved})` : 'the default'
+        }
+        patchChat(tabId, (c) => ({
+          switchNoted: true,
+          items: [...c.items, { kind: 'note', id: uid(), tone: 'info', text: `Switched from ${name(before)} to ${name(model ?? '')}`, ts: new Date().toISOString() }]
+        }))
+      }
       get().rememberChoice({ defaultModel: model })
       get().updateTab(tabId, { model })
       patchChat(tabId, () => ({ activeModel: model || undefined }))
@@ -1342,7 +1359,10 @@ export const useStore = create<Store>((set, get) => {
           patchChat(tabId, (c) => {
             const items = [...c.items]
             const now = new Date().toISOString()
-            for (const raw of ev.items) {
+            // The first reply after you switched: its "switched to" note would say it twice.
+            const replied = c.switchNoted && ev.items.some((x) => x.kind === 'assistant' || x.kind === 'thinking' || x.kind === 'tool')
+            const incoming = replied ? ev.items.filter((x) => !(x.kind === 'note' && x.id.startsWith('model:'))) : ev.items
+            for (const raw of incoming) {
               // Live steps get the time they arrived, as saved ones carry theirs. One sent again
               // (a step updated in place) keeps the time it first had.
               const at = items.findIndex((x) => x.id === raw.id)
@@ -1350,7 +1370,7 @@ export const useStore = create<Store>((set, get) => {
               if (at >= 0) items[at] = item
               else items.push(item)
             }
-            return { items }
+            return replied ? { items, switchNoted: false } : { items }
           })
           break
         case 'tool-result':
