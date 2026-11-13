@@ -6,6 +6,7 @@ import { timeAgo } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
+import { ServiceAccounts } from './Accounts'
 import { account } from './Onboarding'
 import { PhoneAccess } from './PhoneAccess'
 import { SignInPanel } from './SignIn'
@@ -53,7 +54,7 @@ function AccountRow(): ReactNode {
           ? `${account(auth)} Chats, plan limits and Claude Code in your terminals all use this account.`
           : 'Not signed in. Chats need a Claude account.'
   return (
-    <Row title="Account" hint={hint}>
+    <Row title="Claude" hint={hint}>
       {busy === 'waiting' ? (
         <SignInPanel
           onEnd={() => {
@@ -247,8 +248,13 @@ export function SettingsView(): ReactNode {
         <h1>Settings</h1>
 
         <section className="set-section">
-          <h2>Claude</h2>
+          <h2>Accounts</h2>
           <AccountRow />
+          <ServiceAccounts />
+        </section>
+
+        <section className="set-section">
+          <h2>Claude</h2>
           <Row title="Program that runs your chats" hint="Every option uses your Claude Code sign-in, settings, skills and hooks. Changes apply to chats you start or restart from now on.">
             <div className="radio-list">
               {sources.map((o) => (

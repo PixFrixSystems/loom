@@ -2014,3 +2014,19 @@
 .phone-digits {
   font-variant-numeric: tabular-nums;
 }
+
+/* Settings, Accounts: the line under the rows saying where these sign-ins live */
+.accounts-note {
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* The account's name is what the eye should land on in its row */
+.account-who {
+  color: var(--text);
+  font-weight: 560;
+}

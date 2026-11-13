@@ -13,7 +13,8 @@ import type {
   PermissionMode,
   PermissionResponse,
   PersistedState,
-  RunTarget
+  RunTarget,
+  ServiceId
 } from '@shared/types'
 import {
   claudeAuthStatus,
@@ -72,6 +73,7 @@ import {
 } from './servers'
 import { closeAllPopouts, setupPopouts } from './popouts'
 import { closeRemote, setupRemote } from './remote'
+import { githubSign, serviceAccount, setupAccounts } from './accounts'
 import { cancelLogin, loginState, startLogin, submitLoginCode } from './login'
 import { emptyState, flushBounds, flushState, loadBounds, loadState, saveBounds, saveState } from './state'
 
@@ -433,6 +435,9 @@ function registerIpc(): void {
   })
   // Signed in as someone else: chats and limits follow.
   ipcMain.on('claude:accountChanged', () => accountChanged())
+  // The other accounts this PC is signed in to: GitHub, Cloudflare, Vercel.
+  ipcMain.handle('accounts:get', (_e, id: ServiceId, force?: boolean) => serviceAccount(id, force === true))
+  ipcMain.handle('accounts:github', (_e, what: 'in' | 'out', login?: string) => githubSign(what === 'out' ? 'out' : 'in', login))
   ipcMain.handle('login:start', () => startLogin(claudeProgram(settings()), accountChanged))
   ipcMain.handle('login:state', () => loginState())
   ipcMain.on('login:code', (_e, code: string) => submitLoginCode(code))
@@ -620,6 +625,7 @@ app.whenReady().then(() => {
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()
   setupRemote({ main: () => win })
+  setupAccounts({ projects: () => state.projects.map((p) => p.path) })
   setupUpdates({ confirm: () => confirmLoss('Restarting', 'Restart now', 'Later') })
   // Plan limits: shortly after start, then every five minutes while a Loom window has focus. With
   // no chat running, each reading starts a Claude Code process, so a Loom left in the background

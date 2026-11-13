@@ -283,6 +283,8 @@ interface Store extends PersistedState {
   openStart: () => void
   /** Runs Anthropic's Claude Code installer in a terminal beside the getting-started steps. */
   openInstallTerminal: () => void
+  /** Opens a terminal tab that runs one command, such as a tool's own sign-in */
+  runInTerminal: (title: string, run: string) => void
 
   chat: (tabId: string) => ChatRuntime
   loadHistory: (tabId: string) => Promise<void>
@@ -963,6 +965,10 @@ export const useStore = create<Store>((set, get) => {
       }
       set((s) => ({ tabs: [...s.tabs, tab] }))
       get().splitPane('right', tab.id)
+    },
+    runInTerminal: (title, run) => {
+      if (POPOUT_TAB) return
+      get().openTab({ id: uid(), kind: 'terminal', projectId: null, cwd: get().info?.homeDir ?? 'C:\\', title, run })
     },
     openSettings: () => {
       if (POPOUT_TAB) return window.loom.mainDo('openSettings', [])

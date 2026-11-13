@@ -33,6 +33,8 @@ import type {
   SlashCommandInfo,
   Tab,
   TabSnapshot,
+  ServiceAccount,
+  ServiceId,
   UpdateStatus,
   UsageSnapshot
 } from '@shared/types'
@@ -50,6 +52,10 @@ const api = {
   logout: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('claude:logout'),
   /** Tells the main process another account is now signed in */
   accountChanged: (): void => ipcRenderer.send('claude:accountChanged'),
+  /** Who this PC is signed in as on GitHub, Cloudflare or Vercel; null when it couldn't be looked up */
+  serviceAccount: (id: ServiceId, force?: boolean): Promise<ServiceAccount | null> => ipcRenderer.invoke('accounts:get', id, force),
+  /** Signs in to or out of GitHub through Git's credential manager, which shows its own window */
+  githubSign: (what: 'in' | 'out', login?: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('accounts:github', what, login),
   /** Starts signing in to Claude in the background (claude auth login) */
   loginStart: (): Promise<LoginState> => ipcRenderer.invoke('login:start'),
   loginState: (): Promise<LoginState> => ipcRenderer.invoke('login:state'),

@@ -116,6 +116,7 @@ A copy built this way runs the Claude Code that `npm install` brings along (or y
 - **Resumed chats** show their messages from the last compaction onward, like Claude Code does. Earlier turns are summarized in the first message.
 - **Plan limits** in the status bar come from the same source as Claude Code's `/usage`. The SDK marks that call experimental; if it changes, the meter stops updating and nothing else breaks.
 - **Previews are sandboxed.** Sites in a preview pane run with no access to Loom.
+- **Settings, Accounts** shows who this PC is signed in as: your Claude account, and GitHub, Cloudflare and Vercel as their own tools have them (Git's credential manager or the GitHub CLI, Wrangler, the Vercel CLI). That is what a push or a deploy from a terminal or from Claude goes out as. Loom reads the names and keeps nothing; signing in or out goes through the tool itself.
 - **A linked phone can do what you can in a chat:** send messages and approve what Claude asks to run. Its key is kept in that phone's browser, where the page can use it but not read it, and on the PC encrypted for your Windows account. Lose the phone, remove it in Settings, Phone access.
 - **Moving a chat** to another project moves its history file to that project's folder and keeps the original in `~/.claude/chat-backups` for 30 days (Settings changes how long).
 - **Throwing away changes** in the Git panel keeps a copy in `%APPDATA%\Loom\discarded`; new files go to the Recycle Bin.

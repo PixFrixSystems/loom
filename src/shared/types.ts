@@ -574,6 +574,28 @@ export interface AuthStatus {
   error?: string
 }
 
+/** A service besides Claude that this PC can be signed in to */
+export type ServiceId = 'github' | 'cloudflare' | 'vercel'
+
+/** How signing in to or out of a service happens: Loom does it itself, or a command runs in a terminal */
+export type SignStep = { direct: true } | { run: string }
+
+/** Who this PC is signed in as on a service, as that service's own tool has it */
+export interface ServiceAccount {
+  id: ServiceId
+  signedIn: boolean
+  /** A GitHub login, a Cloudflare email, a Vercel username. Missing when signed in but the name can't be read now. */
+  who?: string
+  /** More accounts of the same service (GitHub can hold several) */
+  others?: string[]
+  /** What holds the sign-in, as it reads after "through": "Git's credential manager", "Wrangler" */
+  via?: string
+  /** One more sentence: Cloudflare's account names, the name git puts on commits */
+  detail?: string
+  signIn?: SignStep
+  signOut?: SignStep
+}
+
 export interface UsageLimit {
   key: string
   label: string
