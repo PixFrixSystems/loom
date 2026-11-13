@@ -53,6 +53,7 @@ import {
   type PresetName
 } from './lib/layout'
 import { baseName, isInside, joinPath, normPath, parentDir, projectForPath, shortPath, thumbnailOf, uid } from './lib/paths'
+import { notesFor, notesSince, type ReleaseNotes } from './whatsNew'
 import { playTone } from './lib/tones'
 
 export interface ChatRuntime {
@@ -251,6 +252,10 @@ interface Store extends PersistedState {
   /** Unsaved file text handed over from another window, used once by the file's view */
   fileDrafts: Record<string, string>
   usage: UsageSnapshot | null
+  /** What's new, open: the release notes shown after an update, or from Settings */
+  whatsNew: ReleaseNotes[] | null
+  /** Opens What's new for the version running now (Settings) */
+  showWhatsNew: () => void
   /** The Plan limits popover is open: from the status bar's meters, or /usage in a chat */
   usageOpen: boolean
   /** A fresh reading of the plan limits is on its way */
@@ -506,6 +511,7 @@ export const useStore = create<Store>((set, get) => {
     detached: {},
     fileDrafts: {},
     usage: null,
+    whatsNew: null,
     usageOpen: false,
     usageChecking: false,
     remote: null,
@@ -647,7 +653,16 @@ export const useStore = create<Store>((set, get) => {
         if (document.hasFocus()) void get().checkWatched()
       }, 60_000)
       window.loom.onUpdate((update) => set({ update }))
-      void window.loom.updateStatus().then((update) => set({ update }))
+      // Updated since last time: what's new, once. A first install has the getting-started steps
+      // instead, and only notes the version.
+      const existing = state.onboarded === true || state.projects.length > 0
+      void window.loom.updateStatus().then((update) => {
+        set({ update })
+        const seen = get().settings.lastSeenVersion
+        if (!update.announce || seen === update.version) return
+        const notes = existing ? notesSince(seen ?? null, update.version) : []
+        set((s) => ({ settings: { ...s.settings, lastSeenVersion: update.version }, ...(notes.length ? { whatsNew: notes } : {}) }))
+      })
       window.loom.onServers((servers) => set({ servers }))
       void window.loom.serverList().then((servers) => set({ servers }))
       // A public link that just started answering: say so, with the link, naming the project.
@@ -1337,6 +1352,12 @@ export const useStore = create<Store>((set, get) => {
       if (choice === 'install') get().runInTerminal('Install cloudflared', 'winget install --id Cloudflare.cloudflared -e --accept-source-agreements --accept-package-agreements')
     },
     stopSharing: (serverId) => void window.loom.tunnelStop(serverId),
+    showWhatsNew: () => {
+      const version = get().update?.version
+      const notes = version ? notesFor(version) : []
+      if (notes.length) set({ whatsNew: notes })
+      else void window.loom.updateNotes(version)
+    },
     showUsage: () => {
       set({ usageOpen: true })
       void get().refreshUsage(true)

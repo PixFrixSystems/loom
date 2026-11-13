@@ -8,7 +8,10 @@ import { fileLogger } from './logfile'
 // hours, downloads them in the background, and then shows a Restart to update button, the way
 // VS Code does. Ignored, the update still installs the next time Loom quits.
 
-let status: UpdateStatus = { enabled: false, version: app.getVersion(), state: 'idle' }
+// What's new after an update is for installed copies; scratch profiles (tests) and builds from
+// source skip it unless asked.
+const announce = (app.isPackaged && !(process.env.LOOM_USER_DATA && !process.env.LOOM_UPDATES)) || !!process.env.LOOM_WHATS_NEW
+let status: UpdateStatus = { enabled: false, version: app.getVersion(), announce, state: 'idle' }
 let updater: AppUpdater | null = null
 let installing = false
 
@@ -80,9 +83,11 @@ export function setupUpdates(opts: InstallDeps): void {
   ipcMain.handle('update:status', () => status)
   ipcMain.handle('update:check', () => check())
   ipcMain.handle('update:install', () => install(opts))
-  ipcMain.handle('update:notes', () => {
+  // A version's own release notes when one is named (What's new), else the one on its way, else all.
+  ipcMain.handle('update:notes', (_e, version?: string) => {
     const url = releasesUrl()
-    void shell.openExternal(status.available ? `${url}/tag/v${status.available}` : url)
+    const v = typeof version === 'string' && /^\d+\.\d+\.\d+$/.test(version) ? version : status.available
+    void shell.openExternal(v ? `${url}/tag/v${v}` : url)
   })
 
   // Copies built from source update with git. Scratch profiles (tests) leave updates alone unless asked.

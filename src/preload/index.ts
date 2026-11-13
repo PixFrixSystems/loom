@@ -252,7 +252,8 @@ const api = {
   updateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:status'),
   updateCheck: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:check'),
   updateInstall: (): Promise<boolean> => ipcRenderer.invoke('update:install'),
-  updateNotes: (): Promise<void> => ipcRenderer.invoke('update:notes'),
+  /** Release notes on GitHub: of `version` when given */
+  updateNotes: (version?: string): Promise<void> => ipcRenderer.invoke('update:notes', version),
   onUpdate: (cb: (status: UpdateStatus) => void): (() => void) => {
     const listener = (_e: unknown, status: UpdateStatus): void => cb(status)
     ipcRenderer.on('update:status', listener)

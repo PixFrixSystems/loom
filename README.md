@@ -106,7 +106,7 @@ You also need:
 
 The first launch walks through signing in to Claude, adding projects and choosing how much Claude may do without asking. If you already use Claude Code, it lists every folder you have used it in: tick them, click Add, and your projects arrive with their chats. It takes about two minutes and can be skipped.
 
-**Updates.** Loom keeps itself up to date. A new version downloads in the background and a **Restart to update** button appears in the status bar; Loom closes, installs it and opens again by itself, with your tabs and chats, usually within a minute. Ignore it and the update installs the next time you quit. Settings has the version, Check for updates and What's new.
+**Updates.** Loom keeps itself up to date. A new version downloads in the background and a **Restart to update** button appears in the status bar; Loom closes, installs it and opens again by itself, with your tabs and chats, usually within a minute. Ignore it and the update installs the next time you quit. When Loom opens on the new version, it shows once what's new in it; Settings has the version, Check for updates, and What's new to see it again.
 
 **The Windows warning.** Loom isn't code-signed yet, so the first time you run the installer Windows may say "Windows protected your PC". Click **More info**, then **Run anyway**.
 
@@ -178,7 +178,7 @@ The phone page and its relay live in `remote/` and run as one Cloudflare Worker:
 
 ### Release a version
 
-Run `npm version patch` (or `minor`), then `git push --follow-tags`. The Release workflow builds the installer and attaches it to a draft release in this repository; check it there and publish it. Installed copies find it within a few hours, or at once with Check for updates, and offer Restart to update. Every copy of Loom looks for updates in this repository.
+When a release has something people should notice, add its highlights to `src/renderer/src/whatsNew.ts`; installed copies show them once after updating. Run `npm version patch` (or `minor`), then `git push --follow-tags`. The Release workflow builds the installer and attaches it to a draft release in this repository; check it there and publish it. Installed copies find it within a few hours, or at once with Check for updates, and offer Restart to update. Every copy of Loom looks for updates in this repository.
 
 ## Questions and problems
 

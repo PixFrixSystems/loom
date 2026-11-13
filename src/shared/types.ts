@@ -76,6 +76,11 @@ export interface UpdateStatus {
   enabled: boolean
   /** The version running now */
   version: string
+  /**
+   * Show what's new after an update: installed copies do, test profiles and builds from source
+   * don't (LOOM_WHATS_NEW turns it on there)
+   */
+  announce?: boolean
   state: 'idle' | 'checking' | 'none' | 'downloading' | 'ready' | 'error'
   /** The newer version found */
   available?: string
@@ -264,6 +269,8 @@ export interface LoomSettings {
    * changes only that chat.
    */
   newChatModel?: string | null
+  /** The last version whose What's new was shown (or skipped, on a first install) */
+  lastSeenVersion?: string
   defaultEffort?: EffortLevel | null
   defaultUltracode?: boolean
   notifyWhenDone: boolean

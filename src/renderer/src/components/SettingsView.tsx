@@ -390,26 +390,25 @@ export function SettingsView(): ReactNode {
           <section className="set-section">
             <h2>About</h2>
             <Row title={`Loom ${s.update.version}`} hint={updateLine(s.update)}>
-              {s.update.enabled ? (
-                <div className="set-actions">
-                  {s.update.state === 'ready' ? (
-                    <button className="btn primary" onClick={() => void window.loom.updateInstall()}>
-                      Restart to update
-                    </button>
-                  ) : (
-                    <button
-                      className="btn"
-                      disabled={s.update.state === 'checking' || s.update.state === 'downloading'}
-                      onClick={() => void window.loom.updateCheck()}
-                    >
-                      Check for updates
-                    </button>
-                  )}
-                  <button className="btn ghost" onClick={() => void window.loom.updateNotes()}>
-                    What&apos;s new
+              {/* What's new for every copy; updating only where Loom updates itself (not from source). */}
+              <div className="set-actions">
+                {!s.update.enabled ? null : s.update.state === 'ready' ? (
+                  <button className="btn primary" onClick={() => void window.loom.updateInstall()}>
+                    Restart to update
                   </button>
-                </div>
-              ) : null}
+                ) : (
+                  <button
+                    className="btn"
+                    disabled={s.update.state === 'checking' || s.update.state === 'downloading'}
+                    onClick={() => void window.loom.updateCheck()}
+                  >
+                    Check for updates
+                  </button>
+                )}
+                <button className="btn ghost" onClick={() => s.showWhatsNew()}>
+                  What&apos;s new
+                </button>
+              </div>
             </Row>
           </section>
         ) : null}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ConfirmHost, ToastHost } from './components/Confirm'
+import { WhatsNew } from './components/WhatsNew'
 import { ImageViewer } from './components/ImageViewer'
 import { ContextMenuHost } from './components/Menu'
 import { QuickOpen } from './components/QuickOpen'
@@ -179,6 +180,7 @@ export function App(): ReactNode {
       <ImageViewer />
       {s.quickOpen ? <QuickOpen /> : null}
       <ConfirmHost />
+      <WhatsNew />
       <ToastHost />
     </div>
   )

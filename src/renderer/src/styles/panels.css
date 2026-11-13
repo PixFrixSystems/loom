@@ -384,6 +384,80 @@
   animation: panel-layer-in 180ms var(--ease-out);
 }
 
+/* What's new after an update: the confirm card, wider, with a short list of what changed */
+.confirm.whats-new {
+  width: min(520px, 92vw);
+  max-height: 76vh;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.whats-new-version {
+  margin: 4px 0 6px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.whats-new-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.whats-new-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.whats-new-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--edge);
+  color: var(--light);
+}
+
+.whats-new-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.whats-new-icon.is-done {
+  color: var(--ok);
+}
+
+.whats-new-icon.is-cloud {
+  color: #f6a35c;
+}
+
+.whats-new-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.whats-new-head {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 620;
+}
+
+.whats-new-body {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .confirm-title {
   margin: 0;
   color: var(--text);
