@@ -86,11 +86,14 @@ function Sheet({
 
 export function Picks({ tabId, off }: { tabId: string; off: boolean }): ReactNode {
   const state = useApp((s) => s.chats[tabId]?.state)
-  const models = useApp((s) => s.list?.models)
+  const listModels = useApp((s) => s.list?.models)
   const setModel = useApp((s) => s.setModel)
   const setEffort = useApp((s) => s.setEffort)
   const [open, setOpen] = useState<'model' | 'effort' | null>(null)
   if (!state) return null
+  const models = state.provider === 'external'
+    ? [{ value: '', label: 'Program default' }, ...(state.models ?? []).filter((model) => model.value !== '')]
+    : state.models ?? listModels
   const modelLabel = models?.find((m) => m.value === state.modelValue)?.label ?? (state.modelValue || 'Default')
   const usual = state.defaultEffort
   const effortLabel = state.effort ? EFFORT_LABELS[state.effort] : usual ? EFFORT_LABELS[usual] : 'Default'
@@ -112,10 +115,10 @@ export function Picks({ tabId, off }: { tabId: string; off: boolean }): ReactNod
       {open === 'effort' ? (
         <Sheet
           title="Effort"
-          hint="How hard Claude thinks before answering."
+          hint="How hard the agent thinks before answering."
           value={state.effort ?? ''}
           choices={[
-            { value: '', label: usual ? `Default (${EFFORT_LABELS[usual]})` : 'Default', description: 'What your Claude settings use' },
+            { value: '', label: usual ? `Default (${EFFORT_LABELS[usual]})` : 'Default', description: 'What your agent settings use' },
             ...state.efforts.map((e) => ({ value: e as string, label: EFFORT_LABELS[e] }))
           ]}
           onPick={(v) => setEffort(tabId, (v || null) as EffortLevel | null)}

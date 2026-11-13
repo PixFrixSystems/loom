@@ -1,8 +1,9 @@
 import { BellRing, LogIn, LogOut, Play, RefreshCw } from 'lucide-react'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useState, type ReactNode } from 'react'
-import type { AuthStatus, ClaudeSource, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
+import type { AuthStatus, ChatProvider, ClaudeSource, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
 import { timeAgo } from '../lib/paths'
+import { chatProviders, EXTERNAL_MODE_OPTIONS, externalPermissionMode } from '../lib/providers'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
@@ -19,28 +20,46 @@ import { SignInPanel } from './SignIn'
 /** The account last seen signed in, kept while Settings closes for a sign-in and opens again. */
 let lastAccount: string | null = null
 
-function AccountRow(): ReactNode {
+function AccountRow({ provider = 'claude' }: { provider?: ChatProvider }): ReactNode {
   const s = useStore.getState()
-  const [auth, setAuth] = useState<AuthStatus | null>(null)
+  const external = provider === 'external'
+  const externalName = useStore((st) => st.externalName)
+  const externalAccountName = useStore((st) => st.externalAccountName)
+  const loginSupported = useStore((st) => st.externalLoginSupported)
+  const externalAuth = useStore((st) => st.externalAuth)
+  const externalProgram = useStore((st) => st.settings.externalProgram?.trim() || st.detectedExternalProgram)
+  const name = external ? externalName : 'Claude'
+  const accountName = external ? externalAccountName : name
+  const canLogin = !external || loginSupported
+  const [claudeAuth, setClaudeAuth] = useState<AuthStatus | null>(null)
+  const auth = external ? externalAuth : claudeAuth
   const [busy, setBusy] = useState<'out' | 'waiting' | null>(null)
   const check = async (): Promise<AuthStatus> => {
+    if (external) return s.refreshExternalAuth()
     const a = await window.loom.authStatus().catch((e: Error) => ({ loggedIn: false, error: e.message }) as AuthStatus)
     const key = a.loggedIn ? (a.email ?? 'signed in') : null
     if (lastAccount !== null && key && key !== lastAccount) window.loom.accountChanged()
     if (key) lastAccount = key
-    setAuth(a)
+    setClaudeAuth(a)
     return a
   }
   useEffect(() => {
     void check()
   }, [])
+  useEffect(() => {
+    if (!external) return
+    const onFocus = (): void => void s.refreshExternalAuth()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [external])
 
   const signOut = async (): Promise<boolean> => {
     setBusy('out')
-    const r = await window.loom.logout()
+    const logout = external ? window.loom.externalLogout : window.loom.logout
+    const r = await logout().catch((e: Error) => ({ ok: false, error: e.message }))
     await check()
     setBusy(null)
-    if (!r.ok) s.showToast(`Couldn't sign out: ${r.error ?? 'Claude Code did not answer.'}`)
+    if (!r.ok) s.showToast(`Couldn't sign out: ${r.error ?? `${name} did not answer.`}`)
     return r.ok
   }
   const signIn = (): void => setBusy('waiting')
@@ -49,14 +68,15 @@ function AccountRow(): ReactNode {
     auth === null
       ? 'Checking the sign-in on this PC…'
       : auth.missing
-        ? "Claude Code isn't installed on this PC, so there is no account yet. Get started below installs it."
-        : auth.loggedIn
-          ? `${account(auth)} Chats, plan limits and Claude Code in your terminals all use this account.`
-          : 'Not signed in. Chats need a Claude account.'
+        ? external ? `Choose the ${name} executable under Chat agents.` : "Claude Code isn't installed on this PC, so there is no account yet. Get started below installs it."
+        : auth.error ? auth.error : auth.loggedIn
+          ? `${account(auth, accountName)} ${external ? `Loom and the ${name} CLI share this sign-in.` : 'Chats, plan limits and Claude Code in your terminals all use this account.'}`
+          : external && !canLogin ? `Sign in using the ${name} CLI in a terminal.` : `Sign in to ${accountName} to start a ${name} chat.`
   return (
-    <Row title="Claude" hint={hint}>
+    <Row title={name} hint={hint}>
       {busy === 'waiting' ? (
         <SignInPanel
+          provider={provider}
           onEnd={() => {
             setBusy(null)
             void check()
@@ -66,13 +86,13 @@ function AccountRow(): ReactNode {
       <div className="set-actions" hidden={busy === 'waiting'}>
         {auth?.loggedIn ? (
           <>
-            <button
+            {canLogin ? <button
               className="btn"
               disabled={!!busy}
               onClick={async () => {
                 const pick = await s.ask({
-                  title: 'Switch to another Claude account?',
-                  body: `This signs ${auth.email ?? 'this account'} out of Claude Code on this PC, then opens the sign-in for the account you want. Chats in the middle of a reply finish first.`,
+                  title: `Switch to another ${accountName} account?`,
+                  body: `This signs ${auth.email ?? 'this account'} out of ${external ? name : 'Claude Code'} on this PC, then opens the sign-in for the account you want.${external ? '' : ' Chats in the middle of a reply finish first.'}`,
                   choices: [
                     { id: 'switch', label: 'Sign out and switch', kind: 'primary' },
                     { id: 'cancel', label: 'Cancel', kind: 'ghost' }
@@ -83,14 +103,16 @@ function AccountRow(): ReactNode {
               }}
             >
               <RefreshCw /> Switch account
-            </button>
+            </button> : null}
             <button
               className="btn danger"
               disabled={!!busy}
               onClick={async () => {
                 const pick = await s.ask({
-                  title: `Sign out of ${auth.email ?? 'Claude'}?`,
-                  body: 'Claude Code on this PC signs out, in Loom, VS Code and your terminals alike. Chats need you to sign in again before they can reply.',
+                  title: `Sign out of ${auth.email ?? name}?`,
+                  body: external
+                    ? `Signing out affects Loom and the ${name} CLI on this PC. Sign in again to start a new reply.`
+                    : 'Claude Code on this PC signs out, in Loom, VS Code and your terminals alike. Chats need you to sign in again before they can reply.',
                   choices: [
                     { id: 'out', label: 'Sign out', kind: 'danger' },
                     { id: 'cancel', label: 'Cancel', kind: 'ghost' }
@@ -103,9 +125,9 @@ function AccountRow(): ReactNode {
               <LogOut /> Sign out
             </button>
           </>
-        ) : auth && !auth.missing ? (
+        ) : auth && !auth.loggedIn && !auth.missing && canLogin && (!external || externalProgram) ? (
           <button className="btn primary" disabled={busy === 'out'} onClick={signIn}>
-            <LogIn /> Sign in
+            <LogIn /> {external ? `Sign in with ${accountName}` : 'Sign in'}
           </button>
         ) : null}
       </div>
@@ -227,11 +249,18 @@ export function SettingsView(): ReactNode {
   const s = useStore()
   const st = s.settings
   const info = s.info
+  const externalName = s.externalName
   // Look again for Claude Code each time Settings opens: it may have been installed since.
   useEffect(() => {
     void window.loom.claudeInfo().then((next) => useStore.getState().set({ info: next }))
   }, [])
-  const update = (patch: Partial<LoomSettings>): void => s.set({ settings: { ...st, ...patch } })
+  const update = s.rememberChoice
+  const [program, setProgram] = useState(st.externalProgram ?? '')
+  const path = program.trim()
+  const validProgram = !path || /^(?:[a-z]:[\\/]|\\\\[^\\]+\\[^\\]+\\).+\.exe$/i.test(path)
+  const saveProgram = (next: string): void => {
+    if (next !== (useStore.getState().settings.externalProgram ?? '')) update({ externalProgram: next })
+  }
 
   // The installed Loom app has no bundled copy; there "bundled" quietly means the installed one.
   const hasBundled = !!info?.bundledPath
@@ -250,7 +279,59 @@ export function SettingsView(): ReactNode {
         <section className="set-section">
           <h2>Accounts</h2>
           <AccountRow />
+          <AccountRow provider="external" />
           <ServiceAccounts />
+        </section>
+
+        <section className="set-section">
+          <h2>Chat agents</h2>
+          <Row title="Agent for new chats" hint="You can also choose an agent in a chat before sending the first message.">
+            <Dropdown<ChatProvider>
+              title="Agent for new chats"
+              value={st.defaultProvider ?? 'claude'}
+              options={chatProviders(externalName)}
+              onChange={(value) => update({ defaultProvider: value })}
+            />
+          </Row>
+          <Row
+            title={`${externalName} executable`}
+            hint={!validProgram ? 'Enter a full path to an .exe file or use Browse.' : s.externalLoginSupported ? 'Choose the installed executable, then sign in under Accounts.' : 'Choose the installed executable and sign in with its CLI in a terminal.'}
+          >
+            <div className="inline-field">
+              <input
+                className="field"
+                aria-label={`${externalName} executable`}
+                aria-invalid={!validProgram}
+                placeholder={s.detectedExternalProgram || 'C:\\path\\to\\agent.exe'}
+                value={program}
+                onChange={(e) => setProgram(e.target.value)}
+                onBlur={() => {
+                  if (validProgram) saveProgram(path)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && validProgram) e.currentTarget.blur()
+                }}
+              />
+              <button
+                className="btn"
+                onClick={async () => {
+                  const next = await window.loom.pickFile(`Choose the ${externalName} executable`)
+                  if (!next) return
+                  setProgram(next)
+                  if (/\.exe$/i.test(next)) saveProgram(next)
+                }}
+              >
+                Browse…
+              </button>
+            </div>
+          </Row>
+          <Row title={`Permission mode for new ${externalName} chats`} hint={`Choose what ${externalName} can do without asking.`}>
+            <Dropdown<PermissionMode>
+              value={externalPermissionMode(st.defaultExternalPermissionMode)}
+              options={EXTERNAL_MODE_OPTIONS}
+              onChange={(value) => update({ defaultExternalPermissionMode: value })}
+            />
+          </Row>
         </section>
 
         <section className="set-section">
@@ -289,8 +370,8 @@ export function SettingsView(): ReactNode {
             </div>
           </Row>
           <Row
-            title="Permission mode for new chats"
-            hint="What Claude may do without asking. Picking a mode in any chat's message box changes this too, so new chats start the way you last worked. The same goes for the model, effort and Ultracode."
+            title="Permission mode for new Claude chats"
+            hint="What Claude may do without asking. Picking a mode in a Claude chat changes this too. The same goes for the model, effort and Ultracode."
           >
             <Dropdown<PermissionMode | 'settings'>
               value={st.defaultPermissionMode ?? 'settings'}

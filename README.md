@@ -101,6 +101,12 @@ You also need:
 
 The first launch walks through signing in to Claude, adding projects and choosing how much Claude may do without asking. If you already use Claude Code, it lists every folder you have used it in: tick them, click Add, and your projects arrive with their chats. It takes about two minutes and can be skipped.
 
+### Use an external agent
+
+Loom can also run a local CLI that supports the `app-server` protocol over standard input and output. Install the CLI and open **Settings → Chat agents** to select its Windows `.exe` if Loom does not detect it. Use **Settings → Accounts** to sign in when the build includes browser sign-in for that agent. Other agents use their CLI sign-in. Choose a default under **Agent for new chats**, or use **Chat agent** in an empty chat. Existing chats keep the agent that created them.
+
+External chats use the selected CLI's account and local history. **Read-only** starts with read-only access. **Edit workspace** lets the agent edit the project and request approval for work beyond its sandbox. **Plan mode** produces a plan with read-only access on supported CLI versions. Type `$` in the message box to look up installed skills. Start a new chat in the target folder to work on a different project.
+
 **Updates.** Loom keeps itself up to date. A new version downloads in the background and a **Restart to update** button appears in the status bar; Loom closes, installs it and opens again by itself, with your tabs and chats, usually within a minute. Ignore it and the update installs the next time you quit. Settings has the version, Check for updates and What's new.
 
 **The Windows warning.** Loom isn't code-signed yet, so the first time you run the installer Windows may say "Windows protected your PC". Click **More info**, then **Run anyway**.
@@ -170,6 +176,8 @@ npm run dist         # builds the installer into dist/
 `smoke:live` leaves two short test chats in Claude's history for this folder. To also check that one of your own saved chats loads, set `LOOM_SMOKE_CHAT="<folder>|<session id>"`. `LOOM_USER_DATA=<folder>` runs a second, separate Loom with its own profile.
 
 The phone page and its relay live in `remote/` and run as one Cloudflare Worker: `remote/app` is the page, `remote/worker` the relay, and `src/shared/remote.ts` holds the messages and the encryption both sides share. See [remote/README.md](remote/README.md).
+
+For a packaged build, place `agent-profile.json` in the repository's `resources/` directory before building. Builds that supply it beside `app.asar` are also supported. Use `LOOM_AGENT_PROFILE` to point a source build at a profile. Set `name` and `accountName` for the labels, `executable` and optionally `installDirectory` relative to Windows local app data for detection, and `loginType` and `loginOrigins` for managed browser sign-in. `installUrl` can point to the agent's installation instructions.
 
 ### Release a version
 

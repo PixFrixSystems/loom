@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { UsageLimit } from '@shared/types'
 import { timeAgo } from '../lib/paths'
+import { EXTERNAL_MODE_OPTIONS } from '../lib/providers'
 import { chatWorking, modelName, useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { ProjectMark } from './ProjectMark'
@@ -51,12 +52,15 @@ function popoverPlace(): { right: number; bottom: number } {
 
 /**
  * The Plan limits popover. Opened from the meters in the status bar, or by /usage in any chat at any
- * time, also while Claude is working (a popout window, with no status bar, shows it in its corner).
+ * time, including in a popout window without a status bar.
  */
 export function UsagePopover(): ReactNode {
-  const usage = useStore((s) => s.usage)
   const open = useStore((s) => s.usageOpen)
-  const busy = useStore((s) => s.usageChecking)
+  const provider = useStore((s) => s.usageProvider)
+  const external = provider === 'external'
+  const name = useStore((s) => external ? s.externalAccountName : 'Claude')
+  const usage = useStore((s) => external ? s.externalUsage : s.usage)
+  const busy = useStore((s) => external ? s.externalUsageChecking : s.usageChecking)
   const ref = useRef<HTMLDivElement>(null)
   const [, relayout] = useState(0)
   useEffect(() => {
@@ -86,16 +90,16 @@ export function UsagePopover(): ReactNode {
   return createPortal(
     <div ref={ref} className="menu usage-pop" style={popoverPlace()} role="dialog" aria-label="Plan limits">
       <div className="usage-head">
-        <span className="usage-title">Plan limits</span>
+        <span className="usage-title">{external ? `${name} plan limits` : 'Plan limits'}</span>
         {usage?.plan ? <span className="usage-plan">{usage.plan[0].toUpperCase() + usage.plan.slice(1)}</span> : null}
       </div>
       {usage?.email ? (
-        <p className="usage-account selectable" title="The Claude account these limits belong to">
+        <p className="usage-account selectable" title={`The ${name} account these limits belong to`}>
           {usage.email}
         </p>
       ) : null}
       {!usage ? (
-        <p className="usage-note">{busy ? 'Asking Claude Code for your plan limits…' : 'No reading of your plan limits yet.'}</p>
+        <p className="usage-note">{busy ? `Asking ${external ? name : 'Claude Code'} for your plan limits…` : 'No reading of your plan limits yet.'}</p>
       ) : !usage.available ? (
         <p className="usage-note">Plan limits are not available for this sign-in.</p>
       ) : usage.limits.length ? (
@@ -116,7 +120,7 @@ export function UsagePopover(): ReactNode {
       {usage?.error ? <p className="usage-note">The last check failed: {usage.error}</p> : null}
       <div className="usage-foot">
         <span>{busy ? 'Checking…' : usage ? `Checked ${timeAgo(usage.at)}` : ''}</span>
-        <button className="btn ghost" disabled={busy} onClick={() => void useStore.getState().refreshUsage(true)}>
+        <button className="btn ghost" disabled={busy} onClick={() => useStore.getState().showUsage(provider)}>
           <RefreshCw className={busy ? 'spin' : undefined} /> Check now
         </button>
       </div>
@@ -125,9 +129,12 @@ export function UsagePopover(): ReactNode {
   )
 }
 
-function UsageMeters(): ReactNode {
-  const usage = useStore((s) => s.usage)
+function UsageMeters({ external }: { external: boolean }): ReactNode {
+  const provider = external ? 'external' : 'claude'
+  const usage = useStore((s) => external ? s.externalUsage : s.usage)
   const open = useStore((s) => s.usageOpen)
+  const showing = useStore((s) => s.usageProvider === provider)
+  const name = useStore((s) => s.externalAccountName)
   if (!usage || !usage.available) return null
   // The 5-hour session and the week for all models, then a meter for each model with a weekly limit
   // of its own (Fable, say). Every one is shown: the server marks one row as its headline pick, but
@@ -137,7 +144,12 @@ function UsageMeters(): ReactNode {
   const list = main.length || models.length ? [...main, ...models] : usage.limits.slice(0, 2)
   return (
     <>
-      <button className="sb-usage" title="Plan limits (or type /usage in a chat)" aria-expanded={open} onClick={() => useStore.getState().set({ usageOpen: !open })}>
+      <button
+        className="sb-usage"
+        title={`${external ? `${name} plan limits` : 'Plan limits'} (or type /usage in a chat)`}
+        aria-expanded={open && showing}
+        onClick={() => useStore.getState().set({ usageOpen: !open || !showing, usageProvider: provider })}
+      >
         {list.length ? (
           list.map((l) => (
             <span key={l.key} className="meter" title={modelWeek(l) ? `${modelWeek(l)} this week: ${Math.round(l.percent)}% used` : undefined}>
@@ -176,6 +188,10 @@ export function StatusBar(): ReactNode {
   const project = s.projects.find((p) => p.id === tab?.projectId)
   const git = project ? s.git[project.id] : undefined
   const chat = tab?.kind === 'chat' ? s.chats[tab.id] : undefined
+  const external = tab?.kind === 'chat' && tab.provider === 'external'
+  const externalProgram = s.settings.externalProgram?.trim() || s.detectedExternalProgram
+  const externalUsageAccount = JSON.stringify([s.externalAccountRevision, s.externalAuth?.email, s.externalAuth?.method, s.externalAuth?.loggedIn])
+  const previousUsageAccount = useRef(externalUsageAccount)
   const running = Object.values(s.chats).filter((c) => chatWorking(c)).length
   const agents = Object.values(s.chats).reduce((n, c) => n + (c.tasks?.length ?? 0), 0)
   const waiting = Object.values(s.chats).filter((c) => c.permissions.length).length
@@ -188,6 +204,17 @@ export function StatusBar(): ReactNode {
     }, 20000)
     return () => clearInterval(t)
   }, [project?.id])
+
+  useEffect(() => {
+    if (!external || !externalProgram) return
+    const accountChanged = previousUsageAccount.current !== externalUsageAccount
+    previousUsageAccount.current = externalUsageAccount
+    void s.refreshExternalUsage(accountChanged)
+    const timer = setInterval(() => {
+      if (document.hasFocus()) void s.refreshExternalUsage()
+    }, 60_000)
+    return () => clearInterval(timer)
+  }, [external, externalProgram, externalUsageAccount, chat?.status === 'idle'])
 
   const mode = tab?.kind === 'chat' ? (tab.permissionMode ?? chat?.permissionMode) : null
   // A phone is using Loom right now: say so, and lead to where it can be removed.
@@ -236,10 +263,10 @@ export function StatusBar(): ReactNode {
           {phones.length === 1 ? 'Phone connected' : `${phones.length} phones connected`}
         </button>
       ) : null}
-      {mode ? <span className="sb-item sb-muted">{MODE_OPTIONS.find((m) => m.value === mode)?.label ?? mode}</span> : null}
-      {chat?.activeModel ? <span className="sb-item sb-muted">{modelName(chat.activeModel, s.knownModels)}</span> : null}
+      {mode ? <span className="sb-item sb-muted">{(external ? EXTERNAL_MODE_OPTIONS : MODE_OPTIONS).find((m) => m.value === mode)?.label ?? mode}</span> : null}
+      {chat?.activeModel ? <span className="sb-item sb-muted">{modelName(chat.activeModel, external ? s.externalModelOptions?.models ?? [] : s.knownModels)}</span> : null}
       <ServersStatus />
-      <UsageMeters />
+      <UsageMeters external={external} />
       <UsagePopover />
     </footer>
   )

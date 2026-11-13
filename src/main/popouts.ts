@@ -4,7 +4,7 @@
 
 import { BrowserWindow, ipcMain, screen, type BrowserWindowConstructorOptions, type WebContents } from 'electron'
 import type { Tab, TabSnapshot } from '@shared/types'
-import { holdChat, rebindChat } from './claude'
+import { holdChat, rebindChat } from './chats'
 
 interface Popout {
   win: BrowserWindow

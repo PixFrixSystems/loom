@@ -30,6 +30,7 @@ import {
   randomBytes,
   randomId,
   REMOTE_ADDRESS,
+  REMOTE_EXTERNAL_AGENTS,
   REMOTE_VERSION,
   SECRET_BYTES,
   seal,
@@ -94,6 +95,7 @@ interface Session {
   seen: number
   /** The chat this phone has open */
   watching: string | null
+  externalAgents: boolean
   chain: Promise<void>
 }
 
@@ -124,7 +126,7 @@ let attempts = 0
 let beat: ReturnType<typeof setInterval> | null = null
 let pongDue: ReturnType<typeof setTimeout> | null = null
 let pairing: { id: string; secret: Uint8Array<ArrayBuffer>; url: string; expiresAt: number; fails: number; timer: ReturnType<typeof setTimeout> } | null = null
-let lastList: RemoteList | null = null
+let lastList: { all: RemoteList; legacy: RemoteList } | null = null
 /** Loom is quitting: no new connections */
 let closing = false
 const sessions = new Map<string, Session>()
@@ -482,13 +484,15 @@ async function onDeviceData(from: string, sealed: string): Promise<void> {
   if (!msg || typeof msg !== 'object') return
   if ('t' in msg) {
     if (msg.t !== 'hi' || typeof msg.nonce !== 'string' || msg.nonce.length > 64) return
-    const s: Session = { device, sid: randomId(), out: 0, seen: -1, watching: null, chain: Promise.resolve() }
+    const externalAgents = Array.isArray(msg.can) && msg.can.includes(REMOTE_EXTERNAL_AGENTS)
+    const s: Session = { device, sid: randomId(), out: 0, seen: -1, watching: null, externalAgents, chain: Promise.resolve() }
     const before = sessions.get(from)
     sessions.set(from, s)
     if (before?.watching) watchingChanged()
     device.seenAt = Date.now()
     saveSoon()
-    post(s, { t: 'hello', nonce: msg.nonce, pc: hostname(), version: app.getVersion(), can: ['images'] })
+    const can = externalAgents ? ['images', REMOTE_EXTERNAL_AGENTS] : ['images']
+    post(s, { t: 'hello', nonce: msg.nonce, pc: hostname(), version: app.getVersion(), can })
     return emitStatus()
   }
   const s = sessions.get(from)
@@ -542,10 +546,10 @@ function cleanResponse(r: unknown): PermissionResponse | null {
 
 function onPhone(s: Session, m: FromPhone): void {
   if (!m || typeof m !== 'object') return
-  const act = (action: PhoneAction): void => toWindows('remote:act', action, s.device.id)
+  const act = (action: PhoneAction): void => toWindows('remote:act', action, s.device.id, s.externalAgents)
   switch (m.t) {
     case 'list':
-      if (lastList) post(s, { t: 'list', list: lastList })
+      if (lastList) post(s, { t: 'list', list: s.externalAgents ? lastList.all : lastList.legacy })
       // The main window answers with the list as it is now.
       deps.main()?.webContents.send('remote:list-request')
       break
@@ -553,7 +557,7 @@ function onPhone(s: Session, m: FromPhone): void {
       if (!isId(m.tabId)) return
       s.watching = m.tabId
       watchingChanged()
-      toWindows('remote:open', m.tabId, s.device.id)
+      toWindows('remote:open', m.tabId, s.device.id, s.externalAgents)
       break
     case 'close':
       if (s.watching !== m.tabId) return
@@ -640,11 +644,17 @@ export function setupRemote(d: Deps): void {
   ipcMain.handle('remote:watching', () => watched())
 
   // What a window shows of a chat, for the phones that have it open (or the one named).
-  ipcMain.on('remote:push', (_e, msg: ToPhone, to?: string) => {
+  ipcMain.on('remote:push', (_e, msg: ToPhone, to?: string, external = false) => {
     if (msg.t !== 'chat' && msg.t !== 'live' && msg.t !== 'earlier' && msg.t !== 'gone') return
     let closed = false
     for (const s of sessions.values()) {
       if (s.watching !== msg.tabId || (to && s.device.id !== to)) continue
+      if (external && !s.externalAgents) {
+        post(s, { t: 'gone', tabId: msg.tabId })
+        s.watching = null
+        closed = true
+        continue
+      }
       post(s, msg)
       if (msg.t === 'gone') {
         s.watching = null
@@ -654,13 +664,15 @@ export function setupRemote(d: Deps): void {
     if (closed) watchingChanged()
   })
   // Things that aren't about one open chat: project icons, a project's saved chats, a chat just opened.
-  ipcMain.on('remote:tell', (_e, msg: ToPhone, to?: string) => {
+  ipcMain.on('remote:tell', (_e, msg: ToPhone, to?: string, external = false) => {
     if (msg.t !== 'icons' && msg.t !== 'project' && msg.t !== 'opened') return
-    for (const s of sessions.values()) if (!to || s.device.id === to) post(s, msg)
+    for (const s of sessions.values()) {
+      if ((!to || s.device.id === to) && (!external || s.externalAgents)) post(s, msg)
+    }
   })
-  ipcMain.on('remote:list', (_e, list: RemoteList) => {
-    lastList = list
-    for (const s of sessions.values()) post(s, { t: 'list', list })
+  ipcMain.on('remote:list', (_e, all: RemoteList, legacy: RemoteList) => {
+    lastList = { all, legacy }
+    for (const s of sessions.values()) post(s, { t: 'list', list: s.externalAgents ? all : legacy })
   })
 
   // Waking from sleep leaves a connection that looks open and isn't: start a new one.

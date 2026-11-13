@@ -1,7 +1,8 @@
-import { ArrowUp, Cpu, Gauge, Paperclip, SendToBack, ShieldCheck, Square, X } from 'lucide-react'
+import { ArrowUp, Cpu, Gauge, MessageSquare, Paperclip, SendToBack, ShieldCheck, Square, X } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type PermissionMode, type SlashCommandInfo } from '@shared/types'
+import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type ModelOption, type PermissionMode, type SlashCommandInfo } from '@shared/types'
 import { EMPTY_CHAT, useStore } from '../store'
+import { agentName, chatProviders, EXTERNAL_MODE_OPTIONS, externalPermissionMode } from '../lib/providers'
 import { Dropdown } from './Menu'
 
 export const MODE_OPTIONS: { value: PermissionMode; label: string; description: string }[] = [
@@ -20,6 +21,7 @@ const EFFORT_LABELS: Record<EffortLevel, string> = {
   max: 'Max'
 }
 const ALL_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
+const PROGRAM_DEFAULT_MODEL: ModelOption = { value: '', label: 'Program default' }
 
 const BUILTIN_COMMANDS: SlashCommandInfo[] = [
   { name: 'compact', description: 'Summarize the conversation to free up context', builtin: true },
@@ -95,20 +97,19 @@ function tokens(n: number): string {
   return `${Math.max(1, Math.round(n / 1000))}k`
 }
 
-/** How full the chat is. The tick marks where Claude starts summarizing earlier messages. */
-function ContextMeter({ info }: { info?: ContextInfo }): ReactNode {
+/** How full the chat is. The tick marks the start of the reserved context, when known. */
+function ContextMeter({ info, external }: { info?: ContextInfo; external: boolean }): ReactNode {
   if (!info?.max) return null
   const limit = info.max - info.buffer
   const pct = Math.min(100, Math.round((info.used / info.max) * 100))
   const lvl = info.used >= limit * 0.9 ? 'stop' : info.used >= limit * 0.7 ? 'warn' : 'ok'
-  const title =
-    `Context: ${tokens(info.used)} of ${tokens(info.max)} tokens${info.estimated ? ', from the saved chat' : ''}.\n` +
-    `Claude summarizes earlier messages at ${tokens(limit)}, about ${tokens(Math.max(0, limit - info.used))} from now.`
+  const context = `Context: ${tokens(info.used)} of ${tokens(info.max)} tokens${info.estimated ? ', from the saved chat' : ''}.`
+  const title = external ? context : `${context}\nClaude summarizes earlier messages at ${tokens(limit)}, about ${tokens(Math.max(0, limit - info.used))} from now.`
   return (
     <span className="ctx-meter" title={title} role="img" aria-label={`Context ${pct}% full`}>
       <span className={`meter-bar lvl-${lvl}`}>
         <span className="meter-fill" style={{ width: `${(info.used / info.max) * 100}%` }} />
-        <span className="meter-stop" style={{ left: `${(limit / info.max) * 100}%` }} />
+        {info.buffer ? <span className="meter-stop" style={{ left: `${(limit / info.max) * 100}%` }} /> : null}
       </span>
       <span className={`meter-pct lvl-${lvl}`}>{pct}%</span>
     </span>
@@ -163,7 +164,14 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   const chat = useStore((st) => st.chats[tab.id]) ?? EMPTY_CHAT
   const knownModels = useStore((st) => st.knownModels)
   const settings = useStore((st) => st.settings)
-  const defaultEffort = useStore((st) => st.info?.defaultEffort ?? null)
+  const claudeDefaultEffort = useStore((st) => st.info?.defaultEffort ?? null)
+  const externalModelOptions = useStore((st) => st.externalModelOptions)
+  const externalName = useStore((st) => st.externalName)
+  const externalAccountName = useStore((st) => st.externalAccountName)
+  const externalLoginSupported = useStore((st) => st.externalLoginSupported)
+  const externalAuth = useStore((st) => st.externalAuth)
+  const externalAccountRevision = useStore((st) => st.externalAccountRevision)
+  const detectedExternalProgram = useStore((st) => st.detectedExternalProgram)
   const [text, setText] = useState(chat.draft || tab.draft || '')
   const images = chat.attachments
   const setImages = (fn: (cur: ImageAttachment[]) => ImageAttachment[]): void => useStore.getState().setAttachments(tab.id, fn(useStore.getState().chat(tab.id).attachments))
@@ -174,18 +182,32 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   const fileInput = useRef<HTMLInputElement>(null)
 
   const busy = chat.status === 'running' || chat.status === 'starting'
-  const models = knownModels.length ? knownModels : DEFAULT_MODELS
+  const provider = tab.provider ?? 'claude'
+  const external = provider === 'external'
+  const name = agentName(provider, externalName)
+  const program = settings.externalProgram?.trim() || detectedExternalProgram
+  const externalModels = program && externalModelOptions?.program === program ? externalModelOptions.models : []
+  const models = external ? [PROGRAM_DEFAULT_MODEL, ...externalModels] : knownModels.length ? knownModels : DEFAULT_MODELS
+  const needsProgram = external && (!program || externalAuth?.missing === true)
+  const needsSignIn = external && !needsProgram && externalLoginSupported && externalAuth?.loggedIn === false && externalAuth.requiresSignIn !== false && !externalAuth.error
+  const showUsage = isUsageCommand(text) && !images.length
+  const canSend = showUsage || (!!(text.trim() || images.length) && !chat.moving && !needsProgram && !needsSignIn)
+  const pickProvider = !tab.sessionId && !chat.opened && !chat.items.length && !busy
   const modelValue = tab.model ?? ''
-  const modeValue: PermissionMode | '' = tab.permissionMode ?? chat.permissionMode ?? settings.defaultPermissionMode ?? ''
-  const modelInfo = models.find((m) => m.value === modelValue || (!!chat.activeModel && m.resolved === chat.activeModel))
-  const efforts = modelInfo?.efforts ?? ALL_EFFORTS
+  const modes = external ? EXTERNAL_MODE_OPTIONS : MODE_OPTIONS
+  const modeValue: PermissionMode | '' = tab.permissionMode ?? chat.permissionMode ?? (external ? externalPermissionMode(settings.defaultExternalPermissionMode) : settings.defaultPermissionMode ?? '')
+  const modelInfo = external
+    ? externalModels.find((m) => m.value === (modelValue || chat.activeModel) || m.resolved === (modelValue || chat.activeModel))
+    : models.find((m) => m.value === modelValue || (!!chat.activeModel && m.resolved === chat.activeModel))
+  const efforts = modelInfo?.efforts ?? (external ? [] : ALL_EFFORTS)
+  const defaultEffort = external ? null : claudeDefaultEffort
   const effortValue: EffortLevel | '' = tab.effort ?? ''
   const effortOptions = [
-    { value: '' as EffortLevel | '', label: defaultEffort ? `Default (${EFFORT_LABELS[defaultEffort]})` : 'Default', description: 'What your Claude settings use' },
+    { value: '' as EffortLevel | '', label: defaultEffort ? `Default (${EFFORT_LABELS[defaultEffort]})` : 'Default', description: `What your ${name} settings use` },
     ...efforts.map((e) => ({ value: e as EffortLevel | '', label: EFFORT_LABELS[e] }))
   ]
   const modelLabel = models.find((m) => m.value === modelValue)?.label ?? (modelValue || 'Default')
-  const modeLabel = MODE_OPTIONS.find((m) => m.value === modeValue)?.label ?? 'Claude default mode'
+  const modeLabel = modes.find((m) => m.value === modeValue)?.label ?? 'Claude default mode'
   const effortLabel = effortValue ? EFFORT_LABELS[effortValue] : defaultEffort ? EFFORT_LABELS[defaultEffort] : 'Default'
 
   useEffect(() => {
@@ -206,12 +228,14 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
 
   useEffect(() => setCmdDismissed(false), [text])
 
-  const query = text.match(/^\/(\S*)$/)?.[1] ?? null
+  const sigil = external ? '$' : '/'
+  const query = (external ? text.match(/^\$(\S*)$/) : text.match(/^\/(\S*)$/))?.[1] ?? null
+  const searchingCommands = query !== null
   // Grouped by where they come from; within a group, names starting with what you typed first,
   // then names containing it, then (from three letters on) descriptions mentioning it.
   const groups = useMemo(() => {
     if (query === null || cmdDismissed) return []
-    const list = [...(chat.commands.length ? chat.commands : BUILTIN_COMMANDS).filter((c) => c.name !== 'usage'), USAGE_COMMAND]
+    const list = external ? chat.commands : [...(chat.commands.length ? chat.commands : BUILTIN_COMMANDS).filter((c) => c.name !== 'usage'), USAGE_COMMAND]
     const q = query.toLowerCase()
     const score = (c: SlashCommandInfo): number => {
       const name = c.name.toLowerCase()
@@ -232,7 +256,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
     return [...byGroup.entries()]
       .sort(([a], [b]) => groupRank(a) - groupRank(b) || a.localeCompare(b))
       .map(([label, rows]) => ({ label, items: rows.sort((x, y) => x.s - y.s || x.c.name.localeCompare(y.c.name)).map((r) => r.c) }))
-  }, [query, cmdDismissed, chat.commands])
+  }, [query, cmdDismissed, chat.commands, external])
   const commands = useMemo(() => groups.flatMap((g) => g.items), [groups])
   const cmdList = useRef<HTMLDivElement>(null)
 
@@ -240,10 +264,17 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   useEffect(() => {
     cmdList.current?.querySelector('.cmd.active')?.scrollIntoView({ block: 'nearest' })
   }, [cmdIndex])
-  // A chat that hasn't started yet still offers all your skills: ask for them when you type /.
+  // A chat that hasn't started yet can still fetch skills from its provider.
   useEffect(() => {
-    if (text.startsWith('/') && !chat.commands.length) void s.loadCommands(tab.id)
-  }, [text.startsWith('/'), chat.commands.length])
+    if (searchingCommands && !chat.commands.length && (!external || program)) void s.loadCommands(tab.id)
+  }, [external, program, searchingCommands, chat.commands.length])
+
+  useEffect(() => {
+    if (external && program) void s.loadExternalModels()
+  }, [external, program, externalAccountRevision, tab.sessionId, chat.status === 'idle'])
+  useEffect(() => {
+    if (external && program) void s.refreshExternalAuth()
+  }, [external, program])
 
   const addFiles = async (files: FileList | File[]): Promise<void> => {
     const list = [...files]
@@ -284,20 +315,21 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
 
   /** `background`: Claude hands the job to a background agent and the chat stays free (Alt+Enter). */
   const submit = (background = false): void => {
-    if (isUsageCommand(text) && !images.length) {
-      s.showUsage()
+    if (!canSend) return
+    if (showUsage) {
+      s.showUsage(provider)
       setText('')
       return
     }
-    if ((!text.trim() && !images.length) || chat.moving) return
-    if (background && !text.trim()) return
+    if (background && (external || !text.trim())) return
     void s.send(tab.id, text, images, undefined, background)
     setText('')
     s.setAttachments(tab.id, [])
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (commands.length) {
+    const command = commands[cmdIndex] ?? commands[0]
+    if (command) {
       if (e.key === 'Escape') {
         // Put the list away; Esc again stops Claude.
         e.preventDefault()
@@ -310,10 +342,10 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
         return
       }
       // Enter completes the highlighted command, unless what you typed already names one exactly.
-      const exact = commands.some((c) => text.trim() === `/${c.name}`)
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !exact)) {
+      const exact = commands.some((c) => text.trim() === `${sigil}${c.name}`)
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.nativeEvent.isComposing && !exact)) {
         e.preventDefault()
-        setText(`/${commands[cmdIndex].name} `)
+        setText(`${sigil}${command.name} `)
         return
       }
     }
@@ -324,7 +356,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
     }
     if (e.key === 'Enter' && e.altKey && !e.shiftKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
-      submit(true)
+      if (!external) submit(true)
       return
     }
     if (e.key === 'Enter') {
@@ -359,12 +391,12 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
                     onMouseMove={() => i !== cmdIndex && setCmdIndex(i)}
                     onMouseDown={(e) => {
                       e.preventDefault()
-                      setText(`/${c.name} `)
+                      setText(`${sigil}${c.name} `)
                       ta.current?.focus()
                     }}
                     title={c.description}
                   >
-                    <span className="cmd-name">/{c.name}</span>
+                    <span className="cmd-name">{sigil}{c.name}</span>
                     {c.hint ? <span className="cmd-hint">{c.hint}</span> : null}
                     <span className="cmd-desc">{c.description}</span>
                     {c.origin ? (
@@ -396,7 +428,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
         className="composer-input selectable"
         rows={1}
         value={text}
-        placeholder={chat.moving ? 'Moving this chat to another project' : busy ? 'Add to the conversation. Esc stops Claude' : 'Ask Claude to work in this folder'}
+        placeholder={chat.moving ? 'Moving this chat to another project' : busy ? `Add to the conversation. Esc stops ${name}` : `Ask ${name} to work in this folder`}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={() => commands.length && setCmdDismissed(true)}
@@ -428,21 +460,36 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
           <button className="icon-btn" title="Attach images" onClick={() => fileInput.current?.click()}>
             <Paperclip />
           </button>
-          <Dropdown
-            className="composer-pick"
-            icon={<Cpu />}
-            value={modelValue}
-            options={models.map((m) => ({ value: m.value, label: m.label, description: m.description }))}
-            label={modelLabel}
-            onChange={(v) => s.setModel(tab.id, v || null)}
-            title={`Model: ${modelLabel}`}
-            placement="above"
-          />
+          {pickProvider ? (
+            <Dropdown
+              className="composer-pick"
+              icon={<MessageSquare />}
+              title="Chat agent"
+              value={provider}
+              options={chatProviders(externalName)}
+              onChange={(v) => s.setProvider(tab.id, v)}
+              placement="above"
+            />
+          ) : null}
+          {needsProgram ? <button className="btn ghost" onClick={s.openSettings}>Set up {externalName}</button> : null}
+          {needsSignIn ? <button className="btn ghost" onClick={s.openSettings}>Sign in with {externalAccountName}</button> : null}
+          {models.length > 1 ? (
+            <Dropdown
+              className="composer-pick"
+              icon={<Cpu />}
+              value={modelValue}
+              options={models}
+              label={modelLabel}
+              onChange={(v) => s.setModel(tab.id, v || null)}
+              title={`Model: ${modelLabel}`}
+              placement="above"
+            />
+          ) : null}
           <Dropdown
             className={`composer-pick mode-${modeValue || 'unset'}`}
             icon={<ShieldCheck />}
             value={modeValue}
-            options={MODE_OPTIONS}
+            options={modes}
             label={modeValue ? undefined : 'Claude default mode'}
             onChange={(v) => v && s.setMode(tab.id, v)}
             title={`Permission mode: ${modeLabel}`}
@@ -456,34 +503,36 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
               options={effortOptions}
               label={effortValue ? EFFORT_LABELS[effortValue] : defaultEffort ? EFFORT_LABELS[defaultEffort] : 'Effort'}
               onChange={(v) => s.setEffort(tab.id, v || null)}
-              title={`Effort: ${effortLabel}. How hard Claude thinks before answering`}
+              title={`Effort: ${effortLabel}`}
               placement="above"
             />
           ) : null}
-          <button
-            className={`ultra-switch${tab.ultracode ? ' on' : ''}`}
-            role="switch"
-            aria-checked={tab.ultracode === true}
-            title={`Ultracode ${tab.ultracode ? 'on' : 'off'}: Claude plans big jobs as workflows of several agents. Uses more of your limits.`}
-            onClick={() => s.setUltracode(tab.id, !tab.ultracode)}
-          >
-            <span className="gkey" aria-hidden="true">
-              <span className="gkey-floor" />
-              <span className="gkey-ghost gkey-ghost-off">
-                <DotIcon on={false} />
+          {!external ? (
+            <button
+              className={`ultra-switch${tab.ultracode ? ' on' : ''}`}
+              role="switch"
+              aria-checked={tab.ultracode === true}
+              title={`Ultracode ${tab.ultracode ? 'on' : 'off'}: Claude plans big jobs as workflows of several agents. Uses more of your limits.`}
+              onClick={() => s.setUltracode(tab.id, !tab.ultracode)}
+            >
+              <span className="gkey" aria-hidden="true">
+                <span className="gkey-floor" />
+                <span className="gkey-ghost gkey-ghost-off">
+                  <DotIcon on={false} />
+                </span>
+                <span className="gkey-ghost gkey-ghost-on">
+                  <DotIcon on />
+                </span>
+                <span className="gkey-knob">
+                  <span className="gkey-scatter" />
+                  <span className="gkey-rim" />
+                  <DotIcon on={tab.ultracode === true} />
+                </span>
               </span>
-              <span className="gkey-ghost gkey-ghost-on">
-                <DotIcon on />
-              </span>
-              <span className="gkey-knob">
-                <span className="gkey-scatter" />
-                <span className="gkey-rim" />
-                <DotIcon on={tab.ultracode === true} />
-              </span>
-            </span>
-            Ultracode
-          </button>
-          <ContextMeter info={chat.context} />
+              Ultracode
+            </button>
+          ) : null}
+          <ContextMeter info={chat.context} external={external} />
         </div>
         <div className="composer-send">
           {busy ? (
@@ -491,20 +540,22 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
               <Square />
             </button>
           ) : null}
-          <button
-            className="send to-back"
-            title="Send to background (Alt+Enter): Claude hands it to a background agent, and you keep chatting while it works"
-            aria-label="Send to background"
-            disabled={!text.trim() || chat.moving || isUsageCommand(text)}
-            onClick={() => submit(true)}
-          >
-            <SendToBack />
-          </button>
+          {!external ? (
+            <button
+              className="send to-back"
+              title="Send to background (Alt+Enter): Claude hands it to a background agent, and you keep chatting while it works"
+              aria-label="Send to background"
+              disabled={!text.trim() || chat.moving || isUsageCommand(text)}
+              onClick={() => submit(true)}
+            >
+              <SendToBack />
+            </button>
+          ) : null}
           <button
             className="send"
             title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'}
             aria-label="Send"
-            disabled={(!text.trim() && !images.length) || chat.moving}
+            disabled={!canSend}
             onClick={() => submit()}
           >
             <ArrowUp />

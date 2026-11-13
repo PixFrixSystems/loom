@@ -130,7 +130,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
     ]
     if (tab.kind === 'chat') {
       items.push({ separator: true, label: '' }, { label: 'Rename', onSelect: () => setRenaming(true) })
-      if (!detached) {
+      if (!detached && !(tab.provider === 'external' && tab.sessionId)) {
         items.push({
           label: 'Move to project',
           submenu: s.projects
@@ -207,7 +207,7 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
       onDoubleClick={() => tab.kind === 'chat' && setRenaming(true)}
       onContextMenu={menu}
     >
-      <span className="tab-icon">{running ? <span className="live-dot" role="img" aria-label="Claude is working" /> : detached ? <AppWindow /> : <TabIcon tab={tab} />}</span>
+      <span className="tab-icon">{running ? <span className="live-dot" role="img" aria-label="Agent is working" /> : detached ? <AppWindow /> : <TabIcon tab={tab} />}</span>
       <ProjectMark project={project} size={14} />
       {project && !compact ? <span className="tab-project">{project.name}</span> : null}
       {renaming ? (
@@ -221,7 +221,9 @@ function TabItem({ tab, index, compact = false }: { tab: Tab; index: number; com
             const v = e.currentTarget.value.trim()
             if (v) {
               s.updateTab(tab.id, { title: v })
-              if (tab.kind === 'chat' && tab.sessionId) void window.loom.renameSession(tab.sessionId, v)
+              if (tab.kind === 'chat' && tab.sessionId) {
+                void window.loom.renameSession(tab.sessionId, v, tab.provider).catch((e: Error) => s.showToast(e.message))
+              }
             }
             setRenaming(false)
           }}

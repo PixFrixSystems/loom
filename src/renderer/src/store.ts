@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import {
   THREAD_COLORS,
+  type AuthStatus,
   type BrowserTab,
   type ChatEvent,
   type ChatItem,
+  type ChatProvider,
   type ChatStatus,
   type ChatTab,
   type ClaudeInfo,
@@ -17,6 +19,7 @@ import {
   type ImagePreview,
   type LayoutNode,
   type LoomSettings,
+  type ModelOption,
   type PermissionMode,
   type PermissionRequest,
   type PermissionResponse,
@@ -52,6 +55,7 @@ import {
   type PresetName
 } from './lib/layout'
 import { baseName, isInside, joinPath, normPath, parentDir, projectForPath, shortPath, thumbnailOf, uid } from './lib/paths'
+import { EXTERNAL_AGENT, externalPermissionMode, sessionKey } from './lib/providers'
 import { playTone } from './lib/tones'
 
 export interface ChatRuntime {
@@ -207,6 +211,18 @@ interface Store extends PersistedState {
   terminals: Record<string, { exited: boolean; code?: number; started: boolean }>
   dirtyFiles: Record<string, boolean>
   sessions: SessionSummary[]
+  externalModelOptions: { program: string; models: ModelOption[] } | null
+  externalName: string
+  externalAccountName: string
+  externalLoginSupported: boolean
+  externalInstallUrl?: string
+  detectedExternalProgram: string
+  externalAuth: AuthStatus | null
+  externalAccountRevision: number
+  refreshExternalAuth: () => Promise<AuthStatus>
+  externalUsage: UsageSnapshot | null
+  externalUsageChecking: boolean
+  refreshExternalUsage: (force?: boolean) => Promise<void>
   git: Record<string, GitStatus | null>
   /** The Changes panel's view of each project: files, branch, upstream */
   gitChanges: Record<string, GitChanges | null>
@@ -241,10 +257,11 @@ interface Store extends PersistedState {
   usage: UsageSnapshot | null
   /** The Plan limits popover is open: from the status bar's meters, or /usage in a chat */
   usageOpen: boolean
+  usageProvider: ChatProvider
   /** A fresh reading of the plan limits is on its way */
   usageChecking: boolean
   /** Opens the Plan limits popover with a fresh reading, whatever the chats are doing (/usage) */
-  showUsage: () => void
+  showUsage: (provider?: ChatProvider) => void
   /** Phone access: whether it is on, and the phones linked (main window only) */
   remote: RemoteStatus | null
   history: string[]
@@ -279,7 +296,7 @@ interface Store extends PersistedState {
   closeTab: (tabId: string, closing?: Set<string>) => void
   moveTab: (tabId: string, toIndex: number) => void
   updateTab: (tabId: string, patch: Partial<Tab>) => void
-  newChat: (projectId: string | null) => void
+  newChat: (projectId: string | null, provider?: ChatProvider) => void
   openSession: (session: SessionSummary) => void
   /** Moves a chat to another project: its history goes with it, and Claude works in the new folder. */
   moveChat: (ref: { tabId?: string; session?: SessionSummary }, projectId: string) => Promise<void>
@@ -295,10 +312,12 @@ interface Store extends PersistedState {
 
   chat: (tabId: string) => ChatRuntime
   loadHistory: (tabId: string) => Promise<void>
+  loadExternalModels: () => Promise<void>
   /** id: the message's own, when whoever sent it (a linked phone) already made one */
   /** `background`: "Send to background", Claude hands the job to a background agent and stays free */
   send: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean) => Promise<void>
   interrupt: (tabId: string) => void
+  setProvider: (tabId: string, provider: ChatProvider) => void
   setModel: (tabId: string, model: string | null) => void
   setMode: (tabId: string, mode: PermissionMode) => void
   setEffort: (tabId: string, effort: EffortLevel | null) => void
@@ -315,7 +334,7 @@ interface Store extends PersistedState {
   /** Remembers a choice made in a chat's message box, so the next chat starts with it. */
   rememberChoice: (patch: Partial<LoomSettings>) => void
   /** The options a new or reopened chat starts with: the ones you picked last. */
-  chatDefaults: () => Pick<ChatTab, 'model' | 'permissionMode' | 'effort' | 'ultracode'>
+  chatDefaults: (provider: ChatProvider) => Pick<ChatTab, 'model' | 'permissionMode' | 'effort' | 'ultracode'>
   /** Opens a project's site in a browser tab, beside what you're working on. */
   openPreview: (projectId: string | null, url?: string, beside?: boolean) => void
   /** Adds a pane beside one (the focused one by default) showing the tab, or the last tab not on screen. */
@@ -419,6 +438,11 @@ function chatTitleFrom(text: string): string {
 }
 
 export const useStore = create<Store>((set, get) => {
+  let modelRequest: { program: string; pending: Promise<void> } | null = null
+  let authRequest: { program: string; pending: Promise<AuthStatus> } | null = null
+  let sessionsRequest = 0
+  let usageRequest = 0
+  let externalAccountRequest = 0
   const patchChat = (tabId: string, fn: (c: ChatRuntime) => Partial<ChatRuntime>): void => {
     set((s) => {
       // Late news for a tab that has closed (a history load, a last event) stays dropped.
@@ -434,6 +458,7 @@ export const useStore = create<Store>((set, get) => {
     await window.loom.chatOpen(tab.id, {
       cwd: tab.cwd,
       sessionId: tab.sessionId,
+      provider: tab.provider,
       model: tab.model ?? null,
       permissionMode: tab.permissionMode ?? null,
       effort: tab.effort ?? null,
@@ -471,6 +496,15 @@ export const useStore = create<Store>((set, get) => {
     terminals: {},
     dirtyFiles: {},
     sessions: [],
+    externalModelOptions: null,
+    externalName: EXTERNAL_AGENT,
+    externalAccountName: EXTERNAL_AGENT,
+    externalLoginSupported: false,
+    detectedExternalProgram: '',
+    externalAuth: null,
+    externalAccountRevision: 0,
+    externalUsage: null,
+    externalUsageChecking: false,
     git: {},
     gitChanges: {},
     menu: null,
@@ -493,6 +527,7 @@ export const useStore = create<Store>((set, get) => {
     fileDrafts: {},
     usage: null,
     usageOpen: false,
+    usageProvider: 'claude',
     usageChecking: false,
     remote: null,
     history: [],
@@ -501,7 +536,36 @@ export const useStore = create<Store>((set, get) => {
     editingGroupId: null,
 
     init: async () => {
-      const [state, info] = await Promise.all([window.loom.loadState(), window.loom.claudeInfo()])
+      const [state, info, brand, program] = await Promise.all([
+        window.loom.loadState(), window.loom.claudeInfo(), window.loom.externalBrand().catch(() => null), window.loom.externalProgram().catch(() => '')
+      ])
+      set({
+        externalName: brand?.name || EXTERNAL_AGENT,
+        externalAccountName: brand?.accountName || brand?.name || EXTERNAL_AGENT,
+        externalLoginSupported: brand?.loginSupported === true,
+        externalInstallUrl: brand?.installUrl,
+        detectedExternalProgram: state.settings.externalProgram?.trim() ? '' : program
+      })
+      window.loom.onExternalAccountChanged(async () => {
+        const request = ++externalAccountRequest
+        modelRequest = null
+        authRequest = null
+        ++usageRequest
+        set({ externalModelOptions: null, externalAuth: null, externalUsage: null, externalUsageChecking: false })
+        if (POPOUT_TAB) {
+          const [next, program] = await Promise.all([
+            window.loom.loadState().catch(() => null), window.loom.externalProgram().catch(() => '')
+          ])
+          if (request !== externalAccountRequest) return
+          if (next) {
+            const externalProgram = next.settings.externalProgram
+            set((current) => ({ settings: { ...current.settings, externalProgram }, detectedExternalProgram: externalProgram?.trim() ? '' : program }))
+          }
+        }
+        set((current) => ({ externalAccountRevision: current.externalAccountRevision + 1 }))
+        void get().refreshExternalAuth()
+        if (!POPOUT_TAB) void get().refreshSessions(true)
+      })
       window.loom.onSnapshotRequest((tabId) => get().snapshotOf(tabId))
       window.loom.onBrowserShortcut((k) =>
         window.dispatchEvent(new KeyboardEvent('keydown', { key: k.key, code: k.code, ctrlKey: true, shiftKey: k.shift, altKey: k.alt, bubbles: true }))
@@ -876,11 +940,12 @@ export const useStore = create<Store>((set, get) => {
     updateTab: (tabId, patch) =>
       set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? ({ ...t, ...patch } as Tab) : t)) })),
 
-    newChat: (projectId) => {
-      if (POPOUT_TAB) return window.loom.mainDo('newChat', [projectId])
+    newChat: (projectId, requestedProvider) => {
+      if (POPOUT_TAB) return window.loom.mainDo('newChat', [projectId, requestedProvider])
       const project = get().projects.find((p) => p.id === projectId) ?? null
       const cwd = project?.path ?? get().info?.homeDir ?? 'C:\\'
-      get().openTab({ id: uid(), kind: 'chat', projectId: project?.id ?? null, sessionId: null, cwd, title: 'New chat', ...get().chatDefaults() })
+      const provider = requestedProvider ?? get().settings.defaultProvider ?? 'claude'
+      get().openTab({ id: uid(), kind: 'chat', projectId: project?.id ?? null, sessionId: null, cwd, title: 'New chat', provider, ...get().chatDefaults(provider) })
     },
     moveChat: async (ref, projectId) => {
       if (POPOUT_TAB) return
@@ -889,15 +954,16 @@ export const useStore = create<Store>((set, get) => {
       // A saved chat that isn't open opens first, so the move has somewhere to report back.
       if (!ref.tabId && ref.session) get().openSession(ref.session)
       const tab = get().tabs.find(
-        (t): t is ChatTab => t.kind === 'chat' && (ref.tabId ? t.id === ref.tabId : t.sessionId === ref.session?.sessionId)
+        (t): t is ChatTab => t.kind === 'chat' && (ref.tabId ? t.id === ref.tabId : !!ref.session && sessionKey(t) === sessionKey(ref.session))
       )
       if (!tab || tab.projectId === project.id) return
+      if (tab.provider === 'external' && tab.sessionId) return
       const note = (text: string, tone: 'info' | 'error' = 'info'): void =>
         patchChat(tab.id, (c) => ({ items: [...c.items, { kind: 'note', id: uid(), tone, text }] }))
       const c = get().chat(tab.id)
       if (get().detached[tab.id]) return get().showToast('Bring this chat back to the main window first, then move it.')
       if (chatBusy(c)) {
-        return note('Claude is still working in this chat. Move it once the reply is done.', 'error')
+        return note('The agent is still working in this chat. Move it once the reply is done.', 'error')
       }
       // No messages while the history file moves: one would land in the old folder.
       patchChat(tab.id, () => ({ moving: true }))
@@ -918,22 +984,25 @@ export const useStore = create<Store>((set, get) => {
       get().updateTab(tab.id, { projectId: project.id, cwd: project.path } as Partial<ChatTab>)
       // Skills and commands can differ per folder: fetch them again for the new one.
       patchChat(tab.id, () => ({ commands: [] }))
-      note(`Moved to ${project.name}. From the next message Claude works in ${project.path}.`)
+      note(`Moved to ${project.name}. The next message will run in ${project.path}.`)
       void get().refreshSessions(true)
     },
     openSession: (session) => {
       if (POPOUT_TAB) return window.loom.mainDo('openSession', [session])
-      const open = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === session.sessionId)
+      const key = sessionKey(session)
+      const open = get().tabs.find((t) => t.kind === 'chat' && sessionKey(t) === key)
       if (open) return get().activate(open.id)
       const project = projectForPath(get().projects, session.cwd)
+      const provider = session.provider ?? 'claude'
       get().openTab({
         id: uid(),
         kind: 'chat',
         projectId: project?.id ?? null,
         sessionId: session.sessionId,
+        provider,
         cwd: session.cwd,
         title: session.title.length > 60 ? `${session.title.slice(0, 60)}…` : session.title,
-        ...get().chatDefaults()
+        ...get().chatDefaults(provider)
       })
     },
     openFile: (path, projectId) => {
@@ -993,20 +1062,62 @@ export const useStore = create<Store>((set, get) => {
 
     chat: (tabId) => get().chats[tabId] ?? newChatRuntime(),
 
+    refreshExternalAuth: async () => {
+      const program = get().settings.externalProgram?.trim() || get().detectedExternalProgram
+      if (authRequest?.program === program) return authRequest.pending
+      const pending = window.loom.externalAuthStatus().catch((e: Error) => ({ loggedIn: false, error: e.message })).then((auth) => {
+        if (authRequest?.pending === pending) set({ externalAuth: auth })
+        return auth
+      }).finally(() => {
+        if (authRequest?.pending === pending) authRequest = null
+      })
+      authRequest = { program, pending }
+      return pending
+    },
+
+    refreshExternalUsage: async (force) => {
+      const program = get().settings.externalProgram?.trim() || get().detectedExternalProgram
+      if (!program) return
+      if (!force && get().externalUsageChecking) return
+      const request = ++usageRequest
+      if (force) set({ externalUsageChecking: true })
+      const usage = await window.loom.externalUsage(force).catch(() => null)
+      if (request === usageRequest) set({ externalUsage: usage, externalUsageChecking: false })
+    },
+
+    loadExternalModels: async () => {
+      const program = get().settings.externalProgram?.trim() || get().detectedExternalProgram
+      if (!program || get().externalModelOptions?.program === program) return
+      if (modelRequest?.program === program) return modelRequest.pending
+      const pending = window.loom.externalModels().then((models) => {
+        if (modelRequest?.pending === pending && models.length && (get().settings.externalProgram?.trim() || get().detectedExternalProgram) === program) {
+          set({ externalModelOptions: { program, models } })
+        }
+      }).catch(() => undefined).finally(() => {
+        if (modelRequest?.pending === pending) modelRequest = null
+      })
+      modelRequest = { program, pending }
+      return pending
+    },
+
     loadHistory: async (tabId) => {
       const tab = get().tabs.find((t) => t.id === tabId)
       if (!tab || tab.kind !== 'chat' || !tab.sessionId) return
       const c = get().chat(tabId)
       if (c.historyState === 'loading' || c.historyState === 'loaded') return
       patchChat(tabId, () => ({ historyState: 'loading' }))
-      const r = await window.loom.loadHistory(tab.sessionId)
-      patchChat(tabId, (cur) => ({
-        context: cur.context ?? r.context,
-        historyState: r.error ? 'error' : 'loaded',
-        historyTotal: r.total,
-        error: r.error,
-        items: [...r.items, ...cur.items]
-      }))
+      const r = await window.loom.loadHistory(tab.sessionId, tab.provider).catch((e: Error) => ({ items: [], total: 0, error: e.message, context: undefined }))
+      patchChat(tabId, (cur) => {
+        // A turn sent while loading may already be in the saved snapshot. Keep the live rows.
+        const liveIds = new Set(cur.items.map((item) => item.id))
+        return {
+          context: cur.context ?? r.context,
+          historyState: r.error ? 'error' : 'loaded',
+          historyTotal: r.total,
+          error: r.error,
+          items: [...r.items.filter((item) => !liveIds.has(item.id)), ...cur.items]
+        }
+      })
     },
 
     send: async (tabId, text, images, givenId, background = false) => {
@@ -1015,13 +1126,8 @@ export const useStore = create<Store>((set, get) => {
       const trimmed = text.trim()
       if (!trimmed && !images.length) return
       if (tab.title === 'New chat' && trimmed) get().updateTab(tabId, { title: chatTitleFrom(trimmed) })
-      const previews: ImagePreview[] = await Promise.all(
-        images.map(async (img) => {
-          const full = `data:${img.mediaType};base64,${img.data}`
-          return { thumb: await thumbnailOf(full), full }
-        })
-      )
-      // A real UUID: Claude Code tags the message with it, and Stop names the ones it takes back by it.
+      const previews = images.map((img) => ({ thumb: null, full: `data:${img.mediaType};base64,${img.data}` }))
+      // The client message ID also identifies any unsent message returned by Stop.
       const id = givenId ?? crypto.randomUUID()
       patchChat(tabId, (c) => ({
         items: [
@@ -1042,6 +1148,11 @@ export const useStore = create<Store>((set, get) => {
         // A message added mid-turn doesn't restart the turn's clock.
         startedAt: c.status === 'running' || c.status === 'starting' ? c.startedAt : Date.now()
       }))
+      if (previews.length) {
+        void Promise.all(previews.map(async (p): Promise<ImagePreview> => ({ ...p, thumb: await thumbnailOf(p.full) }))).then((ready) => {
+          patchChat(tabId, (c) => ({ items: c.items.map((item) => item.kind === 'user' && item.id === id ? { ...item, previews: ready } : item) }))
+        })
+      }
       try {
         await ensureOpened(tab)
         await window.loom.chatSend(tabId, trimmed, images, id, background)
@@ -1050,29 +1161,50 @@ export const useStore = create<Store>((set, get) => {
       }
     },
     interrupt: (tabId) => void window.loom.chatInterrupt(tabId),
+    setProvider: (tabId, provider) => {
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (tab?.kind !== 'chat' || tab.sessionId || (tab.provider ?? 'claude') === provider) return
+      const chat = get().chat(tabId)
+      if (chat.opened || chat.items.length || chatBusy(chat)) return
+      get().updateTab(tabId, { provider, ...get().chatDefaults(provider) })
+      patchChat(tabId, () => ({ commands: [], permissionMode: null, activeModel: undefined }))
+    },
     setModel: (tabId, model) => {
-      get().rememberChoice({ defaultModel: model })
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (tab?.kind !== 'chat') return
+      if (tab.provider === 'external') {
+        const options = get().externalModelOptions?.models
+        const selected = model ? options?.find((m) => m.value === model) : undefined
+        if (tab.effort && !selected?.efforts?.includes(tab.effort)) get().setEffort(tabId, null)
+      } else get().rememberChoice({ defaultModel: model })
       get().updateTab(tabId, { model })
       patchChat(tabId, () => ({ activeModel: model || undefined }))
       if (get().chat(tabId).opened) void window.loom.chatSetModel(tabId, model)
     },
     setMode: (tabId, mode) => {
-      get().rememberChoice({ defaultPermissionMode: mode })
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (tab?.kind !== 'chat') return
+      if (tab.provider === 'external') {
+        if (externalPermissionMode(mode) !== mode) return
+        get().rememberChoice({ defaultExternalPermissionMode: mode })
+      } else get().rememberChoice({ defaultPermissionMode: mode })
       get().updateTab(tabId, { permissionMode: mode })
       patchChat(tabId, () => ({ permissionMode: mode }))
       if (get().chat(tabId).opened) void window.loom.chatSetMode(tabId, mode)
     },
     setEffort: (tabId, effort) => {
-      get().rememberChoice({ defaultEffort: effort })
-      get().updateTab(tabId, { effort } as Partial<ChatTab>)
       const tab = get().tabs.find((t) => t.id === tabId)
-      if (get().chat(tabId).opened && tab?.kind === 'chat') void window.loom.chatSetEffort(tabId, effort, tab.ultracode === true)
+      if (tab?.kind !== 'chat') return
+      if (tab.provider !== 'external') get().rememberChoice({ defaultEffort: effort })
+      get().updateTab(tabId, { effort } as Partial<ChatTab>)
+      if (get().chat(tabId).opened) void window.loom.chatSetEffort(tabId, effort, tab.ultracode === true)
     },
     setUltracode: (tabId, on) => {
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (tab?.kind !== 'chat' || tab.provider === 'external') return
       get().rememberChoice({ defaultUltracode: on })
       get().updateTab(tabId, { ultracode: on } as Partial<ChatTab>)
-      const tab = get().tabs.find((t) => t.id === tabId)
-      if (get().chat(tabId).opened && tab?.kind === 'chat') void window.loom.chatSetEffort(tabId, tab.effort ?? null, on)
+      if (get().chat(tabId).opened) void window.loom.chatSetEffort(tabId, tab.effort ?? null, on)
     },
     loadIcon: async (projectId) => {
       const p = get().projects.find((x) => x.id === projectId)
@@ -1089,10 +1221,25 @@ export const useStore = create<Store>((set, get) => {
     rememberChoice: (patch) => {
       set((s) => ({ settings: { ...s.settings, ...patch } }))
       // A popout saves nothing itself: the main window keeps the choice.
-      if (POPOUT_TAB) window.loom.mainDo('rememberChoice', [patch])
+      if (POPOUT_TAB) return window.loom.mainDo('rememberChoice', [patch])
+      if (patch.externalProgram !== undefined) {
+        modelRequest = null
+        authRequest = null
+        ++usageRequest
+        set({ externalModelOptions: null, externalAuth: null, externalUsage: null, externalUsageChecking: false })
+        window.loom.saveState(pickPersisted(get()))
+        if (patch.externalProgram.trim()) void get().refreshExternalAuth()
+        else void window.loom.externalProgram().then((program) => {
+          if (get().settings.externalProgram?.trim()) return
+          set({ detectedExternalProgram: program })
+          void get().refreshExternalAuth()
+        }).catch(() => undefined)
+        void get().refreshSessions(true)
+      }
     },
-    chatDefaults: () => {
+    chatDefaults: (provider) => {
       const st = get().settings
+      if (provider === 'external') return { model: null, permissionMode: externalPermissionMode(st.defaultExternalPermissionMode), effort: null, ultracode: false }
       return {
         model: st.defaultModel ?? null,
         permissionMode: st.defaultPermissionMode ?? null,
@@ -1103,7 +1250,9 @@ export const useStore = create<Store>((set, get) => {
     loadCommands: async (tabId) => {
       const tab = get().tabs.find((t) => t.id === tabId)
       if (!tab || tab.kind !== 'chat' || get().chat(tabId).commands.length) return
-      const list = await window.loom.commandsList(tab.cwd).catch(() => [])
+      const list = await window.loom.commandsList(tab.cwd, tab.provider).catch(() => [])
+      const current = get().tabs.find((t) => t.id === tabId)
+      if (current?.kind !== 'chat' || current.provider !== tab.provider || current.cwd !== tab.cwd) return
       if (list.length && !get().chat(tabId).commands.length) patchChat(tabId, () => ({ commands: list }))
     },
     openPreview: (projectId, url, beside = true) => {
@@ -1271,9 +1420,9 @@ export const useStore = create<Store>((set, get) => {
         if (force) set({ usageChecking: false })
       }
     },
-    showUsage: () => {
-      set({ usageOpen: true })
-      void get().refreshUsage(true)
+    showUsage: (provider = 'claude') => {
+      set({ usageOpen: true, usageProvider: provider })
+      void (provider === 'external' ? get().refreshExternalUsage(true) : get().refreshUsage(true))
     },
     respond: (tabId, requestId, response) => {
       patchChat(tabId, (c) => ({ permissions: c.permissions.filter((p) => p.requestId !== requestId) }))
@@ -1416,9 +1565,11 @@ export const useStore = create<Store>((set, get) => {
           void get().refreshSessions(true)
           break
         }
-        case 'models':
-          if (ev.models.length) set({ knownModels: ev.models })
+        case 'models': {
+          const tab = get().tabs.find((t) => t.id === tabId)
+          if (ev.models.length && tab?.kind === 'chat' && tab.provider !== 'external') set({ knownModels: ev.models })
           break
+        }
         case 'commands':
           patchChat(tabId, () => ({ commands: ev.commands }))
           break
@@ -1430,9 +1581,10 @@ export const useStore = create<Store>((set, get) => {
     },
 
     refreshSessions: async (force) => {
+      const request = ++sessionsRequest
       try {
         const sessions = await window.loom.listSessions(force)
-        set({ sessions })
+        if (request === sessionsRequest) set({ sessions })
       } catch {
         // keep the previous list
       }
@@ -1584,7 +1736,7 @@ export const useStore = create<Store>((set, get) => {
       if (working.length) {
         const one = working.length === 1
         const choice = await get().ask({
-          title: one ? `Claude is still working in ${working[0].title}` : `Claude is still working in ${working.length} chats`,
+          title: one ? `Work is still running in ${working[0].title}` : `Work is still running in ${working.length} chats`,
           body: 'Closing stops it. The conversation is saved, and you can continue it later from the sidebar.',
           items: one ? undefined : working.map((t) => t.title),
           choices: [
@@ -1606,7 +1758,7 @@ export const useStore = create<Store>((set, get) => {
       if (!tab) return
       if (tab.kind === 'file') return get().openFile(tab.path, tab.projectId)
       if (tab.kind === 'chat') {
-        const open = get().tabs.find((t) => t.kind === 'chat' && t.sessionId === tab.sessionId)
+        const open = get().tabs.find((t) => t.kind === 'chat' && sessionKey(t) === sessionKey(tab))
         if (open) return get().activate(open.id)
       }
       // The project may have gone meanwhile; the tab still opens, just without it.

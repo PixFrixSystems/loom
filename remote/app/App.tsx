@@ -383,6 +383,10 @@ function Composer({ tabId, working, off }: { tabId: string; working: boolean; of
   const picker = useRef<HTMLInputElement>(null)
   const send = useApp((s) => s.send)
   const stopChat = useApp((s) => s.stopChat)
+  const name = useApp((s) => {
+    const state = s.chats[tabId]?.state
+    return state?.agentName ?? (state?.provider === 'external' ? 'the agent' : 'Claude')
+  })
   // Only a Loom that takes pictures with a message is offered them.
   const canAttach = useApp((s) => s.can.includes('images'))
   // The box grows with what is typed, up to a few lines.
@@ -468,7 +472,7 @@ function Composer({ tabId, working, off }: { tabId: string; working: boolean; of
           ref={box}
           className="composer-box"
           rows={1}
-          placeholder={off ?? (working ? 'Add a message' : 'Message Claude')}
+          placeholder={off ?? (working ? 'Add a message' : `Message ${name}`)}
           aria-label="Message"
           disabled={!!off}
           value={text}
@@ -482,7 +486,7 @@ function Composer({ tabId, working, off }: { tabId: string; working: boolean; of
           }}
         />
         {working ? (
-          <button type="button" className="round is-stop" aria-label="Stop Claude" title="Stop Claude" disabled={!!off} onClick={() => stopChat(tabId)}>
+          <button type="button" className="round is-stop" aria-label={`Stop ${name}`} title={`Stop ${name}`} disabled={!!off} onClick={() => stopChat(tabId)}>
             <Square />
           </button>
         ) : null}
@@ -499,7 +503,8 @@ function Working({ chat }: { chat: PhoneChat }): ReactNode {
   const since = chat.state?.startedAt
   const secs = since ? Math.max(0, Math.floor((Date.now() - since) / 1000)) : 0
   const tasks = chat.state?.tasks ?? []
-  const what = chat.state?.activity === 'compacting' ? 'Summarizing the conversation' : 'Claude is working'
+  const name = chat.state?.agentName ?? (chat.state?.provider === 'external' ? 'The agent' : 'Claude')
+  const what = chat.state?.activity === 'compacting' ? 'Summarizing the conversation' : `${name} is working`
   return (
     <div className="working">
       <div className="working-line">
@@ -610,7 +615,7 @@ function ChatScreen({ tabId }: { tabId: string }): ReactNode {
             ) : null}
             {working && !state?.permissions.length ? <Working chat={chat} /> : null}
             {state?.permissions.map((req) => (
-              <Ask key={req.requestId} req={req} answer={(r) => respond(tabId, req.requestId, r)} />
+              <Ask key={req.requestId} req={req} external={state.provider === 'external'} name={state.agentName} answer={(r) => respond(tabId, req.requestId, r)} />
             ))}
           </>
         )}

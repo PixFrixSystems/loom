@@ -2,6 +2,7 @@ import { MessageSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { SessionSummary } from '@shared/types'
 import { joinPath, projectForPath, timeAgo } from '../lib/paths'
+import { sessionKey } from '../lib/providers'
 import { useStore } from '../store'
 import { FileIcon } from './FileIcon'
 import { ProjectMark } from './ProjectMark'
@@ -35,7 +36,7 @@ function lit(name: string, q: string): ReactNode {
   )
 }
 
-/** A chat Ctrl+P can open: one open in a tab, or one saved in Claude Code's history. */
+/** A chat Ctrl+P can open: one open in a tab, or one saved in history. */
 interface ChatHit {
   key: string
   title: string
@@ -105,15 +106,17 @@ export function QuickOpen(): ReactNode {
     const openIds = new Set<string>()
     for (const t of s.tabs) {
       if (t.kind !== 'chat') continue
-      if (t.sessionId) openIds.add(t.sessionId)
+      const key = sessionKey(t)
+      if (t.sessionId) openIds.add(key)
       const p = s.projects.find((x) => x.id === t.projectId)
-      const saved = t.sessionId ? s.sessions.find((x) => x.sessionId === t.sessionId) : undefined
+      const saved = t.sessionId ? s.sessions.find((x) => sessionKey(x) === key) : undefined
       out.push({ key: `tab:${t.id}`, title: t.title, projectId: t.projectId, projectName: p?.name ?? folderName(t.cwd), when: saved?.lastModified ?? Date.now(), tabId: t.id })
     }
     for (const x of s.sessions) {
-      if (openIds.has(x.sessionId)) continue
+      const key = sessionKey(x)
+      if (openIds.has(key)) continue
       const p = projectForPath(s.projects, x.cwd)
-      out.push({ key: `s:${x.sessionId}`, title: x.title, projectId: p?.id ?? null, projectName: p?.name ?? folderName(x.cwd), when: x.lastModified, session: x })
+      out.push({ key: `s:${key}`, title: x.title, projectId: p?.id ?? null, projectName: p?.name ?? folderName(x.cwd), when: x.lastModified, session: x })
     }
     return out.sort((a, b) => b.when - a.when)
   }, [s.tabs, s.sessions, s.projects])

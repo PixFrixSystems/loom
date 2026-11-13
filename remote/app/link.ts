@@ -15,6 +15,7 @@ import {
   parsePairingHash,
   publicKey,
   randomId,
+  REMOTE_EXTERNAL_AGENTS,
   REMOTE_VERSION,
   seal,
   sealContext,
@@ -234,7 +235,7 @@ async function sayHi(socket: WebSocket): Promise<void> {
   if (!link) return
   sid = null
   nonce = randomId()
-  const hi: Hi = { t: 'hi', nonce }
+  const hi: Hi = { t: 'hi', nonce, can: [REMOTE_EXTERNAL_AGENTS] }
   const d = await seal(link.key, sealContext('device', link.device, 'up'), hi)
   if (socket !== ws || socket.readyState !== WebSocket.OPEN) return
   socket.send(JSON.stringify({ d } satisfies RelayData))

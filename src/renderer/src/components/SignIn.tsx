@@ -1,24 +1,27 @@
 import { ExternalLink, LoaderCircle, RotateCw } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
-import type { LoginState } from '@shared/types'
+import { useEffect, useId, useState, type ReactNode } from 'react'
+import type { ChatProvider, LoginState } from '@shared/types'
 
 /**
  * Signing in to Claude without a terminal: Claude Code's own sign-in runs out of sight, the
  * browser does the rest, and this shows what's left to do. A box takes the code for the few
  * sign-ins that show one. `onEnd` hears true once signed in, false when cancelled.
  */
-export function SignInPanel({ onEnd }: { onEnd: (signedIn: boolean) => void }): ReactNode {
+export function SignInPanel({ provider = 'claude', onEnd }: { provider?: ChatProvider; onEnd: (signedIn: boolean) => void }): ReactNode {
   const [state, setState] = useState<LoginState>({ status: 'waiting' })
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
+  const codeId = useId()
+  const external = provider === 'external'
 
   const start = (): void => {
     setSent(false)
     setCode('')
-    void window.loom.loginStart().then(setState)
+    const login = external ? window.loom.externalLoginStart : window.loom.loginStart
+    void login().then(setState).catch((error: Error) => setState({ status: 'failed', message: error.message }))
   }
   useEffect(() => {
-    const off = window.loom.onLoginState(setState)
+    const off = external ? window.loom.onExternalLogin(setState) : window.loom.onLoginState(setState)
     start()
     return off
   }, [])
@@ -27,7 +30,8 @@ export function SignInPanel({ onEnd }: { onEnd: (signedIn: boolean) => void }): 
   }, [state.status])
 
   const cancel = (): void => {
-    window.loom.loginCancel()
+    if (external) window.loom.externalLoginCancel()
+    else window.loom.loginCancel()
     onEnd(false)
   }
 
@@ -60,7 +64,7 @@ export function SignInPanel({ onEnd }: { onEnd: (signedIn: boolean) => void }): 
           Cancel
         </button>
       </div>
-      <form
+      {!external ? <form
         className="signin-code"
         onSubmit={(e) => {
           e.preventDefault()
@@ -69,10 +73,10 @@ export function SignInPanel({ onEnd }: { onEnd: (signedIn: boolean) => void }): 
           setSent(true)
         }}
       >
-        <label htmlFor="signin-code">If the page shows a code, paste it here</label>
+        <label htmlFor={codeId}>If the page shows a code, paste it here</label>
         <div className="signin-row">
           <input
-            id="signin-code"
+            id={codeId}
             className="field"
             value={code}
             spellCheck={false}
@@ -88,7 +92,7 @@ export function SignInPanel({ onEnd }: { onEnd: (signedIn: boolean) => void }): 
           </button>
         </div>
         {sent ? <p className="signin-hint">Checking the code…</p> : null}
-      </form>
+      </form> : null}
     </div>
   )
 }

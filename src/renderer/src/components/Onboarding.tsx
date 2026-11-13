@@ -1,19 +1,21 @@
 import { Check, Download, FolderPlus, LoaderCircle, LogIn, MessageSquarePlus, RotateCw } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { AuthStatus, PermissionMode } from '@shared/types'
+import type { AuthStatus, ChatProvider, PermissionMode } from '@shared/types'
 import { normPath, projectForPath, timeAgo } from '../lib/paths'
+import { chatProviders, EXTERNAL_MODE_OPTIONS, externalPermissionMode } from '../lib/providers'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
+import { Dropdown } from './Menu'
 import { ProjectMark } from './ProjectMark'
 import { SignInPanel } from './SignIn'
 
 const PLANS: Record<string, string> = { max: 'Max', pro: 'Pro', team: 'Team', enterprise: 'Enterprise', free: 'Free' }
 
-export function account(a: AuthStatus): string {
+export function account(a: AuthStatus, name = 'Claude'): string {
   const who = a.email ? `Signed in as ${a.email}` : 'Signed in'
   if (a.method === 'console') return `${who}, through the Anthropic Console (API billing).`
   const plan = a.plan ? PLANS[a.plan] ?? a.plan : null
-  return plan ? `${who}, on the Claude ${plan} plan.` : `${who}.`
+  return plan ? `${who}, on the ${name} ${plan} plan.` : `${who}.`
 }
 
 function Step({ state, title, children }: { state: 'done' | 'current' | 'open'; title: string; children: ReactNode }): ReactNode {
@@ -42,11 +44,19 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
   const projects = useStore((s) => s.projects)
   const sessions = useStore((s) => s.sessions)
   const settings = useStore((s) => s.settings)
+  const externalName = useStore((s) => s.externalName)
+  const externalAccountName = useStore((s) => s.externalAccountName)
+  const externalAuth = useStore((s) => s.externalAuth)
+  const externalLoginSupported = useStore((s) => s.externalLoginSupported)
+  const externalInstallUrl = useStore((s) => s.externalInstallUrl)
+  const externalProgram = useStore((s) => s.settings.externalProgram?.trim() || s.detectedExternalProgram)
+  const external = settings.defaultProvider === 'external'
   const onboarded = useStore((s) => s.onboarded)
   const hasChats = useStore((s) => s.tabs.some((t) => t.kind === 'chat'))
   const [auth, setAuth] = useState<AuthStatus | null>(null)
   const [checking, setChecking] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
+  const [signingInExternal, setSigningInExternal] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [exists, setExists] = useState<Record<string, boolean>>({})
   const [picked, setPicked] = useState<Set<string> | null>(null)
@@ -59,15 +69,16 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
   }
 
   useEffect(() => {
-    void check()
-  }, [])
+    if (!external) void check()
+    else if (visible) void useStore.getState().refreshExternalAuth()
+  }, [external, visible])
 
   // Signed out and looking at the steps: check every few seconds, so the step turns green by itself.
   useEffect(() => {
-    if (!visible || !auth || auth.loggedIn) return
+    if (!visible || external || !auth || auth.loggedIn) return
     const t = setInterval(() => void check(), 3000)
     return () => clearInterval(t)
-  }, [visible, auth?.loggedIn])
+  }, [visible, external, auth?.loggedIn])
 
   // Folders this person already used with Claude Code, newest first, that aren't in Loom yet.
   const candidates = useMemo(() => {
@@ -107,12 +118,14 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
   }
 
   const s = useStore.getState()
-  const signedIn = !!auth?.loggedIn
+  const signedIn = !!(external ? externalAuth : auth)?.loggedIn
   const haveProjects = projects.length > 0
   const chatted = onboarded === true || hasChats
   const current = !signedIn ? 'signin' : !haveProjects ? 'projects' : !chatted ? 'chat' : null
   const stateOf = (key: string, done: boolean): 'done' | 'current' | 'open' => (done ? 'done' : current === key ? 'current' : 'open')
-  const mode: PermissionMode | null = settings.defaultPermissionMode
+  const mode: PermissionMode | null = external ? externalPermissionMode(settings.defaultExternalPermissionMode) : settings.defaultPermissionMode
+  const modes = external ? EXTERNAL_MODE_OPTIONS : MODE_OPTIONS
+  const name = external ? externalName : 'Claude'
   const recent = projects.slice(-4).reverse()
 
   const skip = (): void => {
@@ -128,8 +141,7 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
           <div>
             <h1>Get started with Loom</h1>
             <p>
-              One window for all your projects: Claude chats, files, terminals, dev servers and git, side by side. Four short steps, about two
-              minutes.
+              Chat, edit files, run dev servers and use git in one window.
             </p>
           </div>
           <button className="btn ghost" onClick={skip}>
@@ -142,8 +154,40 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
         ) : null}
 
         <ol className="start-steps">
-          <Step state={stateOf('signin', signedIn)} title="Sign in to Claude">
-            {auth === null ? (
+          <Step state={stateOf('signin', signedIn)} title={external ? `Sign in to ${externalAccountName}` : 'Sign in to Claude'}>
+            <div className="start-actions">
+              <Dropdown<ChatProvider>
+                title="Agent for new chats"
+                value={settings.defaultProvider ?? 'claude'}
+                options={chatProviders(externalName)}
+                onChange={(provider) => s.rememberChoice({ defaultProvider: provider })}
+              />
+            </div>
+            {external ? (
+              !externalProgram || externalAuth?.missing ? (
+                <div className="start-actions">
+                  {externalInstallUrl ? <button className="btn" onClick={() => void window.loom.openExternal(externalInstallUrl)}><Download /> Install {externalName}</button> : null}
+                  <button className="btn primary" onClick={s.openSettings}>Set up {externalName}</button>
+                </div>
+              ) : !externalAuth ? (
+                <p className="start-status"><LoaderCircle className="spin" /> Checking whether {externalName} is signed in on this PC</p>
+              ) : externalAuth.loggedIn ? (
+                <p>{account(externalAuth, externalAccountName)} Loom and the {externalName} CLI share this sign-in.</p>
+              ) : signingInExternal ? (
+                <SignInPanel provider="external" onEnd={() => {
+                  setSigningInExternal(false)
+                  void s.refreshExternalAuth()
+                }} />
+              ) : (
+                <>
+                  <p>{externalAuth.error ?? (externalLoginSupported ? `Sign in with ${externalAccountName} to use ${externalName}.` : `Sign in using the ${externalName} CLI in a terminal.`)}</p>
+                  <div className="start-actions">
+                    {externalLoginSupported ? <button className="btn primary" onClick={() => setSigningInExternal(true)}><LogIn /> Sign in with {externalAccountName}</button> : null}
+                    <button className="btn ghost" onClick={() => void s.refreshExternalAuth()}><RotateCw /> Check again</button>
+                  </div>
+                </>
+              )
+            ) : auth === null ? (
               <p className="start-status">
                 <LoaderCircle className="spin" /> Checking whether Claude is signed in on this PC
               </p>
@@ -199,12 +243,12 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
           </Step>
 
           <Step state={stateOf('projects', haveProjects)} title="Add your projects">
-            <p>A project is a folder. Its chats, files, terminals and dev servers stay together, and Claude works inside it.</p>
+            <p>A project is a folder. Its chats, files, terminals and dev servers stay together, and the agent works inside it.</p>
             {suggestions.length ? (
               <>
                 <div className="start-label-row">
                   <p className="start-label">
-                    Folders you&apos;ve worked in with Claude Code <span className="start-count">{suggestions.length}</span>
+                    Folders from your chat history <span className="start-count">{suggestions.length}</span>
                   </p>
                   <button
                     className="start-link"
@@ -256,17 +300,17 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
             ) : null}
           </Step>
 
-          <Step state="open" title="Choose what Claude may do without asking">
-            <p>New chats start this way. Any chat can change it from its message box, and Loom remembers your last pick.</p>
+          <Step state="open" title={`Choose what ${name} may do without asking`}>
+            <p>New {name} chats start this way. You can change the mode from the message box, and Loom remembers your last pick.</p>
             <div className="start-modes" role="radiogroup" aria-label="Permission mode for new chats">
-              {MODE_OPTIONS.map((m) => (
+              {modes.map((m) => (
                 <label key={m.value} className="start-mode">
                   <input
                     type="radio"
                     className="radio"
                     name="start-mode"
                     checked={mode === m.value}
-                    onChange={() => s.set({ settings: { ...settings, defaultPermissionMode: m.value } })}
+                    onChange={() => s.rememberChoice(external ? { defaultExternalPermissionMode: m.value } : { defaultPermissionMode: m.value })}
                   />
                   <span>
                     <span className="start-mode-label">{m.label}</span>
@@ -278,7 +322,7 @@ export function Onboarding({ visible }: { visible: boolean }): ReactNode {
           </Step>
 
           <Step state={stateOf('chat', chatted)} title="Start a chat">
-            <p>Ask Claude anything about a project: explain the code, fix a bug, start the dev server, or commit and push your work.</p>
+            <p>Ask {name} to explain the code, fix a bug, start the dev server, or commit and push your work.</p>
             {recent.length ? (
               <div className="start-actions">
                 {recent.map((p, i) => (

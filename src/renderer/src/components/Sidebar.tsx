@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary, type SubFolder } from '@shared/types'
 import { baseName, normPath, projectForPath, timeAgo } from '../lib/paths'
+import { agentName, sessionKey } from '../lib/providers'
 import { chatWorking, useStore, type MenuItem } from '../store'
 import { ProjectMark } from './ProjectMark'
 import { defaultTarget, primaryServer, projectRunItems, ServerMark } from './Servers'
@@ -103,7 +104,7 @@ function useProjectActivity(): Record<string, Activity> {
 }
 
 function ActivityMark({ activity }: { activity: Activity }): ReactNode {
-  if (activity === 'running') return <span className="live-dot" role="img" aria-label="Claude is working" title="Claude is working" />
+  if (activity === 'running') return <span className="live-dot" role="img" aria-label="Agent is working" title="Agent is working" />
   if (activity === 'waiting') return <span className="dot dot-warn" title="Waiting for your approval" />
   if (activity === 'unread') return <span className="dot dot-accent" title="New reply" />
   return null
@@ -112,7 +113,10 @@ function ActivityMark({ activity }: { activity: Activity }): ReactNode {
 function ChatRow({ tab, session }: { tab?: ChatTab; session?: SessionSummary }): ReactNode {
   const activeTabId = useStore((s) => s.activeTabId)
   const chat = useStore((s) => (tab ? s.chats[tab.id] : undefined))
+  const externalName = useStore((s) => s.externalName)
   const title = tab?.title ?? session?.title ?? 'Chat'
+  const external = (tab?.provider ?? session?.provider) === 'external'
+  const name = agentName(tab?.provider ?? session?.provider, externalName)
   const active = !!tab && tab.id === activeTabId
   const activity: Activity = chat
     ? chat.permissions.length
@@ -134,20 +138,20 @@ function ChatRow({ tab, session }: { tab?: ChatTab; session?: SessionSummary }):
     const id = tab?.sessionId ?? session?.sessionId
     const s = useStore.getState()
     const here = tab?.projectId ?? projectForPath(s.projects, session?.cwd ?? '')?.id ?? null
-    items.push(
-      { separator: true, label: '' },
-      {
+    if (id || !external) items.push({ separator: true, label: '' })
+    if (!(external && id)) {
+      items.push({
         label: 'Move to project',
         submenu: s.projects
           .filter((p) => p.id !== here)
           .map((p) => ({ label: p.name, onSelect: () => void s.moveChat(tab ? { tabId: tab.id } : { session }, p.id) }))
-      }
-    )
+      })
+    }
     if (id) items.push({ label: 'Copy session ID', onSelect: () => void navigator.clipboard.writeText(id) })
     useStore.getState().showMenu(e, items)
   }
   return (
-    <button className={`chat-row${active ? ' active' : ''}${tab ? ' is-open' : ''}`} onClick={open} onContextMenu={menu} title={title}>
+    <button className={`chat-row${active ? ' active' : ''}${tab ? ' is-open' : ''}`} onClick={open} onContextMenu={menu} title={`${title} · ${name}`}>
       <span className="chat-row-title">{title}</span>
       {activity ? <ActivityMark activity={activity} /> : session && !tab ? <span className="chat-row-time">{timeAgo(session.lastModified)}</span> : null}
     </button>
@@ -161,8 +165,8 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
   const expanded = project.collapsed === false
   const editing = s.editingProjectId === project.id
   const openTabs = s.tabs.filter((t): t is ChatTab => t.kind === 'chat' && t.projectId === project.id)
-  const openIds = new Set(openTabs.map((t) => t.sessionId).filter(Boolean))
-  const saved = sessions.filter((x) => !openIds.has(x.sessionId))
+  const openIds = new Set(openTabs.filter((t) => t.sessionId).map(sessionKey))
+  const saved = sessions.filter((x) => !openIds.has(sessionKey(x)))
   const visibleSaved = showAll ? saved : saved.slice(0, 6)
   const activeProject = s.tabs.find((t) => t.id === s.activeTabId)?.projectId === project.id
 
@@ -325,7 +329,7 @@ function ProjectRow({ project, activity, sessions }: { project: Project; activit
             <ChatRow key={t.id} tab={t} />
           ))}
           {visibleSaved.map((x) => (
-            <ChatRow key={x.sessionId} session={x} />
+            <ChatRow key={sessionKey(x)} session={x} />
           ))}
           {saved.length > 6 ? (
             <button className="chat-row more" onClick={() => setShowAll((v) => !v)}>
