@@ -222,6 +222,21 @@ export interface ServerInfo {
   adopted?: boolean
 }
 
+/** A public link to a dev server, through a Cloudflare Quick Tunnel, for showing a site to a client. */
+export interface TunnelInfo {
+  serverId: string
+  /** starting: asking Cloudflare for a link; checking: it has one, waiting until it answers */
+  state: 'starting' | 'checking' | 'live' | 'error'
+  /** https://….trycloudflare.com, once Cloudflare has handed it out */
+  url?: string
+  /** The server's own path ("/base/"), added to the link; empty at the root */
+  path: string
+  /** Live without having answered Loom's check yet: it may take a little longer to open */
+  slow?: boolean
+  error?: string
+  startedAt: number
+}
+
 /** How to install a Node project's packages: the command, and the folder it runs in. */
 export interface InstallStep {
   /** e.g. "npm install" */

@@ -29,6 +29,7 @@ import type {
   RunTarget,
   ServerInfo,
   SessionSummary,
+  TunnelInfo,
   SubFolder,
   SlashCommandInfo,
   Tab,
@@ -237,6 +238,17 @@ const api = {
   serverDismiss: (id: string): Promise<void> => ipcRenderer.invoke('server:dismiss', id),
   serverLog: (id: string): Promise<{ text: string; end: number } | null> => ipcRenderer.invoke('server:log', id),
   serverWrite: (id: string, data: string): void => ipcRenderer.send('server:write', id, data),
+  /** Public links to dev servers, through Cloudflare Quick Tunnels */
+  tunnelList: (): Promise<TunnelInfo[]> => ipcRenderer.invoke('tunnel:list'),
+  /** Whether cloudflared is on this PC */
+  tunnelAvailable: (): Promise<boolean> => ipcRenderer.invoke('tunnel:available'),
+  tunnelStart: (serverId: string): Promise<{ ok: boolean; missing?: boolean; message?: string }> => ipcRenderer.invoke('tunnel:start', serverId),
+  tunnelStop: (serverId: string): Promise<void> => ipcRenderer.invoke('tunnel:stop', serverId),
+  onTunnels: (cb: (list: TunnelInfo[]) => void): (() => void) => {
+    const listener = (_e: unknown, list: TunnelInfo[]): void => cb(list)
+    ipcRenderer.on('tunnel:update', listener)
+    return () => ipcRenderer.removeListener('tunnel:update', listener)
+  },
   updateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:status'),
   updateCheck: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:check'),
   updateInstall: (): Promise<boolean> => ipcRenderer.invoke('update:install'),

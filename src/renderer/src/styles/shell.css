@@ -1500,9 +1500,17 @@
 
 .srv-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 7px 0;
+}
+
+/* A server's public link or its failure, on a line of its own under the row, lined up with the name */
+.srv-row > .tunnel-line,
+.srv-row > .srv-row-why {
+  flex-basis: 100%;
+  margin: -4px 0 0 24px;
 }
 
 .srv-row + .srv-row {
@@ -1544,6 +1552,100 @@
 
 .servers-pop .usage-foot {
   margin-top: 4px;
+}
+
+/* Public links (Cloudflare Quick Tunnels). The cloud keeps Cloudflare's orange, the one place it
+   appears: outlined to offer a link, filled while one is open, and in the status bar for as long
+   as a site is public. */
+.cloud-mark {
+  flex: none;
+}
+
+.cloud-mark path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linejoin: round;
+}
+
+.cloud-mark.filled path {
+  fill: #f38020;
+  stroke: #f38020;
+}
+
+.srv-share {
+  color: var(--text-3);
+}
+
+.srv-share:hover:not(:disabled) {
+  color: #f6a35c;
+}
+
+.srv-share.is-busy {
+  color: #f6a35c;
+}
+
+.sb-servers .sb-shared {
+  width: 13px;
+  height: 13px;
+  margin-left: 1px;
+}
+
+.tunnel-line {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  margin-top: 2px;
+}
+
+.tunnel-line.is-waiting {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.tunnel-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 8px 0 7px;
+  border: 0;
+  border-radius: var(--pill);
+  background: rgba(243, 128, 32, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(243, 128, 32, 0.3);
+  color: #f8b880;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out);
+}
+
+.tunnel-link:hover {
+  background: rgba(243, 128, 32, 0.2);
+  color: #fcd3ae;
+}
+
+.tunnel-link svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.tunnel-host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tunnel-line .icon-btn.small svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* ---------- Split layout ---------- */

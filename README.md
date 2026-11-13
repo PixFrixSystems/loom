@@ -55,6 +55,8 @@ Heavy jobs don't have to hold up the chat. A long command or agent can be moved 
 
 Loom reads each project's `package.json` for `dev`, `start`, `serve` and similar scripts and turns them into a Run button in the chat header, using the project's own npm, pnpm, yarn or bun. The site opens in a preview pane next to the chat, with phone and tablet widths and developer tools. Running servers are listed in the status bar with restart and stop, and quitting Loom stops everything it started.
 
+To show a site to a client, click the cloud next to its server in that list. Loom opens a public link through a Cloudflare Quick Tunnel (`https://….trycloudflare.com`, no Cloudflare account or domain needed) and tells you once it answers; click the link to copy it. Anyone with the link can see the site until you click the cloud again, the server stops or Loom quits, and an orange cloud stays in the status bar while it is public. It needs Cloudflare's `cloudflared`, which Loom offers to install the first time.
+
 ### Split it the way you work
 
 <p align="center">

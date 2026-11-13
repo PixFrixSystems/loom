@@ -1,7 +1,7 @@
-import { ChevronDown, Download, Globe, LoaderCircle, Play, RotateCw, ScrollText, Server, Square, X } from 'lucide-react'
+import { Check, ChevronDown, Copy, Download, ExternalLink, Globe, LoaderCircle, Play, RotateCw, ScrollText, Server, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import type { Project, RunTarget, ServerInfo } from '@shared/types'
+import type { Project, RunTarget, ServerInfo, TunnelInfo } from '@shared/types'
 import { useStore, type MenuItem } from '../store'
 import { ProjectMark } from './ProjectMark'
 
@@ -48,18 +48,108 @@ export function defaultTarget(project: Project, targets: RunTarget[] | undefined
   return targets?.find((t) => t.id === project.runTargetId) ?? targets?.[0]
 }
 
+/** A cloud, in Cloudflare's orange: the sign for a public link. Filled while one is open. */
+export function CloudMark({ filled = false, className }: { filled?: boolean; className?: string }): ReactNode {
+  return (
+    <svg className={`cloud-mark${filled ? ' filled' : ''}${className ? ` ${className}` : ''}`} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M17.5 19H7a5 5 0 0 1-.6-9.96A6.5 6.5 0 0 1 18.86 8.6 5.25 5.25 0 0 1 17.5 19Z" />
+    </svg>
+  )
+}
+
+/** The link as it reads: the address and, when the site lives below the root, its path. */
+function publicLink(t: TunnelInfo): string {
+  return `${t.url}${t.path}`
+}
+
+/** Share a running server with a public link, or stop sharing it. */
+function ShareButton({ server }: { server: ServerInfo }): ReactNode {
+  const canShare = useStore((s) => s.canShare)
+  const tunnel = useStore((s) => s.tunnels.find((t) => t.serverId === server.id))
+  const s = useStore.getState()
+  if (!canShare) return null
+  if (tunnel && tunnel.state !== 'error') {
+    const busy = tunnel.state !== 'live'
+    return (
+      <button
+        className={`icon-btn small srv-share is-on${busy ? ' is-busy' : ''}`}
+        title={busy ? 'Getting a public link. Click to cancel' : `Stop sharing ${publicLink(tunnel)}`}
+        aria-label={busy ? 'Cancel the public link' : 'Stop sharing'}
+        onClick={() => s.stopSharing(server.id)}
+      >
+        {busy ? <LoaderCircle className="spin" /> : <CloudMark filled />}
+      </button>
+    )
+  }
+  return (
+    <button
+      className="icon-btn small srv-share"
+      title={'Share with a public link (Cloudflare Tunnel), to show the site to a client.\nAnyone with the link can see it until you stop sharing.'}
+      aria-label="Share with a public link"
+      onClick={() => void s.shareServer(server.id)}
+    >
+      <CloudMark />
+    </button>
+  )
+}
+
+/** Under a server in the list: its public link, the link on its way, or why it failed. */
+function TunnelLine({ tunnel }: { tunnel: TunnelInfo | undefined }): ReactNode {
+  const [copied, setCopied] = useState(false)
+  if (!tunnel) return null
+  if (tunnel.state === 'error') {
+    return (
+      <span className="srv-row-why" title={tunnel.error}>
+        Public link failed: {tunnel.error}
+      </span>
+    )
+  }
+  if (tunnel.state === 'starting') return <span className="tunnel-line is-waiting">Asking Cloudflare for a public link</span>
+  const link = publicLink(tunnel)
+  const host = hostOf(link)
+  if (tunnel.state === 'checking') {
+    return (
+      <span className="tunnel-line is-waiting" title={link}>
+        Opening {host}, usually within a minute
+      </span>
+    )
+  }
+  return (
+    <span className="tunnel-line">
+      <button
+        className="tunnel-link"
+        title={`Copy ${link}`}
+        onClick={() => {
+          void navigator.clipboard.writeText(link)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1600)
+        }}
+      >
+        {copied ? <Check /> : <Copy />}
+        <span className="tunnel-host">{copied ? 'Link copied' : host}</span>
+      </button>
+      <button className="icon-btn small" title={`Open ${link} in the browser`} aria-label="Open the public link" onClick={() => openUrl(link)}>
+        <ExternalLink />
+      </button>
+    </span>
+  )
+}
+
 /** Status, then the actions that fit it. Used in chat headers, output tabs and the servers list. */
 export function ServerControls({
   server,
   output = true,
   dismiss = false,
-  reason = true
+  reason = true,
+  share = false
 }: {
   server: ServerInfo
   output?: boolean
   dismiss?: boolean
   /** Say why it ended next to its state; off where the reason has a line of its own */
   reason?: boolean
+  /** Offer a public link through Cloudflare (in the Dev servers list) */
+  share?: boolean
 }): ReactNode {
   const s = useStore.getState()
   const live = isLive(server)
@@ -88,6 +178,7 @@ export function ServerControls({
           <Globe />
         </button>
       ) : null}
+      {share && server.status === 'running' && server.url ? <ShareButton server={server} /> : null}
       {output ? (
         <button className="icon-btn small srv-output" title="Show output" onClick={() => s.showServerOutput(server.id)}>
           <ScrollText />
@@ -258,6 +349,9 @@ function ServersPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => v
   const ref = useRef<HTMLDivElement>(null)
   const servers = useStore((s) => s.servers)
   const projects = useStore((s) => s.projects)
+  const tunnels = useStore((s) => s.tunnels)
+  // Signed in to Cloudflare or installed cloudflared since: the share buttons follow.
+  useEffect(() => void useStore.getState().checkSharing(), [])
   useEffect(() => {
     const onDown = (e: MouseEvent): void => {
       if (!ref.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest('.sb-servers')) onClose()
@@ -299,7 +393,9 @@ function ServersPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => v
                 </span>
               ) : null}
             </div>
-            <ServerControls server={x} dismiss reason={false} />
+            <ServerControls server={x} dismiss reason={false} share />
+            {/* The public link gets a line of its own, wide enough to read it whole. */}
+            <TunnelLine tunnel={tunnels.find((t) => t.serverId === x.id)} />
           </div>
         )
       })}
@@ -320,6 +416,7 @@ function ServersPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => v
 export function ServersStatus(): ReactNode {
   const servers = useStore((s) => s.servers)
   const projects = useStore((s) => s.projects)
+  const shared = useStore((s) => s.tunnels.filter((t) => t.state === 'live' || t.state === 'checking').length)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   if (!servers.length) return null
   const bad = servers.filter(failed).length
@@ -331,12 +428,14 @@ export function ServersStatus(): ReactNode {
     <>
       <button
         className={`sb-usage sb-servers${bad ? ' is-failed' : ''}`}
-        title={one && failed(one) && one.reason ? `Dev servers. ${one.reason}` : 'Dev servers'}
+        title={`${one && failed(one) && one.reason ? `Dev servers. ${one.reason}` : 'Dev servers'}${shared ? `\n${shared === 1 ? 'One site is' : `${shared} sites are`} shared through a public Cloudflare link` : ''}`}
         aria-expanded={!!anchor}
         onClick={(e) => setAnchor(anchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())}
       >
         <Server />
         {label}
+        {/* Something here is public: never out of sight while it is. */}
+        {shared ? <CloudMark className="sb-shared" filled /> : null}
       </button>
       {anchor ? <ServersPopover anchor={anchor} onClose={() => setAnchor(null)} /> : null}
     </>

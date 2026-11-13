@@ -45,6 +45,7 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 - Once your message has scrolled away, a slim band under the chat header keeps it pinned (one line, its time, arrows to the message before and after); the conversation passes beneath it with a blur.
 - What you can do to a running task is said in words, in small pills: Run in background in glass, Stop in the red of the chat's Stop with its filled square. Send to background sits beside the lit Send as a glass key.
 - Running servers are green LEDs. The thinking dot is violet and pulses while Claude thinks: the only animation that loops.
+- A public link (Cloudflare Tunnel) is the one place Cloudflare's orange appears: an outlined cloud offers it, a filled one marks it open, and an orange cloud stays in the status bar while any site is public.
 
 ## Motion
 

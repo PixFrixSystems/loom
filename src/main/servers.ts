@@ -192,8 +192,16 @@ export function listServers(): ServerInfo[] {
   return [...servers.values()].filter((s) => s.info.status !== 'stopped').map((s) => ({ ...s.info }))
 }
 
+/** Told of every change to the list: public links follow the servers they show. */
+let changed: ((list: ServerInfo[]) => void) | null = null
+export function onServersChanged(cb: (list: ServerInfo[]) => void): void {
+  changed = cb
+}
+
 function publish(): void {
-  send('server:update', listServers())
+  const list = listServers()
+  send('server:update', list)
+  changed?.(list)
 }
 
 function setInfo(s: Server, patch: Partial<ServerInfo>): void {

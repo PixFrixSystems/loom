@@ -32,7 +32,8 @@ import {
   type TabSnapshot,
   type UpdateStatus,
   type AgentTask,
-  type UsageSnapshot
+  type UsageSnapshot,
+  type TunnelInfo
 } from '@shared/types'
 import type { RemoteStatus } from '@shared/remote'
 import {
@@ -217,6 +218,15 @@ interface Store extends PersistedState {
   /** What each project can run, by project id. Missing until detected. */
   runTargets: Record<string, RunTarget[]>
   servers: ServerInfo[]
+  /** Public links to dev servers (Cloudflare Quick Tunnels): open, on their way, or failed lately */
+  tunnels: TunnelInfo[]
+  /** Whether Cloudflare is set up on this PC (cloudflared installed, or signed in), so sharing is offered */
+  canShare: boolean
+  /** Looks again whether Cloudflare is set up here, for the share buttons */
+  checkSharing: () => Promise<void>
+  /** Opens a public link to a running server, offering to install cloudflared when it's missing */
+  shareServer: (serverId: string) => Promise<void>
+  stopSharing: (serverId: string) => void
   /** The installed app's updates: checking, downloading, ready to restart */
   update: UpdateStatus | null
   /** Folders that appeared in a group's watched folder and aren't projects yet, by group id */
@@ -478,6 +488,8 @@ export const useStore = create<Store>((set, get) => {
     groupIcons: {},
     runTargets: {},
     servers: [],
+    tunnels: [],
+    canShare: false,
     update: null,
     watchNew: {},
     viewer: null,
@@ -636,6 +648,19 @@ export const useStore = create<Store>((set, get) => {
       void window.loom.updateStatus().then((update) => set({ update }))
       window.loom.onServers((servers) => set({ servers }))
       void window.loom.serverList().then((servers) => set({ servers }))
+      // A public link that just started answering: say so, with the link, naming the project.
+      window.loom.onTunnels((tunnels) => {
+        for (const t of tunnels) {
+          const before = get().tunnels.find((x) => x.serverId === t.serverId)
+          if (t.state !== 'live' || before?.state === 'live' || !t.url) continue
+          const server = get().servers.find((x) => x.id === t.serverId)
+          const name = get().projects.find((p) => p.id === server?.projectId)?.name ?? 'The site'
+          get().showToast(`${name} is online at ${t.url}${t.path}${t.slow ? ' (it may take a minute more to open)' : ''}. Copy the link from Dev servers in the status bar.`)
+        }
+        set({ tunnels })
+      })
+      void window.loom.tunnelList().then((tunnels) => set({ tunnels }))
+      void get().checkSharing()
       window.loom.onUsage((usage) => set({ usage }))
       window.loom.onModels((models) => models.length && set({ knownModels: models }))
       window.loom.onNotifySound((sound) => playTone(sound, get().settings.notifyVolume))
@@ -1271,6 +1296,28 @@ export const useStore = create<Store>((set, get) => {
         if (force) set({ usageChecking: false })
       }
     },
+    checkSharing: async () => {
+      const [installed, cf] = await Promise.all([window.loom.tunnelAvailable().catch(() => false), window.loom.serviceAccount('cloudflare', false).catch(() => null)])
+      set({ canShare: installed || !!cf?.signedIn })
+    },
+    shareServer: async (serverId) => {
+      const r = await window.loom.tunnelStart(serverId)
+      if (r.ok) return
+      if (!r.missing) return get().showToast(r.message ?? 'Cloudflare could not open a public link.')
+      // Quick Tunnels run on cloudflared, Cloudflare's small connector program.
+      const choice = await get().ask({
+        title: 'Install cloudflared?',
+        body: "Public links run through cloudflared, Cloudflare's connector program, which isn't on this PC yet. Loom can install it with winget in a terminal tab; when it has finished, click the cloud again.",
+        choices: [
+          { id: 'install', label: 'Install cloudflared', kind: 'primary' },
+          { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+        ],
+        cancel: 'cancel',
+        focus: 'install'
+      })
+      if (choice === 'install') get().runInTerminal('Install cloudflared', 'winget install --id Cloudflare.cloudflared -e --accept-source-agreements --accept-package-agreements')
+    },
+    stopSharing: (serverId) => void window.loom.tunnelStop(serverId),
     showUsage: () => {
       set({ usageOpen: true })
       void get().refreshUsage(true)

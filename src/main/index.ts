@@ -65,12 +65,15 @@ import {
   killAllServers,
   listServers,
   missingPackages,
+  onServersChanged,
   restartServer,
   serverLog,
   startServer,
   stopServer,
+  userEnv,
   writeServer
 } from './servers'
+import { findCloudflared, killAllTunnels, listTunnels, serversChanged, startTunnel, stopTunnel } from './tunnels'
 import { closeAllPopouts, setupPopouts } from './popouts'
 import { closeRemote, setupRemote } from './remote'
 import { githubSign, serviceAccount, setupAccounts } from './accounts'
@@ -572,6 +575,15 @@ function registerIpc(): void {
   ipcMain.handle('server:restart', (_e, id: string, install?: boolean) => restartServer(id, !!install))
   ipcMain.handle('server:dismiss', (_e, id: string) => dismissServer(id))
   ipcMain.handle('server:log', (_e, id: string) => serverLog(id))
+  // Public links to dev servers (Cloudflare Quick Tunnels), for showing a site to a client.
+  onServersChanged(serversChanged)
+  ipcMain.handle('tunnel:list', () => listTunnels())
+  ipcMain.handle('tunnel:available', () => !!findCloudflared())
+  ipcMain.handle('tunnel:start', (_e, serverId: string) => {
+    const server = listServers().find((x) => x.id === serverId)
+    return server ? startTunnel(server, userEnv()) : { ok: false, message: 'That server is no longer running.' }
+  })
+  ipcMain.handle('tunnel:stop', (_e, serverId: string) => stopTunnel(serverId))
   ipcMain.on('server:write', (_e, id: string, data: string) => writeServer(id, data))
 }
 
@@ -663,6 +675,7 @@ app.on('before-quit', (e) => {
       closeAllChats()
       killAllTerminals()
       killAllServers()
+      killAllTunnels()
       cancelLogin()
       closeRemote()
     } catch (err) {
