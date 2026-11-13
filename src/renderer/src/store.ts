@@ -269,7 +269,8 @@ interface Store extends PersistedState {
 
   activate: (tabId: string) => void
   openTab: (tab: Tab) => void
-  closeTab: (tabId: string) => void
+  /** `closing` names tabs being closed along with it, so none of them is put in its pane. */
+  closeTab: (tabId: string, closing?: Set<string>) => void
   moveTab: (tabId: string, toIndex: number) => void
   updateTab: (tabId: string, patch: Partial<Tab>) => void
   newChat: (projectId: string | null) => void
@@ -661,7 +662,9 @@ export const useStore = create<Store>((set, get) => {
       if ('path' in patch) void get().loadRunTargets(id)
     },
     removeProject: (id) => {
-      for (const t of get().tabs.filter((t) => t.projectId === id)) get().closeTab(t.id)
+      const theirs = get().tabs.filter((t) => t.projectId === id)
+      const closing = new Set(theirs.map((t) => t.id))
+      for (const t of theirs) get().closeTab(t.id, closing)
       for (const sv of get().servers.filter((x) => x.projectId === id)) void window.loom.serverStop(sv.id)
       set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }))
     },
@@ -764,7 +767,7 @@ export const useStore = create<Store>((set, get) => {
       set((s) => ({ tabs: [...s.tabs, tab] }))
       get().activate(tab.id)
     },
-    closeTab: (tabId) => {
+    closeTab: (tabId, closing) => {
       const s = get()
       const tab = s.tabs.find((t) => t.id === tabId)
       if (!tab) return
@@ -775,24 +778,27 @@ export const useStore = create<Store>((set, get) => {
       if (tab.kind === 'terminal') void window.loom.ptyKill(tabId)
       const idx = s.tabs.findIndex((t) => t.id === tabId)
       const tabs = s.tabs.filter((t) => t.id !== tabId)
-      // A pane that showed it goes back to the tab used before, like an editor does, among tabs not
-      // already on screen; failing that the nearest neighbour; failing that it stays empty.
+      // A pane that showed it is filled again from the open tabs not already on screen: one of the
+      // same row first (a chat by a chat or a terminal, a file by a file), the one used most recently,
+      // like an editor does, failing that the nearest neighbour. Tabs closing along with it don't count.
       const onScreen = new Set(panesOf(s.layout).map((p) => p.tabId))
+      const fileRow = inFileRow(tab)
       const replacement = (): string | null => {
-        const fits = (id: string): boolean => !onScreen.has(id) && !s.detached[id] && !isOverlayTab(tabs.find((t) => t.id === id))
-        const back = [...s.history].reverse().find((h) => h !== tabId && fits(h) && tabs.some((t) => t.id === h))
-        if (back) return back
-        const free = tabs.map((t, i) => ({ id: t.id, d: Math.abs(i - idx) })).filter((x) => fits(x.id))
-        return free.sort((a, b) => a.d - b.d)[0]?.id ?? null
+        const fits = (t: Tab | undefined): t is Tab => !!t && !onScreen.has(t.id) && !s.detached[t.id] && !closing?.has(t.id) && !isOverlayTab(t)
+        const recent = [...s.history].reverse().map((h) => tabs.find((t) => t.id === h)).filter(fits)
+        const near = tabs.map((t, i) => ({ t, d: Math.abs(i - idx) })).filter((x) => fits(x.t)).sort((a, b) => a.d - b.d).map((x) => x.t)
+        const pick = recent.find((t) => inFileRow(t) === fileRow) ?? near.find((t) => inFileRow(t) === fileRow) ?? recent[0] ?? near[0]
+        return pick?.id ?? null
       }
       let layout = s.layout
       let focusedPane = s.focusedPane
       for (const p of panesOf(s.layout)) {
         if (p.tabId !== tabId) continue
+        const next = replacement()
         const list = panesOf(layout)
-        if (list.length > 1) {
-          // With the screen split, the pane goes with what it showed and the others take its room;
-          // the keyboard moves to its neighbour, as closing a pane does.
+        if (!next && list.length > 1) {
+          // Nothing left to show in it, with the screen split: the pane goes and the others take its
+          // room; the keyboard moves to its neighbour, as closing a pane does.
           const at = list.findIndex((x) => x.id === p.id)
           layout = removePane(layout, p.id)
           if (focusedPane === p.id) {
@@ -801,9 +807,8 @@ export const useStore = create<Store>((set, get) => {
           }
           continue
         }
-        const next = replacement()
         layout = setPaneTab(layout, p.id, next)
-        onScreen.add(next)
+        if (next) onScreen.add(next)
       }
       // Closing something else while Settings is open keeps Settings in front.
       const activeTabId = s.activeTabId !== tabId && isOverlayTab(tabs.find((t) => t.id === s.activeTabId)) ? s.activeTabId : (paneById(layout, focusedPane)?.tabId ?? null)
@@ -1505,7 +1510,9 @@ export const useStore = create<Store>((set, get) => {
       if (choice !== 'trash') return
       const r = await window.loom.trashEntry(path)
       if (!r.ok) return get().showToast(r.error ?? `${name} could not be moved to the Recycle Bin.`)
-      for (const t of get().tabs.filter((t) => t.kind === 'file' && (normPath(t.path) === normPath(path) || isInside(t.path, path)))) get().closeTab(t.id)
+      const gone = get().tabs.filter((t) => t.kind === 'file' && (normPath(t.path) === normPath(path) || isInside(t.path, path)))
+      const closing = new Set(gone.map((t) => t.id))
+      for (const t of gone) get().closeTab(t.id, closing)
       get().bumpTree()
     },
     requestClose: async (tabIds) => {
@@ -1552,7 +1559,8 @@ export const useStore = create<Store>((set, get) => {
         })
         if (choice !== 'close') return false
       }
-      for (const t of pick()) get().closeTab(t.id)
+      const closing = new Set(pick().map((t) => t.id))
+      for (const t of pick()) get().closeTab(t.id, closing)
       return true
     },
     reopenClosed: () => {
