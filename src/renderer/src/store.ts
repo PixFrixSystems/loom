@@ -296,7 +296,8 @@ interface Store extends PersistedState {
   chat: (tabId: string) => ChatRuntime
   loadHistory: (tabId: string) => Promise<void>
   /** id: the message's own, when whoever sent it (a linked phone) already made one */
-  send: (tabId: string, text: string, images: ImageAttachment[], id?: string) => Promise<void>
+  /** `background`: "Send to background", Claude hands the job to a background agent and stays free */
+  send: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean) => Promise<void>
   interrupt: (tabId: string) => void
   setModel: (tabId: string, model: string | null) => void
   setMode: (tabId: string, mode: PermissionMode) => void
@@ -1008,7 +1009,7 @@ export const useStore = create<Store>((set, get) => {
       }))
     },
 
-    send: async (tabId, text, images, givenId) => {
+    send: async (tabId, text, images, givenId, background = false) => {
       const tab = get().tabs.find((t) => t.id === tabId)
       if (!tab || tab.kind !== 'chat') return
       const trimmed = text.trim()
@@ -1025,7 +1026,15 @@ export const useStore = create<Store>((set, get) => {
       patchChat(tabId, (c) => ({
         items: [
           ...c.items,
-          { kind: 'user', id, text: trimmed, images: images.length, previews: previews.length ? previews : undefined, ts: new Date().toISOString() }
+          {
+            kind: 'user',
+            id,
+            text: trimmed,
+            images: images.length,
+            previews: previews.length ? previews : undefined,
+            ts: new Date().toISOString(),
+            ...(background ? { background: true } : {})
+          }
         ],
         draft: '',
         error: undefined,
@@ -1035,7 +1044,7 @@ export const useStore = create<Store>((set, get) => {
       }))
       try {
         await ensureOpened(tab)
-        await window.loom.chatSend(tabId, trimmed, images, id)
+        await window.loom.chatSend(tabId, trimmed, images, id, background)
       } catch (e) {
         patchChat(tabId, () => ({ status: 'error', error: (e as Error).message }))
       }
@@ -1351,6 +1360,16 @@ export const useStore = create<Store>((set, get) => {
         case 'tasks':
           patchChat(tabId, () => ({ tasks: ev.tasks }))
           break
+        case 'task-done': {
+          // Work you sent to the background has ended. Claude picks the result up by itself; this
+          // says so, naming the chat when you are looking at another.
+          const s = get()
+          const where = s.activeTabId === tabId ? '' : `, in ${s.tabs.find((t) => t.id === tabId)?.title ?? 'another chat'}`
+          const what = ev.status === 'failed' ? 'Failed in the background' : ev.status === 'stopped' ? 'Stopped in the background' : 'Done in the background'
+          const desc = ev.description.replace(/[.\s]+$/, '')
+          s.showToast(`${what}${where}: ${desc}.${ev.status === 'stopped' ? '' : ' Claude is picking up the result.'}`)
+          break
+        }
         case 'activity':
           patchChat(tabId, () => ({ activity: ev.activity }))
           break

@@ -134,6 +134,22 @@ const INTERRUPTED = /^\[Request interrupted by user[^\]]*\]$/
  * Text Claude Code or an editor adds around what the person typed: reminders, and the file or
  * selection VS Code sends along (ide_opened_file, ide_selection, ide_diagnostics).
  */
+/**
+ * What "Send to background" adds to a message, for Claude: hand the job to a background agent and
+ * stay free. It goes at the end in its own tag, so the chat (and the history read back) shows only
+ * the person's words, marked as sent to the background.
+ */
+const BACKGROUND_TAG = 'loom-background'
+export const BACKGROUND_ASK = [
+  `<${BACKGROUND_TAG}>`,
+  'The person sent this from Loom with "Send to background", so the chat stays free while the work runs.',
+  'Do not do the work in this turn. Start one background agent (the Agent tool with run_in_background set to true) and give it the whole task above, with everything it needs to know from this conversation.',
+  'Then say in one short sentence that it is running, and end your turn so the person can keep talking with you.',
+  'When the agent reports back, carry on from its result: check it, finish anything left, and tell the person what was done.',
+  `</${BACKGROUND_TAG}>`
+].join('\n')
+const BACKGROUND_END = new RegExp(`\\s*<${BACKGROUND_TAG}>[\\s\\S]*?</${BACKGROUND_TAG}>\\s*$`)
+
 function stripTags(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
@@ -197,10 +213,11 @@ export function userTextItem(
     const summary = tagValue(raw, 'summary') || 'A background task finished'
     return { kind: 'note', id, tone: 'info', text: firstLine(summary, 200) }
   }
-  const clean = stripTags(raw)
+  const background = BACKGROUND_END.test(raw)
+  const clean = stripTags(background ? raw.replace(BACKGROUND_END, '') : raw)
   if (!clean && !images) return null
   if (synthetic) return { kind: 'note', id, tone: 'info', text: firstLine(clean, 200), detail: truncate(clean, MAX_RESULT) }
-  return { kind: 'user', id, text: clean, images, previews: previews.length ? previews : undefined, ts }
+  return { kind: 'user', id, text: clean, images, previews: previews.length ? previews : undefined, ts, ...(background ? { background: true } : {}) }
 }
 
 export interface ToolResultUpdate {

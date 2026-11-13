@@ -1,11 +1,32 @@
-import { Square } from 'lucide-react'
+import { SendToBack, Square } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { AgentTask } from '@shared/types'
+import { moveToBackground } from './ChatItems'
 
 function elapsed(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000))
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
+}
+
+/** For a task Claude is waiting on: let it run in the background while Claude carries on. */
+function ToBackground({ tabId, task }: { tabId: string; task: AgentTask }): ReactNode {
+  const [moving, setMoving] = useState(false)
+  if (task.background || !task.toolUseId) return null
+  return (
+    <button
+      className="task-btn"
+      title="Claude carries on while this keeps running, and hears when it ends"
+      aria-label={`Run ${task.description} in the background`}
+      disabled={moving}
+      onClick={() => {
+        setMoving(true)
+        void moveToBackground(tabId, task.toolUseId!).finally(() => setMoving(false))
+      }}
+    >
+      <SendToBack /> Run in background
+    </button>
+  )
 }
 
 /**
@@ -37,6 +58,7 @@ export function AgentTasks({ tabId, tasks }: { tabId: string; tasks: AgentTask[]
             <button className="icon-btn small" title="Stop this agent" aria-label={`Stop ${t.description}`} onClick={() => void window.loom.chatStopTask(tabId, t.id)}>
               <Square />
             </button>
+            <ToBackground tabId={tabId} task={t} />
           </div>
         )
       })}
@@ -112,6 +134,7 @@ function AgentsPopover({ anchor, tabId, tasks, onClose }: { anchor: DOMRect; tab
               <span className="agents-pop-desc selectable" title={t.description}>
                 {t.description}
               </span>
+              <ToBackground tabId={tabId} task={t} />
               <button className="icon-btn small" title="Stop this agent" aria-label={`Stop ${t.description}`} onClick={() => void window.loom.chatStopTask(tabId, t.id)}>
                 <Square />
               </button>

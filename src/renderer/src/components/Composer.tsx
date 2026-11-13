@@ -1,4 +1,4 @@
-import { ArrowUp, Cpu, Gauge, Paperclip, ShieldCheck, Square, X } from 'lucide-react'
+import { ArrowUp, Cpu, Gauge, Paperclip, SendToBack, ShieldCheck, Square, X } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type PermissionMode, type SlashCommandInfo } from '@shared/types'
 import { EMPTY_CHAT, useStore } from '../store'
@@ -282,14 +282,16 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
     ta.current?.focus({ preventScroll: true })
   }, [chat.refill?.key])
 
-  const submit = (): void => {
+  /** `background`: Claude hands the job to a background agent and the chat stays free (Alt+Enter). */
+  const submit = (background = false): void => {
     if (isUsageCommand(text) && !images.length) {
       s.showUsage()
       setText('')
       return
     }
     if ((!text.trim() && !images.length) || chat.moving) return
-    void s.send(tab.id, text, images)
+    if (background && !text.trim()) return
+    void s.send(tab.id, text, images, undefined, background)
     setText('')
     s.setAttachments(tab.id, [])
   }
@@ -318,6 +320,11 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
     if (e.key === 'Escape' && busy) {
       e.preventDefault()
       s.interrupt(tab.id)
+      return
+    }
+    if (e.key === 'Enter' && e.altKey && !e.shiftKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
+      e.preventDefault()
+      submit(true)
       return
     }
     if (e.key === 'Enter') {
@@ -485,11 +492,20 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
             </button>
           ) : null}
           <button
+            className="send to-back"
+            title="Send to background (Alt+Enter): Claude hands it to a background agent, and you keep chatting while it works"
+            aria-label="Send to background"
+            disabled={!text.trim() || chat.moving || isUsageCommand(text)}
+            onClick={() => submit(true)}
+          >
+            <SendToBack />
+          </button>
+          <button
             className="send"
             title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'}
             aria-label="Send"
             disabled={(!text.trim() && !images.length) || chat.moving}
-            onClick={submit}
+            onClick={() => submit()}
           >
             <ArrowUp />
           </button>

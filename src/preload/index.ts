@@ -107,8 +107,10 @@ const api = {
     ipcRenderer.invoke('sessions:move', sessionId, fromCwd, toCwd),
 
   chatOpen: (tabId: string, opts: ChatStartOptions): Promise<void> => ipcRenderer.invoke('chat:open', tabId, opts),
-  chatSend: (tabId: string, text: string, images: ImageAttachment[], id?: string): Promise<void> =>
-    ipcRenderer.invoke('chat:send', tabId, text, images, id),
+  chatSend: (tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean): Promise<void> =>
+    ipcRenderer.invoke('chat:send', tabId, text, images, id, background),
+  /** Moves the running command or agent started by that tool call to the background */
+  chatBackground: (tabId: string, toolUseId: string): Promise<{ ok: boolean; message?: string }> => ipcRenderer.invoke('chat:background', tabId, toolUseId),
   chatInterrupt: (tabId: string): Promise<void> => ipcRenderer.invoke('chat:interrupt', tabId),
   chatStopTask: (tabId: string, taskId: string): Promise<void> => ipcRenderer.invoke('chat:stopTask', tabId, taskId),
   chatSetModel: (tabId: string, model: string | null): Promise<void> => ipcRenderer.invoke('chat:setModel', tabId, model),

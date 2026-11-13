@@ -36,7 +36,7 @@ import type {
   SessionSummary,
   SlashCommandInfo
 } from '@shared/types'
-import { assistantItems, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
+import { assistantItems, BACKGROUND_ASK, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
 import { fillThumbnails } from './images'
 import { skillOrigin } from './skillOrigin'
 
@@ -423,6 +423,13 @@ class ChatSession {
   private tasks = new Map<string, AgentTask>()
   /** The tool call that started each sub-agent, to tell its own messages apart: tool call id to task id */
   private taskByTool = new Map<string, string>()
+  /**
+   * Tasks you sent to the background (a step you moved, or the agent a "Send to background" message
+   * started): the chat says when they end. Claude's own helpers and agents end without a word.
+   */
+  private yours = new Set<string>()
+  /** Claude's tool calls in the turn a "Send to background" message started, to know the agent it starts */
+  private backgroundTurnTools: Set<string> | null = null
   private tasksTimer: NodeJS.Timeout | null = null
   private thinking = ''
   /** Inside a thinking block: the chat shows "Thinking" from its start, text or not */
@@ -539,6 +546,28 @@ class ChatSession {
     void this.q?.stopTask(taskId).catch(() => undefined)
   }
 
+  /** A task is over: off the list, and if you sent it to the background, the chat says so. */
+  private taskEnded(task: AgentTask, status: string | undefined): void {
+    this.tasks.delete(task.id)
+    if (!this.yours.delete(task.id)) return
+    this.emit({ type: 'task-done', description: task.description, status: status === 'failed' ? 'failed' : status === 'killed' || status === 'stopped' ? 'stopped' : 'completed' })
+  }
+
+  /**
+   * Moves a running command or agent to the background, as Ctrl+B does in the terminal: Claude's
+   * turn carries on at once, the task keeps running, and Claude hears when it ends.
+   */
+  async background(toolUseId: string): Promise<{ ok: boolean; message?: string }> {
+    if (!this.q) return { ok: false, message: 'This chat is not running.' }
+    try {
+      if (!(await this.q.backgroundTasks(toolUseId))) return { ok: false, message: 'That step has already finished.' }
+      for (const t of this.tasks.values()) if (t.toolUseId === toolUseId) this.yours.add(t.id)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, message: (e as Error).message || 'Claude Code could not move it to the background.' }
+    }
+  }
+
   get query(): Query | null {
     return this.q
   }
@@ -566,6 +595,9 @@ class ChatSession {
       // Run by an app, Claude Code leaves the thinking text out unless asked, so the chat would
       // only ever show "Thought". This asks for it, the way the VS Code extension shows it.
       extraArgs: { 'thinking-display': 'summarized' },
+      // Each running task has its own Stop in the chat, so Stop on the chat ends Claude's turn and
+      // leaves alone what you sent to the background.
+      perTaskStopAffordance: true,
       stderr: (data) => {
         this.stderrTail = (this.stderrTail + data).slice(-4000)
       }
@@ -647,6 +679,7 @@ class ChatSession {
           if (it.kind === 'tool') {
             it.startedAt = now
             this.toolStarts.set(it.id, now)
+            this.backgroundTurnTools?.add(it.id)
           }
         }
         if (items.length) this.mark = now
@@ -734,12 +767,18 @@ class ChatSession {
       // Housekeeping tasks (watchers and the like) aren't work the person started.
       if (t.ambient || t.skip_transcript) return
       if (t.tool_use_id) this.taskByTool.set(t.tool_use_id, t.task_id)
+      // The job a "Send to background" message asked for: the first task Claude starts for it.
+      if (t.tool_use_id && this.backgroundTurnTools?.has(t.tool_use_id)) {
+        this.yours.add(t.task_id)
+        this.backgroundTurnTools = null
+      }
       this.tasks.set(t.task_id, {
         id: t.task_id,
         description: t.description || t.subagent_type || 'Background task',
         agentType: t.subagent_type,
         taskType: t.task_type,
         background: !!t.is_backgrounded,
+        toolUseId: t.tool_use_id,
         startedAt: Date.now()
       })
       this.sendTasks(true)
@@ -760,12 +799,16 @@ class ChatSession {
       const cur = this.tasks.get(t.task_id)
       if (!cur) return
       const status = t.patch?.status
-      if (status && status !== 'running' && status !== 'pending' && status !== 'paused') this.tasks.delete(t.task_id)
+      if (status && status !== 'running' && status !== 'pending' && status !== 'paused') this.taskEnded(cur, status)
       else this.tasks.set(t.task_id, { ...cur, description: t.patch?.description || cur.description, background: t.patch?.is_backgrounded ?? cur.background })
       this.sendTasks(true)
     } else if (sub === 'task_notification') {
-      const t = m as unknown as { task_id: string }
-      if (this.tasks.delete(t.task_id)) this.sendTasks(true)
+      const t = m as unknown as { task_id: string; status?: string }
+      const cur = this.tasks.get(t.task_id)
+      if (cur) {
+        this.taskEnded(cur, t.status)
+        this.sendTasks(true)
+      }
     } else if (sub === 'api_retry') {
       const r = m as { attempt: number; max_retries: number; error: string }
       this.emit({ type: 'items', items: [{ kind: 'note', id: m.uuid, tone: 'info', text: `${errorText(r.error)} Retrying (${r.attempt} of ${r.max_retries}).` }] })
@@ -935,7 +978,11 @@ class ChatSession {
   }
 
   /** `id` is the message's id in the chat, so Stop can name the ones it took back. */
-  async send(text: string, images: ImageAttachment[], id?: string): Promise<void> {
+  /** `background`: sent with "Send to background", so Claude hands it to a background agent. */
+  async send(text: string, images: ImageAttachment[], id?: string, background = false): Promise<void> {
+    if (background) text = `${text}\n\n${BACKGROUND_ASK}`
+    // Watch for the task Claude starts for it (a quick question sent meanwhile doesn't end the watch).
+    if (background) this.backgroundTurnTools = new Set()
     if (!this.q) {
       if (!executableFor(this.settings())) {
         this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text: MISSING_CLAUDE }] })

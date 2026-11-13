@@ -49,6 +49,8 @@ Your message, then a thread of Claude's steps. Commands and edits show what went
 Once your message scrolls out of sight it stays pinned at the top of the chat, with arrows to step through your messages, so you always know which question the answer on screen belongs to.
 Type `/usage` at any time, even while Claude works, to see your plan limits.
 
+Heavy jobs don't have to hold up the chat. A long command or agent can be moved to the background from its step with **Run in background**, and **Send to background** (Alt+Enter) hands a new job straight to a background agent. Either way you keep chatting; when the job is done Loom says so, and Claude picks up the result and carries on. Stop ends Claude's turn and leaves background work running; each job has its own Stop.
+
 ### Run the project and see it
 
 Loom reads each project's `package.json` for `dev`, `start`, `serve` and similar scripts and turns them into a Run button in the chat header, using the project's own npm, pnpm, yarn or bun. The site opens in a preview pane next to the chat, with phone and tablet widths and developer tools. Running servers are listed in the status bar with restart and stop, and quitting Loom stops everything it started.

@@ -1,11 +1,49 @@
-import { Check, ChevronRight, Copy, ImageIcon, TriangleAlert } from 'lucide-react'
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Check, ChevronRight, Copy, ImageIcon, SendToBack, TriangleAlert } from 'lucide-react'
+import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ChatItem, ImagePreview } from '@shared/types'
 import { formatDuration } from '../lib/paths'
 import { useStore } from '../store'
 import { Markdown } from './Markdown'
 
 type ToolItem = Extract<ChatItem, { kind: 'tool' }>
+
+/** The chat tab the steps belong to, for the controls on a step that act on its chat. */
+export const ChatTabContext = createContext<string | null>(null)
+
+/**
+ * Moves a running command or agent to the background, as VS Code offers on a long step and Ctrl+B
+ * does in the terminal. Claude's turn carries on at once; the step keeps running, listed with the
+ * agents, and Claude hears when it ends. Offered once Claude Code counts the step as a task it can
+ * move, a few seconds in.
+ */
+export function moveToBackground(tabId: string, toolUseId: string): Promise<void> {
+  return window.loom.chatBackground(tabId, toolUseId).then(
+    (r) => {
+      if (!r.ok) useStore.getState().showToast(r.message ?? 'That step could not be moved to the background.')
+    },
+    () => useStore.getState().showToast('That step could not be moved to the background.')
+  )
+}
+
+function BackgroundButton({ item }: { item: ToolItem }): ReactNode {
+  const tabId = useContext(ChatTabContext)
+  const movable = useStore((st) => (tabId ? !!st.chats[tabId]?.tasks.some((t) => t.toolUseId === item.id && !t.background) : false))
+  const [moving, setMoving] = useState(false)
+  if (!tabId || !movable) return null
+  return (
+    <button
+      className="task-btn tool-bg"
+      disabled={moving}
+      title="Let this keep running in the background while Claude carries on. Claude is told when it finishes."
+      onClick={() => {
+        setMoving(true)
+        void moveToBackground(tabId, item.id).finally(() => setMoving(false))
+      }}
+    >
+      <SendToBack /> Run in background
+    </button>
+  )
+}
 
 /** Tools whose input and output are worth seeing without a click: commands and edits. */
 const OPEN_BY_DEFAULT = new Set(['Bash', 'PowerShell', 'Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
@@ -124,28 +162,31 @@ export const ToolRow = memo(function ToolRow({ item }: { item: ToolItem }): Reac
   const isOpen = hasBody && (open ?? OPEN_BY_DEFAULT.has(item.name))
   return (
     <div className={`tool${isOpen ? ' open' : ''}${failed ? ' failed' : ''}`}>
-      <button className="tool-head" onClick={() => hasBody && setOpen(!isOpen)} aria-expanded={isOpen} disabled={!hasBody}>
-        <span className="tool-name">{toolTitle(item.name)}</span>
-        <span className="tool-summary">
-          {item.filePath ? (
-            <span
-              className="path-link"
-              role="link"
-              title="Open in a tab"
-              onClick={(e) => {
-                e.stopPropagation()
-                useStore.getState().openFile(item.filePath!)
-              }}
-            >
-              {item.summary}
-            </span>
-          ) : (
-            item.summary
-          )}
-        </span>
-        <StepTime ms={ms} title={running ? 'Running for' : 'Took'} />
-        {hasBody ? <ChevronRight className="tool-chev" /> : null}
-      </button>
+      <div className="tool-line">
+        <button className="tool-head" onClick={() => hasBody && setOpen(!isOpen)} aria-expanded={isOpen} disabled={!hasBody}>
+          <span className="tool-name">{toolTitle(item.name)}</span>
+          <span className="tool-summary">
+            {item.filePath ? (
+              <span
+                className="path-link"
+                role="link"
+                title="Open in a tab"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  useStore.getState().openFile(item.filePath!)
+                }}
+              >
+                {item.summary}
+              </span>
+            ) : (
+              item.summary
+            )}
+          </span>
+          <StepTime ms={ms} title={running ? 'Running for' : 'Took'} />
+          {hasBody ? <ChevronRight className="tool-chev" /> : null}
+        </button>
+        {running ? <BackgroundButton item={item} /> : null}
+      </div>
       {isOpen ? (
         <div className="io">
           {item.detail ? <IoRow label="IN" text={item.detail} lines={3} copy /> : null}
@@ -275,6 +316,11 @@ export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: Ch
                 </span>
               ) : null}
             </div>
+          ) : null}
+          {item.background ? (
+            <span className="bubble-tag" title="Sent with Send to background: Claude hands it to a background agent, and the chat stays free">
+              <SendToBack /> Sent to the background
+            </span>
           ) : null}
         </div>
       )

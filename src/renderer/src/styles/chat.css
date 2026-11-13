@@ -388,6 +388,20 @@
   overflow-wrap: anywhere;
 }
 
+/* Under a message sent with Send to background */
+.bubble-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.bubble-tag svg {
+  width: 12px;
+  height: 12px;
+}
+
 .bubble-images {
   display: flex;
   align-items: center;
@@ -840,6 +854,68 @@
 
 .tool-head:hover:not(:disabled) {
   background: var(--bg-hover);
+}
+
+/* The step's head, and beside it, while a command or agent can still be moved, Run in background */
+.tool-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-line > .tool-head {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* What you can do to a running task, said in words: Run in background as a glass pill, Stop in the
+   red of the chat's own Stop with its filled square. */
+.task-btn {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: var(--pill);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--edge);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--base) var(--ease-out), box-shadow var(--base) var(--ease-out), color var(--base) var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.task-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.task-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.task-btn:disabled {
+  opacity: 0.5;
+}
+
+.task-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tool-bg {
+  animation: tool-bg-in 200ms var(--ease-out);
+}
+
+@keyframes tool-bg-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .tool-head:disabled {
@@ -1829,6 +1905,29 @@
 .send svg {
   width: 15px;
   height: 15px;
+}
+
+/* Send to background: glass beside the lit Send, a second way to send rather than the main one */
+.send.to-back {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--edge);
+  color: var(--text-2);
+  transition: background-color var(--base) var(--ease-out), color var(--base) var(--ease-out), opacity var(--base) var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.send.to-back:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px var(--edge-2);
+  color: var(--text);
+}
+
+.send.to-back:disabled {
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.send.to-back svg {
+  width: 14px;
+  height: 14px;
 }
 
 .send.stop {

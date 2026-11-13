@@ -59,6 +59,8 @@ export interface AgentTask {
   taskType?: string
   /** Runs on while the chat does other things, or Claude waits for it */
   background: boolean
+  /** The tool call that started it, the step in the chat that "Run in background" moves */
+  toolUseId?: string
   startedAt: number
   lastTool?: string
   toolUses?: number
@@ -317,7 +319,8 @@ export interface ImagePreview {
 
 /** Every item may carry `ts`, when it happened (ISO): saved ones have it, live ones get it as they arrive. */
 export type ChatItem =
-  | { kind: 'user'; id: string; text: string; images: number; previews?: ImagePreview[]; ts?: string }
+  /** `background`: sent with "Send to background", for Claude to hand to a background agent */
+  | { kind: 'user'; id: string; text: string; images: number; previews?: ImagePreview[]; ts?: string; background?: boolean }
   | { kind: 'assistant'; id: string; text: string; ts?: string }
   /** ms: how long Claude thought, when known */
   | { kind: 'thinking'; id: string; text: string; ms?: number; ts?: string }
@@ -408,6 +411,8 @@ export type ChatEvent =
   | { type: 'partial'; text: string }
   /** The sub-agents and background tasks running in this chat right now */
   | { type: 'tasks'; tasks: AgentTask[] }
+  /** A task that ran in the background has ended; Claude picks its result up */
+  | { type: 'task-done'; description: string; status: 'completed' | 'failed' | 'stopped' }
   /** Claude's thinking so far, while it is still thinking */
   | { type: 'thinking-partial'; text: string }
   | { type: 'partial-clear' }

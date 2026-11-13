@@ -4,7 +4,7 @@ import type { AgentTask, ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
 import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
 import { AgentsButton, AgentTasks } from './AgentTasks'
-import { ChatItemView, LiveThinking, rise, timelineClass, useArrivals } from './ChatItems'
+import { ChatItemView, ChatTabContext, LiveThinking, rise, timelineClass, useArrivals } from './ChatItems'
 import { Composer, composers } from './Composer'
 import { Markdown } from './Markdown'
 import { PermissionCard } from './PermissionCard'
@@ -393,91 +393,93 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         {pinned && pinnedItem?.kind === 'user' ? (
           <PinnedPrompt text={pinnedItem.text} images={pinnedItem.images ?? 0} ts={pinnedItem.ts} pinned={pinned} onReveal={revealPrompt} onStep={stepPrompt} />
         ) : null}
-        <div className="chat-column">
-          {chat.historyState === 'loading' ? (
-            <div className="history-loading">
-              <LoaderCircle className="spin" /> Loading the conversation
-            </div>
-          ) : null}
-          {chat.historyState === 'error' ? <div className="note tone-error"><div className="note-line">This conversation could not be loaded. {chat.error}</div></div> : null}
-          {chat.historyState === 'loaded' && chat.historyTotal > chat.items.length && hidden === 0 ? (
-            <p className="history-cut">
-              This chat is long: it shows its last {chat.items.length.toLocaleString()} of {chat.historyTotal.toLocaleString()} steps. The rest stays in its history file.
-            </p>
-          ) : null}
-          {hidden > 0 ? (
-            <button
-              className="load-earlier"
-              onClick={() => {
-                grownFrom.current = scroller.current?.scrollHeight ?? null
-                setLimit((l) => l + PAGE)
-              }}
-            >
-              Show earlier messages ({hidden.toLocaleString()})
-            </button>
-          ) : null}
-          {empty ? (
-            <div className="chat-empty">
-              <h2>{project ? `New chat in ${project.name}` : 'New chat'}</h2>
-              <p className="chat-empty-path">{tab.cwd}</p>
-              <p>
-                Ask for anything in this folder: fix a bug, explain some code, start the dev server, or commit and push your work. Claude
-                asks before it changes files, unless you pick another mode below.
-              </p>
-            </div>
-          ) : null}
-          {agentsRow(agentsAfter.get(''))}
-          {rows.map(({ item, time }) => (
-            <Fragment key={item.id}>
-              {item.kind === 'user' ? (
-                <div ref={arrived.has(item.id) ? rise : undefined} className="turn-user" data-prompt={item.id}>
-                  {time ? <div className="turn-time">{time}</div> : null}
-                  <ChatItemView item={item} cwd={tab.cwd} />
-                </div>
-              ) : item.kind === 'done' ? (
-                <div ref={arrived.has(item.id) ? rise : undefined} className="turn-end">
-                  <ChatItemView item={item} cwd={tab.cwd} />
-                  <HoverTime ts={item.ts} />
-                </div>
-              ) : (
-                <div ref={arrived.has(item.id) ? rise : undefined} className={`tl ${timelineClass(item)}${time ? ' has-time' : ''}`}>
-                  {time ? <div className="turn-time">{time}</div> : null}
-                  <ChatItemView item={item} cwd={tab.cwd} />
-                  <HoverTime ts={item.ts} />
-                </div>
-              )}
-              {agentsRow(agentsAfter.get(item.id))}
-            </Fragment>
-          ))}
-          {/* The live rows rise in as they appear; the finished step that replaces one does not. */}
-          {thinking ? (
-            <div ref={rise} className="tl tl-think tl-live">
-              <LiveThinking text={thinking.text} since={thinking.since} />
-            </div>
-          ) : null}
-          {partial ? (
-            <div ref={rise} className="tl tl-text">
-              <div className="msg-assistant streaming">
-                <Markdown text={partial} cwd={tab.cwd} streaming />
+        <ChatTabContext.Provider value={tab.id}>
+          <div className="chat-column">
+            {chat.historyState === 'loading' ? (
+              <div className="history-loading">
+                <LoaderCircle className="spin" /> Loading the conversation
               </div>
-            </div>
-          ) : null}
-          {(busy || chat.activity === 'compacting') && !partial && !thinking && !chat.permissions.length ? (
-            <div ref={rise} className="tl tl-live tl-working">
-              <Working since={chat.startedAt} what={chat.activity === 'compacting' ? 'Compacting the conversation' : undefined} />
-            </div>
-          ) : null}
-          {chat.status === 'error' && chat.error && !chat.items.some((i) => i.kind === 'note' && i.tone === 'error') ? (
-            <div className="note tone-error">
-              <div className="note-line selectable">{chat.error}</div>
-            </div>
-          ) : null}
-          {chat.permissions.map((p) => (
-            <div key={p.requestId} ref={rise} className="tl tl-wait">
-              <PermissionCard tabId={tab.id} req={p} cwd={tab.cwd} />
-            </div>
-          ))}
-        </div>
+            ) : null}
+            {chat.historyState === 'error' ? <div className="note tone-error"><div className="note-line">This conversation could not be loaded. {chat.error}</div></div> : null}
+            {chat.historyState === 'loaded' && chat.historyTotal > chat.items.length && hidden === 0 ? (
+              <p className="history-cut">
+                This chat is long: it shows its last {chat.items.length.toLocaleString()} of {chat.historyTotal.toLocaleString()} steps. The rest stays in its history file.
+              </p>
+            ) : null}
+            {hidden > 0 ? (
+              <button
+                className="load-earlier"
+                onClick={() => {
+                  grownFrom.current = scroller.current?.scrollHeight ?? null
+                  setLimit((l) => l + PAGE)
+                }}
+              >
+                Show earlier messages ({hidden.toLocaleString()})
+              </button>
+            ) : null}
+            {empty ? (
+              <div className="chat-empty">
+                <h2>{project ? `New chat in ${project.name}` : 'New chat'}</h2>
+                <p className="chat-empty-path">{tab.cwd}</p>
+                <p>
+                  Ask for anything in this folder: fix a bug, explain some code, start the dev server, or commit and push your work. Claude
+                  asks before it changes files, unless you pick another mode below.
+                </p>
+              </div>
+            ) : null}
+            {agentsRow(agentsAfter.get(''))}
+            {rows.map(({ item, time }) => (
+              <Fragment key={item.id}>
+                {item.kind === 'user' ? (
+                  <div ref={arrived.has(item.id) ? rise : undefined} className="turn-user" data-prompt={item.id}>
+                    {time ? <div className="turn-time">{time}</div> : null}
+                    <ChatItemView item={item} cwd={tab.cwd} />
+                  </div>
+                ) : item.kind === 'done' ? (
+                  <div ref={arrived.has(item.id) ? rise : undefined} className="turn-end">
+                    <ChatItemView item={item} cwd={tab.cwd} />
+                    <HoverTime ts={item.ts} />
+                  </div>
+                ) : (
+                  <div ref={arrived.has(item.id) ? rise : undefined} className={`tl ${timelineClass(item)}${time ? ' has-time' : ''}`}>
+                    {time ? <div className="turn-time">{time}</div> : null}
+                    <ChatItemView item={item} cwd={tab.cwd} />
+                    <HoverTime ts={item.ts} />
+                  </div>
+                )}
+                {agentsRow(agentsAfter.get(item.id))}
+              </Fragment>
+            ))}
+            {/* The live rows rise in as they appear; the finished step that replaces one does not. */}
+            {thinking ? (
+              <div ref={rise} className="tl tl-think tl-live">
+                <LiveThinking text={thinking.text} since={thinking.since} />
+              </div>
+            ) : null}
+            {partial ? (
+              <div ref={rise} className="tl tl-text">
+                <div className="msg-assistant streaming">
+                  <Markdown text={partial} cwd={tab.cwd} streaming />
+                </div>
+              </div>
+            ) : null}
+            {(busy || chat.activity === 'compacting') && !partial && !thinking && !chat.permissions.length ? (
+              <div ref={rise} className="tl tl-live tl-working">
+                <Working since={chat.startedAt} what={chat.activity === 'compacting' ? 'Compacting the conversation' : undefined} />
+              </div>
+            ) : null}
+            {chat.status === 'error' && chat.error && !chat.items.some((i) => i.kind === 'note' && i.tone === 'error') ? (
+              <div className="note tone-error">
+                <div className="note-line selectable">{chat.error}</div>
+              </div>
+            ) : null}
+            {chat.permissions.map((p) => (
+              <div key={p.requestId} ref={rise} className="tl tl-wait">
+                <PermissionCard tabId={tab.id} req={p} cwd={tab.cwd} />
+              </div>
+            ))}
+          </div>
+        </ChatTabContext.Provider>
       </div>
 
       <div className="chat-foot">
