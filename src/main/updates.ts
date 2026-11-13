@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AppUpdater } from 'electron-updater'
 import type { UpdateStatus } from '@shared/types'
@@ -18,16 +17,16 @@ function set(patch: Partial<UpdateStatus>): void {
   for (const w of BrowserWindow.getAllWindows()) if (!w.webContents.isDestroyed()) w.webContents.send('update:status', status)
 }
 
-/** The releases page of the repository this copy was built from, for "What's new". */
-function releasesUrl(): string | null {
-  try {
-    const yml = readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8')
-    const owner = /^owner:\s*(.+)$/m.exec(yml)?.[1]?.trim()
-    const repo = /^repo:\s*(.+)$/m.exec(yml)?.[1]?.trim()
-    return owner && repo ? `https://github.com/${owner}/${repo}/releases` : null
-  } catch {
-    return null
-  }
+/**
+ * Where Loom's releases are published. Named here rather than taken from the build, so every
+ * copy looks for updates in the same place whichever repository built it. Loom started out in
+ * panosmg13gr/loom; the copies installed from there are brought over by one last release in it.
+ */
+const RELEASES = { owner: 'PixFrixSystems', repo: 'loom' }
+
+/** The releases page, for "What's new". */
+function releasesUrl(): string {
+  return `https://github.com/${RELEASES.owner}/${RELEASES.repo}/releases`
 }
 
 function failed(e: unknown): void {
@@ -83,7 +82,7 @@ export function setupUpdates(opts: InstallDeps): void {
   ipcMain.handle('update:install', () => install(opts))
   ipcMain.handle('update:notes', () => {
     const url = releasesUrl()
-    if (url) void shell.openExternal(status.available ? `${url}/tag/v${status.available}` : url)
+    void shell.openExternal(status.available ? `${url}/tag/v${status.available}` : url)
   })
 
   // Copies built from source update with git. Scratch profiles (tests) leave updates alone unless asked.
@@ -93,6 +92,7 @@ export function setupUpdates(opts: InstallDeps): void {
     .then((mod) => {
       const u = mod.autoUpdater ?? (mod as unknown as { default: typeof mod }).default.autoUpdater
       updater = u
+      u.setFeedURL({ provider: 'github', owner: RELEASES.owner, repo: RELEASES.repo })
       // The updater's own account of what it did, so a failed "Restart to update" leaves a trace.
       u.logger = fileLogger(join(app.getPath('userData'), 'logs', 'updates.log'))
       u.autoDownload = true

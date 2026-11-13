@@ -9,7 +9,7 @@ import { Scanner } from './Scanner'
 import { useApp } from './state'
 
 const SITE = 'https://loom.baby'
-const REPO = 'https://github.com/panosmg13gr/loom'
+const REPO = 'https://github.com/PixFrixSystems/loom'
 
 export function Wordmark(): ReactNode {
   return <img className="wordmark" src={wordmark} srcSet={`${wordmark2x} 2x`} width={114} height={32} alt="Loom" />
