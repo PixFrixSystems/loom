@@ -908,6 +908,24 @@
   height: 13px;
 }
 
+.task-btn.stop {
+  background: rgba(255, 91, 112, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 91, 112, 0.4);
+  color: #ffb3bd;
+}
+
+.task-btn.stop:hover:not(:disabled) {
+  background: rgba(255, 91, 112, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(255, 91, 112, 0.6);
+  color: #ffd0d6;
+}
+
+.task-btn.stop svg {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+}
+
 .tool-bg {
   animation: tool-bg-in 200ms var(--ease-out);
 }
@@ -1311,9 +1329,12 @@
   overflow: hidden;
   color: var(--text-3);
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.agent-time {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Approval cards: violet-tinted glass with a lit top edge ---------- */

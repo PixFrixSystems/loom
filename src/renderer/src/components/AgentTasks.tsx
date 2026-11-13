@@ -29,6 +29,15 @@ function ToBackground({ tabId, task }: { tabId: string; task: AgentTask }): Reac
   )
 }
 
+/** Stops one task: red like the chat's own Stop, and saying so, so it reads at a glance. */
+function StopTask({ tabId, task }: { tabId: string; task: AgentTask }): ReactNode {
+  return (
+    <button className="task-btn stop" title="Stop this task" aria-label={`Stop ${task.description}`} onClick={() => void window.loom.chatStopTask(tabId, task.id)}>
+      <Square /> Stop
+    </button>
+  )
+}
+
 /**
  * The sub-agents and background tasks Claude has running in this chat: what each is doing, how
  * long it has run, and a way to stop one. They can keep going after Claude's reply has ended.
@@ -43,7 +52,7 @@ export function AgentTasks({ tabId, tasks }: { tabId: string; tasks: AgentTask[]
     <div className="agents" role="status" aria-label="Agents running">
       <div className="agents-head">{tasks.length === 1 ? '1 agent working' : `${tasks.length} agents working`}</div>
       {tasks.map((t) => {
-        const meta = [t.agentType && t.agentType !== t.description ? t.agentType : '', t.lastTool ?? '', t.toolUses ? `${t.toolUses} ${t.toolUses === 1 ? 'tool use' : 'tool uses'}` : '', elapsed(Date.now() - t.startedAt)].filter(Boolean)
+        const meta = [t.agentType && t.agentType !== t.description ? t.agentType : '', t.lastTool ?? '', t.toolUses ? `${t.toolUses} ${t.toolUses === 1 ? 'tool use' : 'tool uses'}` : ''].filter(Boolean)
         return (
           <div key={t.id} className="agent-row">
             {/* A lit violet LED rather than a spinner: only the thinking dot may loop. */}
@@ -54,11 +63,13 @@ export function AgentTasks({ tabId, tasks }: { tabId: string; tasks: AgentTask[]
               </span>
               {t.summary ? <span className="agent-summary selectable">{t.summary}</span> : null}
             </div>
-            <span className="agent-meta">{meta.join(', ')}</span>
-            <button className="icon-btn small" title="Stop this agent" aria-label={`Stop ${t.description}`} onClick={() => void window.loom.chatStopTask(tabId, t.id)}>
-              <Square />
-            </button>
+            <span className="agent-meta">
+              {meta.length ? `${meta.join(', ')}, ` : ''}
+              {/* Only the clock keeps even figures, so it doesn't jitter; the commas keep their width. */}
+              <span className="agent-time">{elapsed(Date.now() - t.startedAt)}</span>
+            </span>
             <ToBackground tabId={tabId} task={t} />
+            <StopTask tabId={tabId} task={t} />
           </div>
         )
       })}
@@ -135,9 +146,7 @@ function AgentsPopover({ anchor, tabId, tasks, onClose }: { anchor: DOMRect; tab
                 {t.description}
               </span>
               <ToBackground tabId={tabId} task={t} />
-              <button className="icon-btn small" title="Stop this agent" aria-label={`Stop ${t.description}`} onClick={() => void window.loom.chatStopTask(tabId, t.id)}>
-                <Square />
-              </button>
+              <StopTask tabId={tabId} task={t} />
             </div>
             <div className="agents-pop-meta">{meta.join(', ')}</div>
             {t.summary ? <p className="agents-pop-summary selectable">{t.summary}</p> : null}

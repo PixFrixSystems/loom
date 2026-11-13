@@ -43,6 +43,7 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 - Dividers light up lavender while held; dragged tabs show lavender drop zones. A split pane draws no edge of its own: the active tab's underline says which one you are in.
 - File icons (Files panel, Ctrl+P) are the one place with many hues: each kind of file keeps the colour it is known by, muted to about the same lightness, drawn in one hand in `FileIcon.tsx`. Tool folders (`node_modules`, `dist`, `.git`) are dimmed; `.claude` and `CLAUDE.md` take the lavender.
 - Once your message has scrolled away, a slim band under the chat header keeps it pinned (one line, its time, arrows to the message before and after); the conversation passes beneath it with a blur.
+- What you can do to a running task is said in words, in small pills: Run in background in glass, Stop in the red of the chat's Stop with its filled square. Send to background sits beside the lit Send as a glass key.
 - Running servers are green LEDs. The thinking dot is violet and pulses while Claude thinks: the only animation that loops.
 
 ## Motion
