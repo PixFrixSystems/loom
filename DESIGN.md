@@ -44,8 +44,9 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 - File icons (Files panel, Ctrl+P) are the one place with many hues: each kind of file keeps the colour it is known by, muted to about the same lightness, drawn in one hand in `FileIcon.tsx`. Tool folders (`node_modules`, `dist`, `.git`) are dimmed; `.claude` and `CLAUDE.md` take the lavender.
 - Once your message has scrolled away, a slim band under the chat header keeps it pinned (one line, its time, arrows to the message before and after); the conversation passes beneath it with a blur.
 - What you can do to a running task is said in words, in small pills: Run in background in glass, Stop in the red of the chat's Stop with its filled square. Send to background sits beside the lit Send as a glass key.
-- Running servers are green LEDs. The thinking dot is violet and pulses while Claude thinks: the only animation that loops.
+- Running servers are green LEDs.
 - A public link (Cloudflare Tunnel) is the one place Cloudflare's orange appears: an outlined cloud offers it, a filled one marks it open, and an orange cloud stays in the status bar while any site is public.
+- The live dot is violet and sends out a ring every two seconds while Claude thinks or works, beside "Claude is working" in lavender: the only animation that loops. A finished turn ends with a green check and "Done in"; a stopped one says so, without the check.
 
 ## Motion
 

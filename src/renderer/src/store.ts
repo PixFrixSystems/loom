@@ -1457,7 +1457,8 @@ export const useStore = create<Store>((set, get) => {
                 ? { ...it, status: 'done' as const, ms: it.startedAt ? now - it.startedAt : undefined }
                 : it
             )
-            if (ev.durationMs && ev.durationMs >= 1000) items.push({ kind: 'done', id: uid(), ms: ev.durationMs, ts: new Date(now).toISOString() })
+            const outcome = ev.stopped ? ('stopped' as const) : ev.error ? ('error' as const) : undefined
+            if (ev.durationMs && ev.durationMs >= 1000) items.push({ kind: 'done', id: uid(), ms: ev.durationMs, ts: new Date(now).toISOString(), ...(outcome ? { outcome } : {}) })
             return { unread: get().activeTabId !== tabId, items, activity: null }
           })
           const tab = get().tabs.find((t) => t.id === tabId)

@@ -341,7 +341,16 @@ export const ChatItemView = memo(function ChatItemView({ item, cwd }: { item: Ch
     case 'note':
       return <Note item={item} />
     case 'done':
-      return <div className="turn-done">Worked for {formatDuration(item.ms)}</div>
+      // How the turn ended, unmistakable next to "Claude is working": a check when it finished.
+      return item.outcome ? (
+        <div className={`turn-done is-${item.outcome}`}>
+          {item.outcome === 'stopped' ? 'Stopped after' : 'Ended after'} {formatDuration(item.ms)}
+        </div>
+      ) : (
+        <div className="turn-done is-done">
+          <Check /> Done in {formatDuration(item.ms)}
+        </div>
+      )
   }
 })
 

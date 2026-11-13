@@ -363,8 +363,8 @@ export type ChatItem =
       ms?: number
     }
   | { kind: 'note'; id: string; text: string; tone: 'info' | 'error' | 'summary'; detail?: string; ts?: string }
-  /** The end of a turn: how long Claude worked on it */
-  | { kind: 'done'; id: string; ms: number; ts?: string }
+  /** The end of a turn: how long Claude worked on it, and whether it was stopped or failed */
+  | { kind: 'done'; id: string; ms: number; ts?: string; outcome?: 'stopped' | 'error' }
 
 export type ChatStatus = 'idle' | 'starting' | 'running' | 'stopped' | 'error'
 
@@ -441,7 +441,7 @@ export type ChatEvent =
   | { type: 'session'; sessionId: string; model?: string; permissionMode?: PermissionMode }
   | { type: 'permission'; request: PermissionRequest }
   | { type: 'permission-done'; requestId: string }
-  | { type: 'turn-done'; costUsd?: number; durationMs?: number; error?: string }
+  | { type: 'turn-done'; costUsd?: number; durationMs?: number; error?: string; stopped?: boolean }
   | { type: 'models'; models: ModelOption[] }
   | { type: 'commands'; commands: SlashCommandInfo[] }
   | { type: 'mode'; permissionMode: PermissionMode }

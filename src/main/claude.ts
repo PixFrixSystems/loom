@@ -721,7 +721,7 @@ class ChatSession {
             : errors.join('\n') || 'The turn ended with an error.'
         if (stopped) this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'info', text: 'Stopped' }] })
         if (error) this.emit({ type: 'items', items: [{ kind: 'note', id: randomUUID(), tone: 'error', text: truncate(error, 2000) }] })
-        this.emit({ type: 'turn-done', costUsd: m.total_cost_usd, durationMs: m.duration_ms, error })
+        this.emit({ type: 'turn-done', costUsd: m.total_cost_usd, durationMs: m.duration_ms, error, stopped })
         void this.refreshContext()
         this.setStatus('idle')
         this.onTurnDone(this.tabId, error)
