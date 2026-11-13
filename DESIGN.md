@@ -40,7 +40,7 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 ## Signature details
 
 - The active tab is lit, with a 2px violet underline glowing under its label; its project name turns lavender.
-- Dividers and the focused pane light up lavender; dragged tabs show lavender drop zones.
+- Dividers light up lavender while held; dragged tabs show lavender drop zones. A split pane draws no edge of its own: the active tab's underline says which one you are in.
 - Running servers are green LEDs. The thinking dot is violet and pulses while Claude thinks: the only animation that loops.
 
 ## Motion
