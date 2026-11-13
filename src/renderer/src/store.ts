@@ -239,6 +239,12 @@ interface Store extends PersistedState {
   /** Unsaved file text handed over from another window, used once by the file's view */
   fileDrafts: Record<string, string>
   usage: UsageSnapshot | null
+  /** The Plan limits popover is open: from the status bar's meters, or /usage in a chat */
+  usageOpen: boolean
+  /** A fresh reading of the plan limits is on its way */
+  usageChecking: boolean
+  /** Opens the Plan limits popover with a fresh reading, whatever the chats are doing (/usage) */
+  showUsage: () => void
   /** Phone access: whether it is on, and the phones linked (main window only) */
   remote: RemoteStatus | null
   history: string[]
@@ -485,6 +491,8 @@ export const useStore = create<Store>((set, get) => {
     detached: {},
     fileDrafts: {},
     usage: null,
+    usageOpen: false,
+    usageChecking: false,
     remote: null,
     history: [],
     quickOpen: false,
@@ -1246,8 +1254,17 @@ export const useStore = create<Store>((set, get) => {
       get().openTab({ id: uid(), kind: 'server', projectId: server.projectId, serverId, title: server.target.command })
     },
     refreshUsage: async (force) => {
-      const usage = await window.loom.getUsage(force)
-      if (usage) set({ usage })
+      if (force) set({ usageChecking: true })
+      try {
+        const usage = await window.loom.getUsage(force)
+        if (usage) set({ usage })
+      } finally {
+        if (force) set({ usageChecking: false })
+      }
+    },
+    showUsage: () => {
+      set({ usageOpen: true })
+      void get().refreshUsage(true)
     },
     respond: (tabId, requestId, response) => {
       patchChat(tabId, (c) => ({ permissions: c.permissions.filter((p) => p.requestId !== requestId) }))

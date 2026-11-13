@@ -1,7 +1,7 @@
 import { CircleArrowUp, GitBranch, RefreshCw, Smartphone } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import type { UsageLimit, UsageSnapshot } from '@shared/types'
+import type { UsageLimit } from '@shared/types'
 import { timeAgo } from '../lib/paths'
 import { chatWorking, modelName, useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
@@ -41,36 +41,62 @@ function Bar({ l, stopAt }: { l: UsageLimit; stopAt: number | null }): ReactNode
   )
 }
 
-function UsagePopover({ usage, anchor, onClose }: { usage: UsageSnapshot; anchor: DOMRect; onClose: () => void }): ReactNode {
+/** Where the popover opens: above the meters in the status bar, else in the window's bottom right. */
+function popoverPlace(): { right: number; bottom: number } {
+  const anchor = document.querySelector('.sb-usage') ?? document.querySelector('.statusbar')
+  if (!anchor) return { right: 12, bottom: 12 }
+  const r = anchor.getBoundingClientRect()
+  return { right: Math.max(8, window.innerWidth - r.right), bottom: window.innerHeight - r.top + 6 }
+}
+
+/**
+ * The Plan limits popover. Opened from the meters in the status bar, or by /usage in any chat at any
+ * time, also while Claude is working (a popout window, with no status bar, shows it in its corner).
+ */
+export function UsagePopover(): ReactNode {
+  const usage = useStore((s) => s.usage)
+  const open = useStore((s) => s.usageOpen)
+  const busy = useStore((s) => s.usageChecking)
   const ref = useRef<HTMLDivElement>(null)
-  const [busy, setBusy] = useState(false)
+  const [, relayout] = useState(0)
   useEffect(() => {
+    if (!open) return
+    const close = (): void => useStore.getState().set({ usageOpen: false })
     const onDown = (e: MouseEvent): void => {
-      if (!ref.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest('.sb-usage')) onClose()
+      if (!ref.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest('.sb-usage')) close()
     }
+    // Esc puts the popover away and goes no further, so it doesn't also stop Claude in the chat.
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      close()
     }
+    const onResize = (): void => relayout((n) => n + 1)
     window.addEventListener('mousedown', onDown, true)
-    window.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    window.addEventListener('resize', onResize)
     return () => {
       window.removeEventListener('mousedown', onDown, true)
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('resize', onResize)
     }
-  }, [onClose])
-  const right = Math.max(8, window.innerWidth - anchor.right)
+  }, [open])
+  if (!open) return null
   return createPortal(
-    <div ref={ref} className="menu usage-pop" style={{ right, bottom: window.innerHeight - anchor.top + 6 }} role="dialog" aria-label="Plan limits">
+    <div ref={ref} className="menu usage-pop" style={popoverPlace()} role="dialog" aria-label="Plan limits">
       <div className="usage-head">
         <span className="usage-title">Plan limits</span>
-        {usage.plan ? <span className="usage-plan">{usage.plan[0].toUpperCase() + usage.plan.slice(1)}</span> : null}
+        {usage?.plan ? <span className="usage-plan">{usage.plan[0].toUpperCase() + usage.plan.slice(1)}</span> : null}
       </div>
-      {usage.email ? (
+      {usage?.email ? (
         <p className="usage-account selectable" title="The Claude account these limits belong to">
           {usage.email}
         </p>
       ) : null}
-      {!usage.available ? (
+      {!usage ? (
+        <p className="usage-note">{busy ? 'Asking Claude Code for your plan limits…' : 'No reading of your plan limits yet.'}</p>
+      ) : !usage.available ? (
         <p className="usage-note">Plan limits are not available for this sign-in.</p>
       ) : usage.limits.length ? (
         usage.limits.map((l) => (
@@ -86,19 +112,11 @@ function UsagePopover({ usage, anchor, onClose }: { usage: UsageSnapshot; anchor
       ) : (
         <p className="usage-note">No limits are counting right now.</p>
       )}
-      {usage.stopAt ? <p className="usage-note">Your usage guard stops Claude at {usage.stopAt}% of the week. Loom keeps it supplied with these readings.</p> : null}
-      {usage.error ? <p className="usage-note">The last check failed: {usage.error}</p> : null}
+      {usage?.stopAt ? <p className="usage-note">Your usage guard stops Claude at {usage.stopAt}% of the week. Loom keeps it supplied with these readings.</p> : null}
+      {usage?.error ? <p className="usage-note">The last check failed: {usage.error}</p> : null}
       <div className="usage-foot">
-        <span>Checked {timeAgo(usage.at)}</span>
-        <button
-          className="btn ghost"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true)
-            await useStore.getState().refreshUsage(true)
-            setBusy(false)
-          }}
-        >
+        <span>{busy ? 'Checking…' : usage ? `Checked ${timeAgo(usage.at)}` : ''}</span>
+        <button className="btn ghost" disabled={busy} onClick={() => void useStore.getState().refreshUsage(true)}>
           <RefreshCw className={busy ? 'spin' : undefined} /> Check now
         </button>
       </div>
@@ -109,7 +127,7 @@ function UsagePopover({ usage, anchor, onClose }: { usage: UsageSnapshot; anchor
 
 function UsageMeters(): ReactNode {
   const usage = useStore((s) => s.usage)
-  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const open = useStore((s) => s.usageOpen)
   if (!usage || !usage.available) return null
   // The 5-hour session and the week for all models, then a meter for each model with a weekly limit
   // of its own (Fable, say). Every one is shown: the server marks one row as its headline pick, but
@@ -119,12 +137,7 @@ function UsageMeters(): ReactNode {
   const list = main.length || models.length ? [...main, ...models] : usage.limits.slice(0, 2)
   return (
     <>
-      <button
-        className="sb-usage"
-        title="Plan limits"
-        aria-expanded={!!anchor}
-        onClick={(e) => setAnchor(anchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())}
-      >
+      <button className="sb-usage" title="Plan limits (or type /usage in a chat)" aria-expanded={open} onClick={() => useStore.getState().set({ usageOpen: !open })}>
         {list.length ? (
           list.map((l) => (
             <span key={l.key} className="meter" title={modelWeek(l) ? `${modelWeek(l)} this week: ${Math.round(l.percent)}% used` : undefined}>
@@ -137,7 +150,6 @@ function UsageMeters(): ReactNode {
           <span className="meter-label">Limits</span>
         )}
       </button>
-      {anchor ? <UsagePopover usage={usage} anchor={anchor} onClose={() => setAnchor(null)} /> : null}
     </>
   )
 }
@@ -228,6 +240,7 @@ export function StatusBar(): ReactNode {
       {chat?.activeModel ? <span className="sb-item sb-muted">{modelName(chat.activeModel, s.knownModels)}</span> : null}
       <ServersStatus />
       <UsageMeters />
+      <UsagePopover />
     </footer>
   )
 }

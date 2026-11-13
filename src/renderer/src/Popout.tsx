@@ -4,6 +4,7 @@ import { ConfirmHost, ToastHost } from './components/Confirm'
 import { ImageViewer } from './components/ImageViewer'
 import { ContextMenuHost } from './components/Menu'
 import { ProjectMark } from './components/ProjectMark'
+import { UsagePopover } from './components/StatusBar'
 import { TabContent } from './components/Workspace'
 import { startRemoteAgent } from './remoteAgent'
 import { useStore } from './store'
@@ -56,6 +57,7 @@ export function Popout(): ReactNode {
       <ImageViewer />
       <ConfirmHost />
       <ToastHost />
+      <UsagePopover />
     </div>
   )
 }

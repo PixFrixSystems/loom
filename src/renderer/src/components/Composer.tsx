@@ -30,6 +30,10 @@ const BUILTIN_COMMANDS: SlashCommandInfo[] = [
   { name: 'review', description: 'Review the current changes', builtin: true }
 ]
 
+/** Loom's own command: opens the plan limits at once, even while Claude is busy, and isn't sent to Claude. */
+const USAGE_COMMAND: SlashCommandInfo = { name: 'usage', description: 'Show your plan limits', builtin: true }
+const isUsageCommand = (text: string): boolean => /^\/usage$/i.test(text.trim())
+
 /** Claude takes images of these types, each up to 5 MB, a few per message. */
 const MAX_IMAGE = 5 * 1024 * 1024
 const MAX_IMAGES = 8
@@ -207,7 +211,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   // then names containing it, then (from three letters on) descriptions mentioning it.
   const groups = useMemo(() => {
     if (query === null || cmdDismissed) return []
-    const list = chat.commands.length ? chat.commands : BUILTIN_COMMANDS
+    const list = [...(chat.commands.length ? chat.commands : BUILTIN_COMMANDS).filter((c) => c.name !== 'usage'), USAGE_COMMAND]
     const q = query.toLowerCase()
     const score = (c: SlashCommandInfo): number => {
       const name = c.name.toLowerCase()
@@ -279,6 +283,11 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   }, [chat.refill?.key])
 
   const submit = (): void => {
+    if (isUsageCommand(text) && !images.length) {
+      s.showUsage()
+      setText('')
+      return
+    }
     if ((!text.trim() && !images.length) || chat.moving) return
     void s.send(tab.id, text, images)
     setText('')
@@ -298,7 +307,9 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
         setCmdIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : commands.length - 1)) % commands.length)
         return
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && text !== `/${commands[cmdIndex].name}`)) {
+      // Enter completes the highlighted command, unless what you typed already names one exactly.
+      const exact = commands.some((c) => text.trim() === `/${c.name}`)
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !exact)) {
         e.preventDefault()
         setText(`/${commands[cmdIndex].name} `)
         return
