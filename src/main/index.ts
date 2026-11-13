@@ -19,6 +19,8 @@ import type {
 } from '@shared/types'
 import { THEMES } from '@shared/types'
 import { cleanThemeName, customFrame, readCustomThemes, readSeeds } from '@shared/customTheme'
+import { lookFiles } from '@shared/look'
+import { setupPictures } from './pictures'
 import {
   claudeAuthStatus,
   claudeLogout,
@@ -447,11 +449,16 @@ function registerIpc(): void {
   ipcMain.on('state:save', (_e, next: PersistedState) => {
     const keep = state.settings.keepChatBackupsDays
     const looks = JSON.stringify([state.settings.theme, state.settings.customThemes])
+    const look = JSON.stringify(state.settings.look ?? null)
     state = next
     saveState(next)
     // Kept for less time than before: the copies past it go now, not tomorrow.
     if (next.settings.keepChatBackupsDays !== keep) pruneBackups()
     if (JSON.stringify([next.settings.theme, next.settings.customThemes]) !== looks) wearTheme(next.settings)
+    // Pictures and decorations: popouts read settings only when they open, so they're told.
+    if (JSON.stringify(next.settings.look ?? null) !== look) {
+      for (const w of BrowserWindow.getAllWindows()) w.webContents.send('app:look', next.settings.look ?? null)
+    }
   })
 
   ipcMain.handle('app:pickFolder', async () => {
@@ -677,7 +684,7 @@ app.whenReady().then(() => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'"
           ]
         }
       })
@@ -685,6 +692,7 @@ app.whenReady().then(() => {
   }
   installMenu()
   registerIpc()
+  setupPictures({ main: () => win, inUse: () => lookFiles(state.settings.look) })
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()

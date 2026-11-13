@@ -306,6 +306,57 @@ export interface CustomTheme {
 /** A built-in theme, or one of the user's own */
 export type ThemeChoice = ThemeName | CustomTheme['id']
 
+/** The parts of the window a picture can go behind */
+export const LOOK_AREAS = [
+  { value: 'window', label: 'Whole window' },
+  { value: 'chat', label: 'Chat' },
+  { value: 'sidebar', label: 'Sidebar' },
+  { value: 'files', label: 'File panel' },
+  { value: 'composer', label: 'Message box' }
+] as const
+
+export type LookArea = (typeof LOOK_AREAS)[number]['value']
+
+/** A picture behind one area, shown faintly under the area's own colour */
+export interface AreaPicture {
+  /** Loom's copy of it, a file name in userData/backgrounds */
+  file: string
+  /** How much of the picture shows, 0 to 40 (%) */
+  opacity: number
+  /** Fill the area, cropped, or show the whole picture */
+  size: 'fill' | 'fit'
+  /** The point of the picture that stays in view, 0 to 100 (%) across and down */
+  x: number
+  y: number
+  /** Blur, 0 to 16 px */
+  blur: number
+  /** Fade into the area's edges */
+  fade: boolean
+}
+
+export type LookPattern = 'none' | 'scanlines' | 'dots' | 'stars'
+
+/** Pictures and decorations, worn over whichever theme is chosen. Read through readLook: the file can be edited by hand. */
+export interface Look {
+  pictures: Partial<Record<LookArea, AreaPicture>>
+  /** How solid the chat's boxes are, 50 to 100 (%); below 100 they're frosted */
+  boxes: number
+  /** The sidebar and file panel let the window's picture through */
+  glass: boolean
+  /** Their blur, 0 to 14 px */
+  glassBlur: number
+  /** A soft rim in the theme's colour around your messages and the message box */
+  glow: boolean
+  /** Bracket corners on your messages and the message box */
+  corners: boolean
+  /** A wash of the theme's colour along the chat's header */
+  banner: boolean
+  /** An ornament line between an answer and your next message */
+  dividers: boolean
+  /** A faint pattern over the chat */
+  pattern: LookPattern
+}
+
 export interface LoomSettings {
   claudeSource: ClaudeSource
   claudeCustomPath: string
@@ -335,6 +386,8 @@ export interface LoomSettings {
   theme?: ThemeChoice
   /** Themes made in Settings. Read through readCustomThemes: the file can be edited by hand. */
   customThemes?: CustomTheme[]
+  /** Pictures behind areas, and decorations (Settings, Pictures and decorations) */
+  look?: Look
 }
 
 export interface ModelOption {

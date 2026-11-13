@@ -8,6 +8,7 @@ import { RightPanel } from './components/RightPanel'
 import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { FileBar, TabBar } from './components/TabBar'
+import { LookVideo } from './components/LookVideo'
 import { Workspace } from './components/Workspace'
 import { inFileRow, panesOf } from './lib/layout'
 import { useResizing } from './lib/resizing'
@@ -157,6 +158,7 @@ export function App(): ReactNode {
 
   return (
     <div className="app" style={style}>
+      <LookVideo area="window" />
       {s.sidebarOpen ? (
         <>
           <div className="brand">

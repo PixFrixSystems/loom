@@ -1,13 +1,19 @@
-import { BellRing, LogIn, LogOut, Pencil, Play, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { BellRing, ImagePlus, LogIn, LogOut, Pencil, Play, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type PointerEvent, type ReactNode } from 'react'
 import { cleanThemeName, readableSeeds, readCustomThemes } from '@shared/customTheme'
+import { isVideo, MAX_OPACITY, readLook } from '@shared/look'
 import {
+  LOOK_AREAS,
   THEME_SEEDS,
   THEMES,
+  type AreaPicture,
   type AuthStatus,
   type ClaudeSource,
   type CustomTheme,
+  type Look,
+  type LookArea,
+  type LookPattern,
   type LoomSettings,
   type NotifySound,
   type PermissionMode,
@@ -16,6 +22,7 @@ import {
   type ThemeSeeds,
   type UpdateStatus
 } from '@shared/types'
+import { pictureUrl } from '../lib/look'
 import { timeAgo, uid } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
@@ -408,6 +415,277 @@ function AppearanceSection(): ReactNode {
   )
 }
 
+/** A labelled slider with its value beside it, in the look of the volume slider */
+function Slider(o: { label: string; value: number; min: number; max: number; unit: string; disabled?: boolean; onChange: (v: number) => void }): ReactNode {
+  return (
+    <label className="look-slider">
+      <span className="look-slider-label">{o.label}</span>
+      <input
+        type="range"
+        className="range"
+        min={o.min}
+        max={o.max}
+        value={o.value}
+        disabled={o.disabled}
+        style={{ ['--fill' as string]: `${((o.value - o.min) / (o.max - o.min)) * 100}%` }}
+        aria-valuetext={`${o.value}${o.unit}`}
+        onChange={(e) => o.onChange(Number(e.target.value))}
+      />
+      <span className="look-slider-value">
+        {o.value}
+        {o.unit}
+      </span>
+    </label>
+  )
+}
+
+const clampPercent = (v: number): number => Math.min(100, Math.max(0, Math.round(v)))
+
+/**
+ * The part of a picture or video that stays in view: the picture itself (the video, playing), at its
+ * own shape, with a dot on the point. Click or drag to move it; arrow keys nudge it.
+ */
+function FocusPad({ file, x, y, onChange }: { file: string; x: number; y: number; onChange: (x: number, y: number) => void }): ReactNode {
+  const video = isVideo(file)
+  const [url, setUrl] = useState<string | null>(null)
+  const [ratio, setRatio] = useState(1.6)
+  useEffect(() => {
+    let live = true
+    setUrl(null)
+    void pictureUrl(file).then((u) => {
+      if (!u || !live) return
+      setUrl(u)
+      // A picture's shape is known once it loads; a video's from its own element, below.
+      if (video) return
+      const img = new Image()
+      img.onload = () => live && setRatio(img.naturalWidth / img.naturalHeight || 1)
+      img.src = u
+    })
+    return () => {
+      live = false
+    }
+  }, [file, video])
+  const box = ratio >= 150 / 110 ? { width: 150, height: Math.round(150 / ratio) } : { width: Math.round(110 * ratio), height: 110 }
+  const at = (e: PointerEvent<HTMLDivElement>): void => {
+    const r = e.currentTarget.getBoundingClientRect()
+    onChange(clampPercent(((e.clientX - r.left) / r.width) * 100), clampPercent(((e.clientY - r.top) / r.height) * 100))
+  }
+  const steps: Record<string, [number, number]> = { ArrowLeft: [-5, 0], ArrowRight: [5, 0], ArrowUp: [0, -5], ArrowDown: [0, 5] }
+  return (
+    <div className="look-focus">
+      <div
+        className="look-pad"
+        role="slider"
+        tabIndex={0}
+        aria-label="Focus point"
+        aria-valuenow={x}
+        aria-valuetext={`${x}% across, ${y}% down`}
+        style={{ ...box, backgroundImage: url && !video ? `url("${url}")` : undefined }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          at(e)
+        }}
+        onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && at(e)}
+        onKeyDown={(e) => {
+          const step = steps[e.key]
+          if (!step) return
+          e.preventDefault()
+          onChange(clampPercent(x + step[0]), clampPercent(y + step[1]))
+        }}
+      >
+        {url && video ? (
+          <video
+            className="look-pad-video"
+            src={url}
+            muted
+            loop
+            autoPlay={!matchMedia('(prefers-reduced-motion: reduce)').matches}
+            playsInline
+            aria-hidden="true"
+            onLoadedMetadata={(e) => setRatio(e.currentTarget.videoWidth / e.currentTarget.videoHeight || 1)}
+          />
+        ) : null}
+        <span className="look-pad-dot" style={{ left: `${x}%`, top: `${y}%` }} />
+      </div>
+      <div className="look-focus-side">
+        <span>Click or drag to the part that should stay in view, like a face.</span>
+        <button className="btn ghost" onClick={() => onChange(50, 50)}>
+          Centre
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const DECORATIONS: { key: 'glow' | 'corners' | 'banner' | 'dividers'; label: string }[] = [
+  { key: 'glow', label: 'Glow around your messages and the message box' },
+  { key: 'corners', label: 'Corner ornaments on them' },
+  { key: 'banner', label: "A banner along the chat's header" },
+  { key: 'dividers', label: 'A divider between an answer and your next message' }
+]
+
+const PATTERNS: { value: LookPattern; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'scanlines', label: 'Scanlines' },
+  { value: 'dots', label: 'Dots' },
+  { value: 'stars', label: 'Stars' }
+]
+
+/**
+ * Pictures behind any area of the window, or one behind all of it, and decorations, all worn over
+ * whichever theme is chosen (lib/look.ts). Loom keeps a copy of each picture in its own folder.
+ */
+function LookSection(): ReactNode {
+  const look = readLook(useStore((s) => s.settings.look))
+  const [area, setArea] = useState<LookArea>(() => LOOK_AREAS.find((a) => look.pictures[a.value])?.value ?? 'chat')
+  const [error, setError] = useState<string | null>(null)
+  const pic = look.pictures[area]
+
+  const save = (patch: Partial<Look>): void => {
+    const s = useStore.getState()
+    s.set({ settings: { ...s.settings, look: { ...readLook(s.settings.look), ...patch } } })
+  }
+  const setPicture = (p: AreaPicture | null): void => {
+    const pictures = { ...readLook(useStore.getState().settings.look).pictures }
+    if (p) pictures[area] = p
+    else delete pictures[area]
+    save({ pictures })
+  }
+  const change = (patch: Partial<AreaPicture>): void => {
+    if (pic) setPicture({ ...pic, ...patch })
+  }
+
+  const choose = async (): Promise<void> => {
+    setError(null)
+    const r = await window.loom.pickPicture()
+    if (!r) return
+    if ('error' in r) return setError(r.error)
+    const now = readLook(useStore.getState().settings.look)
+    const before = now.pictures[area]
+    const fresh: AreaPicture = before ? { ...before, file: r.file } : { file: r.file, opacity: 24, size: 'fill', x: 50, y: 50, blur: 0, fade: false }
+    // The first picture behind the chat: its boxes go frosted, so the picture shows through them a little.
+    const first = !Object.keys(now.pictures).length && (area === 'chat' || area === 'window') && now.boxes === 100
+    save({ pictures: { ...now.pictures, [area]: fresh }, boxes: first ? 80 : now.boxes })
+  }
+
+  return (
+    <section className="set-section">
+      <h2>Pictures and decorations</h2>
+      <Row
+        title="Pictures"
+        hint="A picture or a looping video behind any part of the window, or one behind all of it. It shows faintly so text stays readable, and Loom keeps its own copy. Videos play muted and pause while Loom is minimised."
+      >
+        <div className="look-controls">
+          <div className="segmented look-areas" role="group" aria-label="Where the picture goes">
+            {LOOK_AREAS.map((a) => (
+              <button
+                key={a.value}
+                aria-pressed={area === a.value}
+                onClick={() => {
+                  setArea(a.value)
+                  setError(null)
+                }}
+              >
+                {a.label}
+                {look.pictures[a.value] ? <span className="look-has" role="img" aria-label="has a picture" /> : null}
+              </button>
+            ))}
+          </div>
+          <div className="look-picture">
+            <div className="look-buttons">
+              <button className="btn" onClick={() => void choose()}>
+                <ImagePlus /> {pic ? 'Change it' : 'Choose a picture or video'}
+              </button>
+              {pic ? (
+                <button className="btn ghost" onClick={() => setPicture(null)}>
+                  <Trash2 /> Remove
+                </button>
+              ) : null}
+            </div>
+            {error ? (
+              <p className="look-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {pic ? (
+              <>
+                <Slider label="Visibility" value={pic.opacity} min={0} max={MAX_OPACITY} unit="%" onChange={(v) => change({ opacity: v })} />
+                <div className="look-line">
+                  <span className="look-label" id="look-size">
+                    Size
+                  </span>
+                  <div className="segmented" role="group" aria-labelledby="look-size">
+                    <button aria-pressed={pic.size === 'fill'} onClick={() => change({ size: 'fill' })}>
+                      Fill
+                    </button>
+                    <button aria-pressed={pic.size === 'fit'} onClick={() => change({ size: 'fit' })}>
+                      Fit
+                    </button>
+                  </div>
+                </div>
+                <div className="look-line">
+                  <span className="look-label">Focus</span>
+                  <FocusPad file={pic.file} x={pic.x} y={pic.y} onChange={(x, y) => change({ x, y })} />
+                </div>
+                <Slider label="Blur" value={pic.blur} min={0} max={16} unit="px" onChange={(v) => change({ blur: v })} />
+                <label className="check-row">
+                  <input type="checkbox" checked={pic.fade} onChange={(e) => change({ fade: e.target.checked })} />
+                  <span>Fade into the edges</span>
+                </label>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </Row>
+      <Row
+        title="Boxes"
+        hint="How solid your messages, code, tool output and the message box are. Below 100% they're frosted: a picture behind them shows as colour, and the text on them stays readable."
+      >
+        <Slider label="Solid" value={look.boxes} min={50} max={100} unit="%" onChange={(v) => save({ boxes: v })} />
+      </Row>
+      <Row title="Glass panels" hint="With a picture behind the whole window, the sidebar and file panel let more of it through.">
+        <div className="look-checks">
+          <label className="check-row">
+            <input type="checkbox" checked={look.glass} onChange={(e) => save({ glass: e.target.checked })} />
+            <span>Glass sidebar and file panel</span>
+          </label>
+          <Slider label="Blur" value={look.glassBlur} min={0} max={14} unit="px" disabled={!look.glass} onChange={(v) => save({ glassBlur: v })} />
+        </div>
+      </Row>
+      <Row title="Decorations" hint="Small touches in the theme's colour, in every chat.">
+        <div className="look-checks">
+          {DECORATIONS.map((d) => (
+            <label key={d.key} className="check-row">
+              <input
+                type="checkbox"
+                checked={look[d.key]}
+                onChange={(e) => {
+                  const patch: Partial<Look> = {}
+                  patch[d.key] = e.target.checked
+                  save(patch)
+                }}
+              />
+              <span>{d.label}</span>
+            </label>
+          ))}
+          <div className="look-line">
+            <span className="look-label" id="look-pattern">
+              Pattern
+            </span>
+            <div className="segmented" role="group" aria-labelledby="look-pattern">
+              {PATTERNS.map((p) => (
+                <button key={p.value} aria-pressed={look.pattern === p.value} onClick={() => save({ pattern: p.value })}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Row>
+    </section>
+  )
+}
+
 /** What the About section says about updates. */
 function updateLine(u: UpdateStatus): string {
   if (!u.enabled) return 'This copy is built from source. Update it with git pull, then npm run build.'
@@ -517,6 +795,7 @@ export function SettingsView(): ReactNode {
         </section>
 
         <AppearanceSection />
+        <LookSection />
 
         <PhoneAccess />
 

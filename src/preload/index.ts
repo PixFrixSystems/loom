@@ -19,6 +19,7 @@ import type {
   HistoryResult,
   ImageAttachment,
   LoginState,
+  Look,
   ModelOption,
   NotifySound,
   InstallStep,
@@ -105,6 +106,22 @@ const api = {
     ipcRenderer.invoke('theme:write', description, current),
   /** Paints this window's frame in a theme being previewed; null goes back to the saved theme */
   previewFrame: (seeds: ThemeSeeds | null): void => ipcRenderer.send('theme:previewFrame', seeds),
+  /** Pictures and decorations were changed in Settings; a popout follows them */
+  onLook: (cb: (look: Look | null) => void): (() => void) => {
+    const listener = (_e: unknown, look: Look | null): void => cb(look)
+    ipcRenderer.on('app:look', listener)
+    return () => ipcRenderer.removeListener('app:look', listener)
+  },
+  /** Asks for a picture or video and keeps a copy in Loom's folder; null when cancelled */
+  pickPicture: (): Promise<{ file: string } | { error: string } | null> => ipcRenderer.invoke('look:pick'),
+  /** A kept picture's or video's bytes, for a blob: URL; null when it's gone */
+  readPicture: (file: string): Promise<{ bytes: Uint8Array; type: string } | null> => ipcRenderer.invoke('look:read', file),
+  /** This window was minimised or hidden (false), or brought back (true) */
+  onShown: (cb: (shown: boolean) => void): (() => void) => {
+    const listener = (_e: unknown, shown: boolean): void => cb(shown)
+    ipcRenderer.on('look:shown', listener)
+    return () => ipcRenderer.removeListener('look:shown', listener)
+  },
   /** Puts an image (a data: URL) on the clipboard; false when it isn't one */
   copyImage: (dataUrl: string): Promise<boolean> => ipcRenderer.invoke('app:copyImage', dataUrl),
   reportUnsaved: (names: string[]): void => ipcRenderer.send('app:unsaved', names),

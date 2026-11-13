@@ -807,11 +807,22 @@
   transition: background-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
 }
 
-/* A divider lights up lavender while you hold it */
+/* A divider shows a soft line while the pointer is on it and a brighter one while it's held. The
+   line leaves a gap around the grip's dots instead of running through them. */
 .resizer:hover::after,
 .resizer.dragging::after {
-  background: var(--light);
-  box-shadow: 0 0 10px var(--light-glow);
+  --sash: color-mix(in srgb, var(--light) 45%, transparent);
+  background: linear-gradient(
+    to bottom,
+    var(--sash) calc(50% - 14px),
+    transparent calc(50% - 14px),
+    transparent calc(50% + 14px),
+    var(--sash) calc(50% + 14px)
+  );
+}
+
+.resizer.dragging::after {
+  --sash: color-mix(in srgb, var(--light) 80%, transparent);
 }
 
 /* ---------- Status bar ---------- */
@@ -1690,23 +1701,37 @@
   min-height: 0;
 }
 
-/* Dividers: a hairline you can grab, lit while you hold it */
+/* Dividers: a hairline you can grab, softly lit under the pointer and brighter while you hold it.
+   It leaves a gap around the grip's dots in its middle. */
 .split-handle {
+  --sash: var(--line-strong);
   position: relative;
   z-index: 6;
   flex: none;
-  background: var(--line-strong);
-  transition: background-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
 }
 
 .split-handle.is-row {
   width: 1px;
   cursor: col-resize;
+  background: linear-gradient(
+    to bottom,
+    var(--sash) calc(50% - 14px),
+    transparent calc(50% - 14px),
+    transparent calc(50% + 14px),
+    var(--sash) calc(50% + 14px)
+  );
 }
 
 .split-handle.is-column {
   height: 1px;
   cursor: row-resize;
+  background: linear-gradient(
+    to right,
+    var(--sash) calc(50% - 14px),
+    transparent calc(50% - 14px),
+    transparent calc(50% + 14px),
+    var(--sash) calc(50% + 14px)
+  );
 }
 
 /* A wider grip than the line it draws */
@@ -1723,10 +1748,42 @@
   inset: -5px 0;
 }
 
-.split-handle:hover,
+.split-handle:hover {
+  --sash: color-mix(in srgb, var(--light) 45%, transparent);
+}
+
 .split-handle.dragging {
-  background: var(--light);
-  box-shadow: 0 0 10px var(--light-glow);
+  --sash: color-mix(in srgb, var(--light) 80%, transparent);
+}
+
+/* Three dots in the middle of every divider that can be dragged, so it reads as one */
+.resizer::before,
+.split-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 17px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, var(--text-3) 1.1px, transparent 1.6px) center top / 3px 6px repeat-y;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.split-handle.is-column::after {
+  width: 17px;
+  height: 3px;
+  background: radial-gradient(circle, var(--text-3) 1.1px, transparent 1.6px) left center / 6px 3px repeat-x;
+}
+
+/* Under the pointer and while held, the dots take the divider's light */
+.resizer:hover::before,
+.resizer.dragging::before,
+.split-handle:hover::after,
+.split-handle.dragging::after {
+  background-image: radial-gradient(circle, var(--light) 1.1px, transparent 1.6px);
+  opacity: 1;
 }
 
 /* While a divider is dragged, previews let the mouse through so the drag can cross them */

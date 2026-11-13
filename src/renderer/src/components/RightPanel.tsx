@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ConfigFileInfo, DirEntry, Project } from '@shared/types'
 import { joinPath, normPath, relPath, shortPath } from '../lib/paths'
 import { useStore, type MenuItem } from '../store'
+import { LookVideo } from './LookVideo'
 import { FileIcon } from './FileIcon'
 import { GitPanel } from './GitPanel'
 
@@ -241,6 +242,7 @@ export function RightPanel(): ReactNode {
   const changeCount = project ? (s.gitChanges[project.id]?.files.length ?? s.git[project.id]?.changes ?? 0) : 0
   return (
     <aside className="rightpanel">
+      <LookVideo area="files" />
       <div className="pane-head">
         <div className="segmented" role="tablist">
           <button role="tab" aria-selected={s.rightPanelView === 'files'} onClick={() => s.set({ rightPanelView: 'files' })}>
