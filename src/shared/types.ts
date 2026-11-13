@@ -258,6 +258,12 @@ export interface LoomSettings {
   defaultPermissionMode: PermissionMode | null
   /** What new chats start with: the last model, effort and Ultracode setting picked in any chat */
   defaultModel?: string | null
+  /**
+   * The model every new chat starts with, chosen in Settings. Unset: the last one picked in a chat
+   * (defaultModel). '': Claude Code's own default. Otherwise a model, and picking another in a chat
+   * changes only that chat.
+   */
+  newChatModel?: string | null
   defaultEffort?: EffortLevel | null
   defaultUltracode?: boolean
   notifyWhenDone: boolean

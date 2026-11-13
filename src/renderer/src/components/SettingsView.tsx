@@ -192,6 +192,32 @@ function NotifyRow({
   )
 }
 
+/**
+ * The model new chats start with: the one picked last in a chat (as before), Claude Code's own
+ * default, or one chosen here for good.
+ */
+function ModelRow({ value, update }: { value: string | null | undefined; update: (patch: Partial<LoomSettings>) => void }): ReactNode {
+  const known = useStore((s) => s.knownModels)
+  const last = useStore((s) => s.settings.defaultModel ?? '')
+  const claudeDefault = known.find((m) => m.value === '')
+  const nameOf = (v: string): string => (v ? (known.find((m) => m.value === v)?.label ?? v) : `Claude Code's default${claudeDefault?.description ? ` (${claudeDefault.description.split(' · ')[0]})` : ''}`)
+  const options = [
+    { value: 'last', label: 'The one I picked last', description: `Now ${nameOf(last)}. Picking a model in any chat changes it` },
+    { value: '', label: "Claude Code's default", description: claudeDefault?.description ?? 'What Claude Code recommends for your account' },
+    ...known.filter((m) => m.value !== '').map((m) => ({ value: m.value, label: m.label, description: m.description }))
+  ]
+  // A model that is no longer offered still shows as chosen, by its name.
+  if (value && !options.some((o) => o.value === value)) options.push({ value, label: value, description: 'Not in the current list of models' })
+  return (
+    <Row
+      title="Model for new chats"
+      hint="Choose a model and every new chat starts with it; picking another in a chat then changes only that chat. Claude Code's default is what Claude Code recommends on this PC, and can differ from one account or version to another."
+    >
+      <Dropdown<string> value={value == null ? 'last' : value} options={options} onChange={(v) => update({ newChatModel: v === 'last' ? null : v })} />
+    </Row>
+  )
+}
+
 function Row({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }): ReactNode {
   return (
     <div className="set-row">
@@ -290,7 +316,7 @@ export function SettingsView(): ReactNode {
           </Row>
           <Row
             title="Permission mode for new chats"
-            hint="What Claude may do without asking. Picking a mode in any chat's message box changes this too, so new chats start the way you last worked. The same goes for the model, effort and Ultracode."
+            hint="What Claude may do without asking. Picking a mode in any chat's message box changes this too, so new chats start the way you last worked. The same goes for effort and Ultracode."
           >
             <Dropdown<PermissionMode | 'settings'>
               value={st.defaultPermissionMode ?? 'settings'}
@@ -298,6 +324,7 @@ export function SettingsView(): ReactNode {
               onChange={(v) => update({ defaultPermissionMode: v === 'settings' ? null : v })}
             />
           </Row>
+          <ModelRow value={st.newChatModel} update={update} />
           <Row title="Send messages with" hint="The other combination adds a new line.">
             <div className="segmented">
               <button aria-selected={!st.sendWithCtrlEnter} onClick={() => update({ sendWithCtrlEnter: false })}>

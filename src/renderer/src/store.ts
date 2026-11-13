@@ -1118,8 +1118,10 @@ export const useStore = create<Store>((set, get) => {
     },
     chatDefaults: () => {
       const st = get().settings
+      // A model chosen in Settings wins; '' there is Claude Code's own default.
+      const pinned = st.newChatModel
       return {
-        model: st.defaultModel ?? null,
+        model: pinned == null ? (st.defaultModel ?? null) : pinned || null,
         permissionMode: st.defaultPermissionMode ?? null,
         effort: st.defaultEffort ?? null,
         ultracode: st.defaultUltracode === true
