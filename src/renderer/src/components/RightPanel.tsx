@@ -1,8 +1,9 @@
-import { ChevronRight, FilePlus, FileText, Folder, FolderOpen, RefreshCw, X } from 'lucide-react'
+import { ChevronRight, FilePlus, RefreshCw, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ConfigFileInfo, DirEntry, Project } from '@shared/types'
 import { joinPath, normPath, relPath, shortPath } from '../lib/paths'
 import { useStore, type MenuItem } from '../store'
+import { FileIcon } from './FileIcon'
 import { GitPanel } from './GitPanel'
 
 const fileCache = new Map<string, Promise<string[]>>()
@@ -85,7 +86,7 @@ function TreeNode({ entry, depth, project }: { entry: DirEntry; depth: number; p
         title={entry.path}
       >
         <span className="tree-chev" />
-        <FileText className="tree-icon" />
+        <FileIcon name={entry.name} />
         <span className="tree-name">{entry.name}</span>
       </button>
     )
@@ -94,7 +95,7 @@ function TreeNode({ entry, depth, project }: { entry: DirEntry; depth: number; p
     <>
       <button className="tree-row" style={{ paddingLeft: 10 + depth * 14 }} onClick={() => setOpen(!open)} onContextMenu={menu} aria-expanded={open} title={entry.path}>
         <ChevronRight className={`tree-chev${open ? ' open' : ''}`} />
-        {open ? <FolderOpen className="tree-icon dir" /> : <Folder className="tree-icon dir" />}
+        <FileIcon name={entry.name} dir open={open} />
         <span className="tree-name">{entry.name}</span>
       </button>
       {open && children
@@ -169,7 +170,7 @@ function FilesPane({ project }: { project: Project }): ReactNode {
           ) : matches.length ? (
             matches.map((rel) => (
               <button key={rel} className="tree-row flat" onClick={() => useStore.getState().openFile(joinPath(project.path, rel), project.id)} title={rel}>
-                <FileText className="tree-icon" />
+                <FileIcon name={rel.split('\\').pop() ?? rel} />
                 <span className="tree-name">{rel.split('\\').pop()}</span>
                 <span className="tree-dir">{rel.includes('\\') ? rel.slice(0, rel.lastIndexOf('\\')) : ''}</span>
               </button>
@@ -210,7 +211,7 @@ function ClaudePane({ project }: { project: Project | null }): ReactNode {
       <h3>{title}</h3>
       {list.map((f) => (
         <button key={f.path} className={`config-row${f.exists ? '' : ' missing'}`} onClick={() => void open(f)} title={f.path}>
-          {f.exists ? <FileText className="tree-icon" /> : <FilePlus className="tree-icon" />}
+          {f.exists ? <FileIcon name={f.path.replace(/^.*[\\/]/, '')} /> : <FilePlus className="tree-icon" />}
           <span className="tree-name">{f.label}</span>
           <span className="tree-dir">{f.exists ? shortPath(f.path, info?.homeDir).replace(/^.*[\\/](?=[^\\/]+$)/, '') : 'Create'}</span>
         </button>

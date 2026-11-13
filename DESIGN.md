@@ -41,6 +41,7 @@ Projects keep a colour, but only as the deep tint of their initial tile (`--t-*`
 
 - The active tab is lit, with a 2px violet underline glowing under its label; its project name turns lavender.
 - Dividers light up lavender while held; dragged tabs show lavender drop zones. A split pane draws no edge of its own: the active tab's underline says which one you are in.
+- File icons (Files panel, Ctrl+P) are the one place with many hues: each kind of file keeps the colour it is known by, muted to about the same lightness, drawn in one hand in `FileIcon.tsx`. Tool folders (`node_modules`, `dist`, `.git`) are dimmed; `.claude` and `CLAUDE.md` take the lavender.
 - Running servers are green LEDs. The thinking dot is violet and pulses while Claude thinks: the only animation that loops.
 
 ## Motion

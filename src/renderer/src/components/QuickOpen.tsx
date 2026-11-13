@@ -1,8 +1,9 @@
-import { FileText, MessageSquare } from 'lucide-react'
+import { MessageSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { SessionSummary } from '@shared/types'
 import { joinPath, projectForPath, timeAgo } from '../lib/paths'
 import { useStore } from '../store'
+import { FileIcon } from './FileIcon'
 import { ProjectMark } from './ProjectMark'
 import { projectFileList } from './RightPanel'
 
@@ -236,7 +237,7 @@ export function QuickOpen(): ReactNode {
               onMouseMove={() => i !== index && setIndex(i)}
               onClick={() => choose(rel)}
             >
-              <FileText className="tree-icon" />
+              <FileIcon name={rel.slice(rel.lastIndexOf('\\') + 1)} />
               <span className="tree-name">{lit(rel.slice(rel.lastIndexOf('\\') + 1), needle)}</span>
               <span className="tree-dir">{rel.includes('\\') ? rel.slice(0, rel.lastIndexOf('\\')) : ''}</span>
             </button>

@@ -265,6 +265,39 @@
   transition: color var(--base) var(--ease-out);
 }
 
+/* File and folder icons by type, in the colour each kind is known by (FileIcon.tsx) */
+.file-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  overflow: visible;
+}
+
+.file-icon text {
+  font-family: var(--font-ui);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+/* Folders that tools make and keep (node_modules, dist, .git) step back */
+.file-icon.quiet {
+  opacity: 0.5;
+}
+
+/* A file of no known kind keeps the grey page, lit with the row like the other icons */
+.file-icon.plain {
+  color: var(--text-3);
+  transition: color var(--base) var(--ease-out);
+}
+
+.tree-row:hover .file-icon.plain,
+.tree-row.active .file-icon.plain,
+.config-row:hover .file-icon.plain,
+.palette-row:hover .file-icon.plain,
+.palette-row.active .file-icon.plain {
+  color: var(--text);
+}
+
 .tree-row:hover .tree-icon,
 .tree-row:hover .tree-chev,
 .tree-row.active .tree-icon,
