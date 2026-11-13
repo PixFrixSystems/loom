@@ -2,7 +2,7 @@ import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { FileTab } from '@shared/types'
 import { languageFor, relPath } from '../lib/paths'
-import { monaco } from '../lib/monaco'
+import { editorTheme, monaco } from '../lib/monaco'
 import { fileSavers, liveDrafts, useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 
@@ -67,7 +67,7 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
       model.setEOL(eol.current === 'crlf' ? monaco.editor.EndOfLineSequence.CRLF : monaco.editor.EndOfLineSequence.LF)
       const ed = monaco.editor.create(host.current, {
         model,
-        theme: 'loom',
+        theme: editorTheme(),
         automaticLayout: true,
         fontFamily: "'Cascadia Code', 'Cascadia Mono', Consolas, monospace",
         fontSize: 12.5,

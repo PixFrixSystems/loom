@@ -14,8 +14,10 @@ import type {
   PermissionResponse,
   PersistedState,
   RunTarget,
-  ServiceId
+  ServiceId,
+  ThemeName
 } from '@shared/types'
+import { THEMES } from '@shared/types'
 import {
   claudeAuthStatus,
   claudeLogout,
@@ -109,14 +111,33 @@ const APP_ID = app.isPackaged ? 'gr.pixfrix.loom' : 'gr.pixfrix.loom.source'
 app.setAppUserModelId(APP_ID)
 app.setName('Loom')
 
+/** The colours the main process paints for a theme; an unknown or missing one is Loom's own. */
+function frameOf(theme: ThemeName | undefined): (typeof THEMES)[number]['frame'] {
+  return (THEMES.find((t) => t.value === theme) ?? THEMES[0]).frame
+}
+
+/**
+ * A new theme: every window's background and title bar buttons change now, and every page is told.
+ * Popouts need telling, since they read settings only when they open.
+ */
+function wearTheme(theme: ThemeName | undefined): void {
+  const frame = frameOf(theme)
+  for (const w of BrowserWindow.getAllWindows()) {
+    w.setBackgroundColor(frame.background)
+    w.setTitleBarOverlay({ color: frame.titleBar, symbolColor: frame.symbols })
+    w.webContents.send('app:theme', theme)
+  }
+}
+
 /** What every Loom window shares: the frame, the colours, the preload bridge. */
 function windowOptions(): BrowserWindowConstructorOptions {
+  const frame = frameOf(state.settings.theme)
   return {
     show: false,
     title: 'Loom',
-    backgroundColor: '#0c0e15',
+    backgroundColor: frame.background,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#12141b', symbolColor: '#a9afbf', height: 42 },
+    titleBarOverlay: { color: frame.titleBar, symbolColor: frame.symbols, height: 42 },
     // An .ico on Windows: the taskbar shows it, where it would show electron.exe's icon instead of a PNG.
     icon: join(__dirname, '../../resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
@@ -203,7 +224,9 @@ function guardNavigation(w: BrowserWindow): void {
   })
 }
 
-function loadRenderer(w: BrowserWindow, query: Record<string, string> = {}): void {
+function loadRenderer(w: BrowserWindow, extra: Record<string, string> = {}): void {
+  // The page wears the theme from its first frame, before its saved state has loaded.
+  const query = { ...extra, theme: state.settings.theme ?? 'loom' }
   if (isDev) {
     const qs = new URLSearchParams(query).toString()
     void w.loadURL(`${process.env.ELECTRON_RENDERER_URL!}${qs ? `?${qs}` : ''}`)
@@ -413,10 +436,12 @@ function registerIpc(): void {
   ipcMain.handle('state:load', () => state)
   ipcMain.on('state:save', (_e, next: PersistedState) => {
     const keep = state.settings.keepChatBackupsDays
+    const theme = state.settings.theme
     state = next
     saveState(next)
     // Kept for less time than before: the copies past it go now, not tomorrow.
     if (next.settings.keepChatBackupsDays !== keep) pruneBackups()
+    if (next.settings.theme !== theme) wearTheme(next.settings.theme)
   })
 
   ipcMain.handle('app:pickFolder', async () => {

@@ -25,6 +25,12 @@ body {
   caret-color: var(--light);
 }
 
+/* Until main.tsx puts the theme on <html>, the stylesheet can paint before it: show the window's own
+   background instead, which the main process has already set in the theme's colour. */
+:root:not([data-theme]) body {
+  background: none;
+}
+
 /* Tabular figures only where numbers change in place or line up (meters, counts, timers). In
    Schibsted Grotesk they also widen the full stop, comma and colon, so text and times keep the
    proportional ones. */
@@ -82,7 +88,7 @@ a {
   color: var(--light);
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: rgba(200, 198, 250, 0.35);
+  text-decoration-color: color-mix(in srgb, var(--light) 35%, transparent);
   cursor: pointer;
 }
 
@@ -142,7 +148,7 @@ textarea::placeholder {
 
 /* A field draws its own lavender ring, so it skips the global focus outline */
 .field:focus {
-  box-shadow: inset 0 0 0 1px rgba(196, 194, 252, 0.5), 0 0 0 3px rgba(132, 130, 246, 0.15);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--light) 50%, transparent), 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
 }
 
 .field:focus-visible {
@@ -424,7 +430,7 @@ kbd {
 
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --float: #161926;
+    --float: var(--bg-raised);
   }
 }
 

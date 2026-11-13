@@ -36,6 +36,7 @@ import type {
   TabSnapshot,
   ServiceAccount,
   ServiceId,
+  ThemeName,
   UpdateStatus,
   UsageSnapshot
 } from '@shared/types'
@@ -90,6 +91,12 @@ const api = {
     const listener = (_e: unknown, sound: NotifySound): void => cb(sound)
     ipcRenderer.on('app:notifySound', listener)
     return () => ipcRenderer.removeListener('app:notifySound', listener)
+  },
+  /** The theme was changed in Settings; a popout follows it */
+  onTheme: (cb: (theme: ThemeName | undefined) => void): (() => void) => {
+    const listener = (_e: unknown, theme: ThemeName | undefined): void => cb(theme)
+    ipcRenderer.on('app:theme', listener)
+    return () => ipcRenderer.removeListener('app:theme', listener)
   },
   /** Puts an image (a data: URL) on the clipboard; false when it isn't one */
   copyImage: (dataUrl: string): Promise<boolean> => ipcRenderer.invoke('app:copyImage', dataUrl),

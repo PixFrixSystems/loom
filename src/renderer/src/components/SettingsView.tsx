@@ -1,7 +1,7 @@
 import { BellRing, LogIn, LogOut, Play, RefreshCw } from 'lucide-react'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useState, type ReactNode } from 'react'
-import type { AuthStatus, ClaudeSource, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
+import { THEMES, type AuthStatus, type ClaudeSource, type LoomSettings, type NotifySound, type PermissionMode, type ShellChoice, type ThemeName, type UpdateStatus } from '@shared/types'
 import { timeAgo } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
@@ -336,6 +336,13 @@ export function SettingsView(): ReactNode {
             </div>
           </Row>
           <NotifyRow notifyWhenDone={st.notifyWhenDone} sound={st.notifySound ?? 'off'} volume={st.notifyVolume ?? DEFAULT_VOLUME} update={update} />
+        </section>
+
+        <section className="set-section">
+          <h2>Appearance</h2>
+          <Row title="Theme" hint="The colours of every window: chats, files, the editor and terminals.">
+            <Dropdown<ThemeName> value={st.theme ?? 'loom'} options={THEMES} onChange={(v) => update({ theme: v })} />
+          </Row>
         </section>
 
         <PhoneAccess />

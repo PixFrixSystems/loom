@@ -6,6 +6,8 @@ Operate surface: a working tool used for hours next to code, styled to match Loo
 
 A graphite room lit from above. Surfaces are dark glass: each a little lighter than what is behind it, catching a thin highlight on its top edge, casting a soft deep shadow. One colour carries meaning, the violet of the logo's loop: live, active, connected. A softer lavender is the edge light: focus, selection, checked. Everything else is greys with a faint blue cast. Calm and precise, never neon. Light comes from light sources (glows, rims, LEDs), never from decorative gradients. Dark only.
 
+Themes (Settings, Appearance) swap the colours, never the layout: each is a `:root[data-theme]` block in `styles/tokens.css` plus matching editor (`lib/monaco.ts`), terminal (`TerminalView.tsx`) and window frame (`THEMES` in `shared/types.ts`) colours. A theme's one meaning colour takes the violet's place as `--brand`, its edge light as `--light`; washes of either are written as `color-mix()` of those tokens, never as fixed colours. Loom is the default. The others (One Dark, Dracula, GitHub Dark, Nord, Monokai) are ports of VS Code themes and follow VS Code's layout of them instead of Loom's depth: panes take the theme's sidebar colour, your messages and the message box its input colour, tool output and terminals its terminal colour, so those can sit darker or lighter than the pane. Their code colours are the originals; muted text and status colours are lifted only where they miss 4.5:1. Adding a theme means a `THEMES` entry, a tokens block, an editor theme and a terminal theme; the last two are keyed by theme name, so a missing one fails the type check. Every theme stays dark.
+
 ## Palette (tokens in `styles/base.css`)
 
 | Token | Value | Use |

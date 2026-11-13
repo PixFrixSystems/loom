@@ -255,6 +255,22 @@ export type ShellChoice = 'powershell' | 'cmd' | 'gitbash'
 
 export type NotifySound = 'off' | 'chime' | 'glass' | 'pluck' | 'rise'
 
+export type ThemeName = 'loom' | 'one-dark' | 'dracula' | 'github-dark' | 'nord' | 'monokai'
+
+/**
+ * Loom's colour themes. Each one's colours live in tokens.css (the page), lib/monaco.ts (the editor)
+ * and TerminalView.tsx (terminals). `frame` is what the main process paints itself: the window's
+ * background before the page shows, and the title bar behind Windows' minimise, maximise and close.
+ */
+export const THEMES: { value: ThemeName; label: string; description: string; frame: { background: string; titleBar: string; symbols: string } }[] = [
+  { value: 'loom', label: 'Loom', description: 'Graphite glass with a violet light', frame: { background: '#0c0e15', titleBar: '#12141b', symbols: '#a9afbf' } },
+  { value: 'one-dark', label: 'One Dark', description: "Atom's One Dark, as in One Dark Pro for VS Code", frame: { background: '#1d1f23', titleBar: '#282c34', symbols: '#abb2bf' } },
+  { value: 'dracula', label: 'Dracula', description: 'Purple, pink and green on deep blue-grey', frame: { background: '#191a21', titleBar: '#191a21', symbols: '#bcc2d3' } },
+  { value: 'github-dark', label: 'GitHub Dark', description: "GitHub's own dark mode", frame: { background: '#010409', titleBar: '#010409', symbols: '#b1bac4' } },
+  { value: 'nord', label: 'Nord', description: 'Arctic blue-greys and frost', frame: { background: '#2e3440', titleBar: '#2e3440', symbols: '#d8dee9' } },
+  { value: 'monokai', label: 'Monokai', description: 'The classic: pink, green and yellow on olive black', frame: { background: '#1e1f1c', titleBar: '#1e1f1c', symbols: '#d6d5cb' } }
+]
+
 export interface LoomSettings {
   claudeSource: ClaudeSource
   claudeCustomPath: string
@@ -280,6 +296,8 @@ export interface LoomSettings {
   notifyVolume?: number
   /** Days to keep the copies a moved chat leaves in ~/.claude/chat-backups; 0 keeps them forever */
   keepChatBackupsDays?: number
+  /** The colour theme; none is Loom's own */
+  theme?: ThemeName
 }
 
 export interface ModelOption {

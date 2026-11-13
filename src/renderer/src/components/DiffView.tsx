@@ -1,7 +1,7 @@
 import { FileText, RotateCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DiffTab } from '@shared/types'
-import { monaco } from '../lib/monaco'
+import { editorTheme, monaco } from '../lib/monaco'
 import { languageFor, relPath } from '../lib/paths'
 import { useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
@@ -38,7 +38,7 @@ export function DiffView({ tab, visible = true }: { tab: DiffTab; active: boolea
     }
     if (!editor.current && host.current) {
       const ed = monaco.editor.createDiffEditor(host.current, {
-        theme: 'loom',
+        theme: editorTheme(),
         automaticLayout: true,
         readOnly: true,
         originalEditable: false,
