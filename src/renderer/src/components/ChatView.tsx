@@ -1,4 +1,4 @@
-import { ArrowDown, FolderOpen, LoaderCircle, SquareTerminal } from 'lucide-react'
+import { ArrowDown, ChevronDown, ChevronUp, FolderOpen, LoaderCircle, SquareTerminal } from 'lucide-react'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AgentTask, ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
@@ -12,8 +12,11 @@ import { ProjectMark } from './ProjectMark'
 import { RunControl } from './Servers'
 
 const PAGE = 200
+/** The pinned band's height: a message of yours ending above this line is out of view, under the band. */
+const PIN_COVER = 42
 
 const CLOCK = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' })
+const DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 /** A step's exact time: seconds matter when a minute holds a dozen steps. Other days add the date. */
 const STEP_TODAY = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
 const STEP_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' })
@@ -55,6 +58,51 @@ function stepClock(ts?: string): string | null {
   const now = new Date()
   if (d.toDateString() === now.toDateString()) return STEP_TODAY.format(d)
   return (d.getFullYear() === now.getFullYear() ? STEP_DAY : STEP_YEAR).format(d)
+}
+
+/** When a message was sent: the time today, the date and time before that. */
+function sentAt(ts?: string): string | null {
+  if (!ts) return null
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return null
+  return (d.toDateString() === new Date().toDateString() ? CLOCK : DAY).format(d)
+}
+
+interface Pinned {
+  id: string
+  /** Its place among your messages on show, and how many there are */
+  index: number
+  count: number
+}
+
+/**
+ * Your message for the part of the conversation on screen, pinned at the top once it has scrolled
+ * away: you always see what you asked, even coming back to a chat days later at its bottom.
+ * Clicking it goes back to the message; the arrows step to the one before or after.
+ */
+function PinnedPrompt({ text, images, ts, pinned, onReveal, onStep }: { text: string; images: number; ts?: string; pinned: Pinned; onReveal: () => void; onStep: (dir: -1 | 1) => void }): ReactNode {
+  const words = text.replace(/\s+/g, ' ').trim() || (images === 1 ? 'An image' : `${images} images`)
+  const when = sentAt(ts)
+  return (
+    <div className="pinned-slot">
+      <div className="pinned-prompt">
+        <div className="pinned-row">
+          <div className="pinned-nav">
+            {when ? <span className="pinned-when">{when}</span> : null}
+            <button className="icon-btn small" title="Your message before this one" aria-label="Your message before this one" disabled={pinned.index === 0} onClick={() => onStep(-1)}>
+              <ChevronUp />
+            </button>
+            <button className="icon-btn small" title="Your next message" aria-label="Your next message" disabled={pinned.index >= pinned.count - 1} onClick={() => onStep(1)}>
+              <ChevronDown />
+            </button>
+          </div>
+          <button className="pinned-text" title={text.length > 600 ? `${text.slice(0, 600)}…` : text || 'Show this message'} onClick={onReveal}>
+            <span>{words}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /** When a step happened, shown after the pointer has rested on it for a moment. */
@@ -105,6 +153,26 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   const shrankAt = useRef(0)
   const root = useRef<HTMLDivElement>(null)
   const [dragFiles, setDragFiles] = useState(false)
+  const [pinned, setPinned] = useState<Pinned | null>(null)
+  const pinFrame = useRef(0)
+
+  // Which of your messages the part on screen belongs to: the last one starting above the top. It
+  // is pinned while it is out of view, and not while you can see it.
+  const findPinned = (): void => {
+    cancelAnimationFrame(pinFrame.current)
+    pinFrame.current = requestAnimationFrame(() => {
+      const el = scroller.current
+      if (!el) return
+      const line = el.getBoundingClientRect().top + PIN_COVER
+      const prompts = el.querySelectorAll<HTMLElement>('[data-prompt]')
+      let index = -1
+      for (let i = 0; i < prompts.length && prompts[i].getBoundingClientRect().top < line; i++) index = i
+      const away = index >= 0 && prompts[index].getBoundingClientRect().bottom <= line
+      const next = away ? { id: prompts[index].dataset.prompt!, index, count: prompts.length } : null
+      setPinned((p) => (p?.id === next?.id && p?.index === next?.index && p?.count === next?.count ? p : next))
+    })
+  }
+  useEffect(() => () => cancelAnimationFrame(pinFrame.current), [])
 
   // Typing anywhere in the chat you're working in writes in its message box, and Esc stops
   // Claude, wherever the keyboard is in it: after a click in the conversation, say.
@@ -213,6 +281,11 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     if (stick.current) el.scrollTop = el.scrollHeight
   }, [chat.items, partial, thinking, chat.permissions.length, chat.tasks.length, busy, chat.activity, shown, limit])
 
+  // What is on screen changes with the content as well as with scrolling.
+  useEffect(() => {
+    if (shown) findPinned()
+  }, [chat.items, shown, limit, partial])
+
   // Scrolling up lets go of the bottom at once, before the next words pull the view back down.
   const letGo = (): void => {
     stick.current = false
@@ -225,7 +298,37 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     if (left < 4 && Date.now() - shrankAt.current > 400) stick.current = true
     const near = left < 80
     if (near !== atBottom) setAtBottom(near)
+    findPinned()
   }
+
+  const promptEl = (index: number): HTMLElement | undefined => scroller.current?.querySelectorAll<HTMLElement>('[data-prompt]')[index]
+  /** Back to the pinned message itself, lit for a moment so the eye finds it. */
+  const revealPrompt = (): void => {
+    const el = scroller.current
+    const target = pinned ? promptEl(pinned.index) : undefined
+    if (!el || !target) return
+    letGo()
+    el.scrollTo({ top: el.scrollTop + target.getBoundingClientRect().top - el.getBoundingClientRect().top - 12, behavior: 'smooth' })
+    const bubble = target.querySelector('.bubble')
+    bubble?.classList.remove('flash')
+    void (bubble as HTMLElement | null)?.offsetWidth
+    bubble?.classList.add('flash')
+  }
+  /**
+   * To the message before or after: scrolled to just past it, so what Claude did next starts below
+   * the band and the message itself is the one pinned. The arrows can be pressed again and again.
+   */
+  const stepPrompt = (dir: -1 | 1): void => {
+    const el = scroller.current
+    const target = pinned ? promptEl(pinned.index + dir) : undefined
+    if (!el || !target) return
+    letGo()
+    // The message ends right under the band's lower edge, hidden by it, and the answer follows.
+    const top = el.getBoundingClientRect().top
+    const band = el.querySelector('.pinned-prompt')?.getBoundingClientRect().bottom ?? top + PIN_COVER
+    el.scrollTo({ top: el.scrollTop + target.getBoundingClientRect().bottom - band + 1, behavior: 'smooth' })
+  }
+  const pinnedItem = pinned ? chat.items.find((i) => i.id === pinned.id) : undefined
 
   const where = project
     ? normPath(tab.cwd) === normPath(project.path)
@@ -287,6 +390,9 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         onKeyDown={(e) => ['PageUp', 'ArrowUp', 'Home'].includes(e.key) && letGo()}
         onPointerDown={(e) => e.target === e.currentTarget && letGo()}
       >
+        {pinned && pinnedItem?.kind === 'user' ? (
+          <PinnedPrompt text={pinnedItem.text} images={pinnedItem.images ?? 0} ts={pinnedItem.ts} pinned={pinned} onReveal={revealPrompt} onStep={stepPrompt} />
+        ) : null}
         <div className="chat-column">
           {chat.historyState === 'loading' ? (
             <div className="history-loading">
@@ -324,7 +430,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
           {rows.map(({ item, time }) => (
             <Fragment key={item.id}>
               {item.kind === 'user' ? (
-                <div ref={arrived.has(item.id) ? rise : undefined} className="turn-user">
+                <div ref={arrived.has(item.id) ? rise : undefined} className="turn-user" data-prompt={item.id}>
                   {time ? <div className="turn-time">{time}</div> : null}
                   <ChatItemView item={item} cwd={tab.cwd} />
                 </div>
