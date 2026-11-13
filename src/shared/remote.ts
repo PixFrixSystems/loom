@@ -22,7 +22,7 @@
 //   id. Every message after that carries the session id and a count that only goes up, so a
 //   message recorded earlier and sent again is turned away, in either direction.
 
-import type { ChatItem, ChatStatus, EffortLevel, PermissionMode, PermissionRequest, PermissionResponse, ThreadColor, UsageSnapshot } from './types'
+import type { ChatItem, ChatProvider, ChatStatus, EffortLevel, PermissionMode, PermissionRequest, PermissionResponse, ThreadColor, UsageSnapshot } from './types'
 
 export const REMOTE_VERSION = 1
 
@@ -147,6 +147,8 @@ export interface RemoteTask {
 /** A chat's state besides its steps */
 export interface RemoteChatState {
   title: string
+  provider?: ChatProvider
+  agentName?: string
   projectId: string | null
   cwd: string
   status: ChatStatus
@@ -161,6 +163,8 @@ export interface RemoteChatState {
   mode?: PermissionMode | null
   /** The model picked for this chat: a value from the list's models */
   modelValue: string
+  /** Model choices when the chat uses a different provider from the shared list */
+  models?: RemoteModel[]
   /** The effort picked; null follows the Claude settings */
   effort: EffortLevel | null
   /** The effort levels this chat's model takes; none when it takes no effort setting */

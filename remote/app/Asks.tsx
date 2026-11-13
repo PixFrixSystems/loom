@@ -20,7 +20,7 @@ const ASK_TITLES: Record<string, string> = {
 
 type Answer = (r: PermissionResponse) => void
 
-function ToolAsk({ req, answer }: { req: PermissionRequest; answer: Answer }): ReactNode {
+function ToolAsk({ req, answer, external }: { req: PermissionRequest; answer: Answer; external: boolean }): ReactNode {
   const [reason, setReason] = useState('')
   const title = ASK_TITLES[req.toolName] ?? `Use ${req.toolName.startsWith('mcp__') ? req.toolName.split('__').slice(1).join(': ') : req.toolName}?`
   return (
@@ -38,27 +38,33 @@ function ToolAsk({ req, answer }: { req: PermissionRequest; answer: Answer }): R
         <pre className="ask-detail ask-scroll">{req.detail}</pre>
       ) : null}
       {req.reason ? <p className="ask-reason">{req.reason}</p> : null}
-      <div className="ask-buttons">
-        <button className="btn primary" onClick={() => answer({ decision: 'allow' })}>
-          Allow
-        </button>
-        {req.canAlwaysAllow ? (
-          <button className="btn" onClick={() => answer({ decision: 'allow-always' })}>
-            Allow for this chat
+      {req.desktopOnly ? (
+        <p className="ask-reason">Review the full request on your PC to allow it.</p>
+      ) : (
+        <div className="ask-buttons">
+          <button className="btn primary" onClick={() => answer({ decision: 'allow' })}>
+            Allow
           </button>
-        ) : null}
-      </div>
+          {req.canAlwaysAllow ? (
+            <button className="btn" onClick={() => answer({ decision: 'allow-always' })}>
+              Allow for this chat
+            </button>
+          ) : null}
+        </div>
+      )}
       <div className="ask-instead">
-        <input
-          className="field"
-          placeholder="Or tell Claude what to do instead"
-          value={reason}
-          enterKeyHint="send"
-          onChange={(e) => setReason(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) answer({ decision: 'deny', message: reason })
-          }}
-        />
+        {!external ? (
+          <input
+            className="field"
+            placeholder="Or tell Claude what to do instead"
+            value={reason}
+            enterKeyHint="send"
+            onChange={(e) => setReason(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) answer({ decision: 'deny', message: reason })
+            }}
+          />
+        ) : null}
         <button className="btn" onClick={() => answer({ decision: 'deny', message: reason })}>
           Deny
         </button>
@@ -67,7 +73,7 @@ function ToolAsk({ req, answer }: { req: PermissionRequest; answer: Answer }): R
   )
 }
 
-function QuestionAsk({ req, answer }: { req: PermissionRequest; answer: Answer }): ReactNode {
+function QuestionAsk({ req, answer, name }: { req: PermissionRequest; answer: Answer; name: string }): ReactNode {
   const questions = req.questions ?? []
   const [picked, setPicked] = useState<Record<string, string[]>>({})
   const [other, setOther] = useState<Record<string, string>>({})
@@ -77,11 +83,12 @@ function QuestionAsk({ req, answer }: { req: PermissionRequest; answer: Answer }
     return parts.join(', ')
   }
   const complete = questions.every((q) => answerFor(q.question))
+  const title = `${name} has ${questions.length > 1 ? 'a few questions' : 'a question'}`
   return (
-    <div className="ask" role="group" aria-label="Claude has a question">
+    <div className="ask" role="group" aria-label={title}>
       <div className="ask-head">
         <CircleHelp />
-        <span>{questions.length > 1 ? 'Claude has a few questions' : 'Claude has a question'}</span>
+        <span>{title}</span>
       </div>
       {questions.map((q) => (
         <fieldset key={q.question} className="question">
@@ -172,8 +179,8 @@ function PlanAsk({ req, answer }: { req: PermissionRequest; answer: Answer }): R
   )
 }
 
-export function Ask({ req, answer }: { req: PermissionRequest; answer: Answer }): ReactNode {
-  if (req.kind === 'question') return <QuestionAsk req={req} answer={answer} />
+export function Ask({ req, answer, external, name }: { req: PermissionRequest; answer: Answer; external: boolean; name?: string }): ReactNode {
+  if (req.kind === 'question') return <QuestionAsk req={req} answer={answer} name={name ?? (external ? 'The agent' : 'Claude')} />
   if (req.kind === 'plan') return <PlanAsk req={req} answer={answer} />
-  return <ToolAsk req={req} answer={answer} />
+  return <ToolAsk req={req} answer={answer} external={external} />
 }

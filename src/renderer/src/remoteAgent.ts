@@ -6,6 +6,7 @@
 import { DEFAULT_MODELS, type ChatItem, type ChatTab, type EffortLevel, type ModelOption, type PermissionRequest, type SessionSummary } from '@shared/types'
 import type { PhoneAction, RemoteChatState, RemoteChatSummary, RemoteList, ToPhone } from '@shared/remote'
 import { projectForPath } from './lib/paths'
+import { agentName, sessionKey } from './lib/providers'
 import { chatWorking, EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore, type ChatRuntime } from './store'
 
 /** Steps a phone gets when it opens a chat, and with each "show earlier" */
@@ -49,9 +50,14 @@ function forPhone(item: ChatItem): ChatItem {
   }
 }
 
-function permissionForPhone(p: PermissionRequest): PermissionRequest {
+function needsDesktopApproval(p: PermissionRequest): boolean {
+  return p.kind === 'tool' && [p.summary, p.detail, p.reason, p.diff?.before, p.diff?.after].some((part) => (part?.length ?? 0) > TEXT_MAX)
+}
+
+function permissionForPhone(p: PermissionRequest, external: boolean): PermissionRequest {
   return {
     ...p,
+    ...(external ? { summary: cut(p.summary, TEXT_MAX), reason: cut(p.reason, TEXT_MAX), desktopOnly: needsDesktopApproval(p) || undefined } : {}),
     detail: cut(p.detail, TEXT_MAX),
     diff: p.diff ? { before: cut(p.diff.before, TEXT_MAX), after: cut(p.diff.after, TEXT_MAX) } : undefined,
     plan: cut(p.plan, LONG_MAX)
@@ -94,35 +100,45 @@ function owned(tabId: string): ChatTab | null {
 const ALL_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 /** The models a chat can pick, as the message box lists them. */
-function modelChoices(): ModelOption[] {
-  const known = useStore.getState().knownModels
-  return known.length ? known : DEFAULT_MODELS
+function modelChoices(tab?: ChatTab): ModelOption[] {
+  const { detectedExternalProgram, externalModelOptions, knownModels, settings } = useStore.getState()
+  if (tab?.provider === 'external') {
+    const list = externalModelOptions?.program === (settings.externalProgram?.trim() || detectedExternalProgram) ? externalModelOptions?.models : undefined
+    return list?.length ? [{ value: '', label: 'Program default' }, ...list] : []
+  }
+  return knownModels.length ? knownModels : DEFAULT_MODELS
 }
 
 /** The effort levels a chat's model takes, as the message box works them out. */
 function effortChoices(tab: ChatTab, c: ChatRuntime): EffortLevel[] {
-  const picked = tab.model ?? ''
-  const info = modelChoices().find((m) => m.value === picked || (!!c.activeModel && m.resolved === c.activeModel))
-  return info?.efforts ?? ALL_EFFORTS
+  const external = tab.provider === 'external'
+  const picked = tab.model ?? (external ? c.activeModel : '')
+  const info = modelChoices(tab).find((m) => m.value === picked || (!!c.activeModel && m.resolved === c.activeModel))
+  return info?.efforts ?? (external ? [] : ALL_EFFORTS)
 }
 
 function stateOf(tab: ChatTab, c: ChatRuntime): RemoteChatState {
+  const external = tab.provider === 'external'
+  const models = modelChoices(tab)
   return {
     title: tab.title,
     projectId: tab.projectId,
     cwd: tab.cwd,
     status: c.status,
     error: c.error,
-    permissions: c.permissions.map(permissionForPhone),
+    permissions: c.permissions.map((p) => permissionForPhone(p, external)),
     tasks: c.tasks.map((t) => ({ id: t.id, description: t.description, agentType: t.agentType })),
     startedAt: c.startedAt,
     activity: c.activity ?? null,
-    model: modelName(c.activeModel ?? tab.model ?? undefined, useStore.getState().knownModels),
+    model: modelName(c.activeModel ?? tab.model ?? undefined, models),
+    provider: tab.provider,
+    agentName: agentName(tab.provider, useStore.getState().externalName),
+    models: external ? models.map((m) => ({ value: m.value, label: m.label, description: m.description })) : undefined,
     mode: c.permissionMode ?? tab.permissionMode ?? null,
     modelValue: tab.model ?? '',
     effort: tab.effort ?? null,
     efforts: effortChoices(tab, c),
-    defaultEffort: useStore.getState().info?.defaultEffort ?? null
+    defaultEffort: external ? null : useStore.getState().info?.defaultEffort ?? null
   }
 }
 
@@ -246,10 +262,12 @@ function reconcile(mine: boolean): void {
 }
 
 async function open(tabId: string, device: string): Promise<void> {
-  if (!owned(tabId)) {
+  const tab = owned(tabId)
+  if (!tab) {
     if (!POPOUT_TAB && !chatTab(tabId)) window.loom.remotePush({ t: 'gone', tabId }, device)
     return
   }
+  if (tab.provider === 'external') void useStore.getState().loadExternalModels()
   await withHistory(tabId)
   if (!owned(tabId) || !watching.includes(tabId)) return
   const track = tracks.get(tabId) ?? newTrack(tabId)
@@ -286,12 +304,16 @@ function act(action: PhoneAction, device: string): void {
     case 'stop':
       s.interrupt(tab.id)
       break
-    case 'respond':
-      if (c.permissions.some((p) => p.requestId === action.requestId)) s.respond(tab.id, action.requestId, action.response)
+    case 'respond': {
+      const request = c.permissions.find((p) => p.requestId === action.requestId)
+      if (!request) break
+      if (tab.provider === 'external' && needsDesktopApproval(request) && action.response.decision !== 'deny') break
+      s.respond(tab.id, action.requestId, action.response)
       break
+    }
     // The same as picking in the message box, and only from what it offers.
     case 'set-model':
-      if (modelChoices().some((m) => m.value === action.model)) s.setModel(tab.id, action.model || null)
+      if (modelChoices(tab).some((m) => m.value === action.model)) s.setModel(tab.id, action.model || null)
       break
     case 'set-effort':
       if (action.effort === null || effortChoices(tab, c).includes(action.effort)) s.setEffort(tab.id, action.effort)
@@ -321,9 +343,9 @@ function oneLine(text: string): string {
 /** A project's saved chats that aren't open in a tab, newest first. */
 function savedChats(projectId: string): SessionSummary[] {
   const s = useStore.getState()
-  const open = new Set(s.tabs.flatMap((t) => (t.kind === 'chat' && t.sessionId ? [t.sessionId] : [])))
+  const open = new Set(s.tabs.flatMap((t) => (t.kind === 'chat' && t.sessionId ? [sessionKey(t)] : [])))
   return s.sessions
-    .filter((x) => !open.has(x.sessionId) && projectForPath(s.projects, x.cwd)?.id === projectId)
+    .filter((x) => !open.has(sessionKey(x)) && projectForPath(s.projects, x.cwd)?.id === projectId)
     .sort((a, b) => b.lastModified - a.lastModified)
 }
 
@@ -338,7 +360,7 @@ async function browse(action: Extract<PhoneAction, { t: 'project' | 'open-saved'
         {
           t: 'project',
           projectId: action.projectId,
-          saved: all.slice(0, SAVED_PAGE).map((x) => ({ sessionId: x.sessionId, title: oneLine(x.title).slice(0, 120) || 'Untitled chat', lastAt: x.lastModified })),
+          saved: all.slice(0, SAVED_PAGE).map((x) => ({ sessionId: sessionKey(x), title: oneLine(x.title).slice(0, 120) || 'Untitled chat', lastAt: x.lastModified })),
           more: Math.max(0, all.length - SAVED_PAGE)
         },
         device
@@ -347,9 +369,9 @@ async function browse(action: Extract<PhoneAction, { t: 'project' | 'open-saved'
     }
     case 'open-saved': {
       // Opened as a tab in Loom, the same as clicking it in the sidebar.
-      const session = s.sessions.find((x) => x.sessionId === action.sessionId)
+      const session = s.sessions.find((x) => sessionKey(x) === action.sessionId)
       if (session) s.openSession(session)
-      const tab = useStore.getState().tabs.find((t) => t.kind === 'chat' && t.sessionId === action.sessionId)
+      const tab = useStore.getState().tabs.find((t) => t.kind === 'chat' && sessionKey(t) === action.sessionId)
       window.loom.remoteTell({ t: 'opened', ref: action.ref, tabId: tab?.id ?? null }, device)
       break
     }
@@ -425,7 +447,7 @@ function listNow(): RemoteList {
       const c = s.chats[tab.id]
       const said = c?.items.findLast((i) => i.kind === 'assistant' || i.kind === 'user')
       const lastTs = c?.items.at(-1)?.ts
-      const saved = tab.sessionId ? s.sessions.find((x) => x.sessionId === tab.sessionId) : undefined
+      const saved = tab.sessionId ? s.sessions.find((x) => sessionKey(x) === sessionKey(tab)) : undefined
       return {
         tabId: tab.id,
         projectId: tab.projectId,
@@ -439,13 +461,13 @@ function listNow(): RemoteList {
       }
     })
   // Every project, in the sidebar's order: each group's, then the ones in no group.
-  const open = new Set(s.tabs.flatMap((t) => (t.kind === 'chat' && t.sessionId ? [t.sessionId] : [])))
+  const open = new Set(s.tabs.flatMap((t) => (t.kind === 'chat' && t.sessionId ? [sessionKey(t)] : [])))
   const history = new Map<string, { saved: number; last: number }>()
   for (const x of s.sessions) {
     const p = projectForPath(s.projects, x.cwd)
     if (!p) continue
     const h = history.get(p.id) ?? { saved: 0, last: 0 }
-    if (!open.has(x.sessionId)) h.saved++
+    if (!open.has(sessionKey(x))) h.saved++
     h.last = Math.max(h.last, x.lastModified)
     history.set(p.id, h)
   }
@@ -542,7 +564,7 @@ export function startRemoteAgent(): void {
   useStore.subscribe((s, prev) => {
     if (s.tabs !== prev.tabs || s.detached !== prev.detached) reconcile(true)
     for (const track of tracks.values()) {
-      if (s.chats[track.tabId] !== prev.chats[track.tabId] || s.tabs !== prev.tabs) schedule(track)
+      if (s.chats[track.tabId] !== prev.chats[track.tabId] || s.tabs !== prev.tabs || s.externalModelOptions !== prev.externalModelOptions) schedule(track)
     }
     if (POPOUT_TAB || !phonesConnected()) return
     if (

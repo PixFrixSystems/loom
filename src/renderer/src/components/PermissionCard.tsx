@@ -45,7 +45,7 @@ function useAnswer(tabId: string, requestId: string): { ref: React.RefObject<HTM
   return { ref, answer }
 }
 
-function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }): ReactNode {
+function ToolRequest({ tabId, req, external }: { tabId: string; req: PermissionRequest; external: boolean }): ReactNode {
   const [reason, setReason] = useState('')
   const { ref, answer } = useAnswer(tabId, req.requestId)
   const title = ASK_TITLES[req.toolName] ?? `Use ${req.toolName.startsWith('mcp__') ? req.toolName.split('__').slice(1).join(': ') : req.toolName}?`
@@ -74,15 +74,17 @@ function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }):
             Allow for this chat
           </button>
         ) : null}
-        <input
-          className="field ask-reason-input"
-          placeholder="Or tell Claude what to do instead"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) answer({ decision: 'deny', message: reason })
-          }}
-        />
+        {!external ? (
+          <input
+            className="field ask-reason-input"
+            placeholder="Or tell Claude what to do instead"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) answer({ decision: 'deny', message: reason })
+            }}
+          />
+        ) : null}
         <button className="btn" onClick={() => answer({ decision: 'deny', message: reason })}>
           Deny
         </button>
@@ -91,7 +93,7 @@ function ToolRequest({ tabId, req }: { tabId: string; req: PermissionRequest }):
   )
 }
 
-function QuestionRequest({ tabId, req }: { tabId: string; req: PermissionRequest }): ReactNode {
+function QuestionRequest({ tabId, req, name }: { tabId: string; req: PermissionRequest; name: string }): ReactNode {
   const { ref, answer } = useAnswer(tabId, req.requestId)
   const questions = req.questions ?? []
   const [picked, setPicked] = useState<Record<string, string[]>>({})
@@ -103,12 +105,13 @@ function QuestionRequest({ tabId, req }: { tabId: string; req: PermissionRequest
     return parts.join(', ')
   }
   const complete = questions.every((q) => answerFor(q.question))
+  const title = `${name} has ${questions.length > 1 ? 'a few questions' : 'a question'}`
 
   return (
-    <div ref={ref} tabIndex={-1} className="ask" role="dialog" aria-label="Claude has a question">
+    <div ref={ref} tabIndex={-1} className="ask" role="dialog" aria-label={title}>
       <div className="ask-head">
         <CircleHelp />
-        <span className="ask-title">{questions.length > 1 ? 'Claude has a few questions' : 'Claude has a question'}</span>
+        <span className="ask-title">{title}</span>
       </div>
       {questions.map((q) => (
         <fieldset key={q.question} className="question">
@@ -205,8 +208,8 @@ function PlanRequest({ tabId, req, cwd }: { tabId: string; req: PermissionReques
   )
 }
 
-export function PermissionCard({ tabId, req, cwd }: { tabId: string; req: PermissionRequest; cwd: string }): ReactNode {
-  if (req.kind === 'question') return <QuestionRequest tabId={tabId} req={req} />
+export function PermissionCard({ tabId, req, cwd, external, name }: { tabId: string; req: PermissionRequest; cwd: string; external: boolean; name: string }): ReactNode {
+  if (req.kind === 'question') return <QuestionRequest tabId={tabId} req={req} name={name} />
   if (req.kind === 'plan') return <PlanRequest tabId={tabId} req={req} cwd={cwd} />
-  return <ToolRequest tabId={tabId} req={req} />
+  return <ToolRequest tabId={tabId} req={req} external={external} />
 }

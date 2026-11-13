@@ -405,7 +405,7 @@ export function modelOptions(models: ModelInfo[]): ModelOption[] {
   }))
 }
 
-class ChatSession {
+export class ChatSession {
   private q: Query | null = null
   private queue: InputQueue | null = null
   private abort: AbortController | null = null
@@ -1096,65 +1096,6 @@ function errorText(code: string): string {
     default:
       return 'Claude ran into a problem.'
   }
-}
-
-// ---------- Registry ----------
-
-const chats = new Map<string, ChatSession>()
-
-export function openChat(
-  web: WebContents,
-  tabId: string,
-  opts: ChatStartOptions,
-  settings: () => LoomSettings,
-  onTurnDone: (tabId: string, error?: string, ask?: string) => void
-): void {
-  const existing = chats.get(tabId)
-  if (existing) {
-    existing.rebind(web)
-    return
-  }
-  chats.set(tabId, new ChatSession(web, tabId, opts, settings, onTurnDone))
-}
-
-/** Starts holding a chat's events while its tab moves to another window. */
-export function holdChat(tabId: string): void {
-  chats.get(tabId)?.hold()
-}
-
-/** Sends a chat's events to another window, when its tab moves there. */
-export function rebindChat(tabId: string, web: WebContents): void {
-  chats.get(tabId)?.rebind(web)
-}
-
-export function getChat(tabId: string): ChatSession | undefined {
-  return chats.get(tabId)
-}
-
-export function closeChat(tabId: string): void {
-  chats.get(tabId)?.close()
-  chats.delete(tabId)
-}
-
-/**
- * After the account changes: chats between turns let go of Claude Code, so their next message
- * starts it again signed in as the new account. Chats mid-turn finish first and follow later.
- */
-export function releaseIdleChats(): void {
-  for (const c of chats.values()) c.release()
-}
-
-export function closeAllChats(): void {
-  for (const id of [...chats.keys()]) closeChat(id)
-}
-
-export function liveQuery(): Query | null {
-  for (const c of chats.values()) if (c.query) return c.query
-  return null
-}
-
-export function runningChats(): number {
-  return [...chats.values()].filter((c) => c.running).length
 }
 
 /**

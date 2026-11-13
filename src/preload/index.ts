@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   AuthStatus,
+  ChatProvider,
   ChatEvent,
   ChatStartOptions,
   ClaudeInfo,
@@ -101,8 +102,25 @@ const api = {
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
 
   listSessions: (force?: boolean): Promise<SessionSummary[]> => ipcRenderer.invoke('sessions:list', force),
-  loadHistory: (sessionId: string): Promise<HistoryResult> => ipcRenderer.invoke('sessions:history', sessionId),
-  renameSession: (sessionId: string, title: string): Promise<void> => ipcRenderer.invoke('sessions:rename', sessionId, title),
+  loadHistory: (sessionId: string, provider?: ChatProvider): Promise<HistoryResult> => ipcRenderer.invoke('sessions:history', sessionId, provider),
+  renameSession: (sessionId: string, title: string, provider?: ChatProvider): Promise<void> => ipcRenderer.invoke('sessions:rename', sessionId, title, provider),
+  externalModels: (): Promise<ModelOption[]> => ipcRenderer.invoke('external:models'),
+  externalBrand: (): Promise<{ name: string; accountName: string; loginSupported: boolean; installUrl?: string }> => ipcRenderer.invoke('external:brand'),
+  externalProgram: (): Promise<string> => ipcRenderer.invoke('external:program'),
+  externalAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('external:auth'),
+  externalUsage: (force?: boolean): Promise<UsageSnapshot | null> => ipcRenderer.invoke('external:usage', force),
+  externalLogout: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('external:logout'),
+  externalLoginStart: (): Promise<LoginState> => ipcRenderer.invoke('external:login:start'),
+  externalLoginCancel: (): void => ipcRenderer.send('external:login:cancel'),
+  onExternalLogin: (cb: (state: LoginState) => void): (() => void) => {
+    const listener = (_e: unknown, state: LoginState): void => cb(state)
+    ipcRenderer.on('external:login:changed', listener)
+    return () => ipcRenderer.removeListener('external:login:changed', listener)
+  },
+  onExternalAccountChanged: (cb: () => void): (() => void) => {
+    ipcRenderer.on('external:accountChanged', cb)
+    return () => ipcRenderer.removeListener('external:accountChanged', cb)
+  },
   moveSession: (sessionId: string, fromCwd: string, toCwd: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('sessions:move', sessionId, fromCwd, toCwd),
 
@@ -120,7 +138,7 @@ const api = {
   chatRespond: (tabId: string, requestId: string, response: PermissionResponse): Promise<void> =>
     ipcRenderer.invoke('chat:respond', tabId, requestId, response),
   chatClose: (tabId: string): Promise<void> => ipcRenderer.invoke('chat:close', tabId),
-  commandsList: (cwd: string): Promise<SlashCommandInfo[]> => ipcRenderer.invoke('commands:list', cwd),
+  commandsList: (cwd: string, provider?: ChatProvider): Promise<SlashCommandInfo[]> => ipcRenderer.invoke('commands:list', cwd, provider),
   /** Loom shortcuts pressed while a browser tab's page had the keyboard */
   onBrowserShortcut: (cb: (k: { key: string; code: string; shift: boolean; alt: boolean }) => void): (() => void) => {
     const listener = (_e: unknown, k: { key: string; code: string; shift: boolean; alt: boolean }): void => cb(k)
@@ -138,7 +156,7 @@ const api = {
   writeFile: (path: string, content: string, opts?: FileWriteOptions): Promise<FileWriteResult> => ipcRenderer.invoke('fs:write', path, content, opts),
   fileMtime: (path: string): Promise<number | null> => ipcRenderer.invoke('fs:mtime', path),
   projectFiles: (root: string): Promise<string[]> => ipcRenderer.invoke('fs:projectFiles', root),
-  configFiles: (projectPath: string | null): Promise<ConfigFileInfo[]> => ipcRenderer.invoke('fs:configFiles', projectPath),
+  configFiles: (projectPath: string | null, provider?: ChatProvider): Promise<ConfigFileInfo[]> => ipcRenderer.invoke('fs:configFiles', projectPath, provider),
   gitStatus: (dir: string): Promise<GitStatus | null> => ipcRenderer.invoke('git:status', dir),
   gitChanges: (dir: string): Promise<GitChanges | null> => ipcRenderer.invoke('git:changes', dir),
   gitDiff: (dir: string, abs: string, commit: string | null): Promise<GitDiffResult> => ipcRenderer.invoke('git:diff', dir, abs, commit),

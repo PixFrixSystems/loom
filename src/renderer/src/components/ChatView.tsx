@@ -2,6 +2,7 @@ import { ArrowDown, ChevronDown, ChevronUp, FolderOpen, LoaderCircle, SquareTerm
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AgentTask, ChatTab } from '@shared/types'
 import { normPath, relPath, shortPath } from '../lib/paths'
+import { agentName } from '../lib/providers'
 import { EMPTY_CHAT, modelName, POPOUT_TAB, useLive, useStore } from '../store'
 import { AgentsButton, AgentTasks } from './AgentTasks'
 import { ChatItemView, ChatTabContext, LiveThinking, rise, timelineClass, useArrivals } from './ChatItems'
@@ -137,6 +138,8 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
   const chat = useStore((st) => st.chats[tab.id]) ?? EMPTY_CHAT
   const project = useStore((st) => st.projects.find((p) => p.id === tab.projectId))
   const knownModels = useStore((st) => st.knownModels)
+  const externalModels = useStore((st) => st.externalModelOptions?.models)
+  const externalName = useStore((st) => st.externalName)
   const homeDir = useStore((st) => st.info?.homeDir)
   const rawPartial = useLive((l) => l.partial[tab.id] ?? '')
   const thinking = useLive((l) => l.thinking[tab.id] ?? null)
@@ -336,6 +339,9 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
       : relPath(tab.cwd, project.path)
     : shortPath(tab.cwd, homeDir)
   const empty = !chat.items.length && !busy && chat.historyState !== 'loading'
+  const external = tab.provider === 'external'
+  const name = agentName(tab.provider, externalName)
+  const activeModel = modelName(chat.activeModel, external ? externalModels ?? [] : knownModels)
 
   return (
     <div
@@ -368,7 +374,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         </span>
         {where ? <span className="chat-head-path">{where}</span> : null}
         <span className="chat-head-spacer" />
-        {chat.activeModel ? <span className="chat-head-meta">{modelName(chat.activeModel, knownModels)}</span> : null}
+        {external || activeModel ? <span className="chat-head-meta">{external ? [name, activeModel].filter(Boolean).join(' · ') : activeModel}</span> : null}
         <AgentsButton tabId={tab.id} tasks={chat.tasks} />
         <RunControl projectId={tab.projectId} />
         <button className="icon-btn chat-head-tool" title="Open a terminal here" onClick={() => s.newTerminal(tab.projectId)}>
@@ -422,8 +428,8 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
                 <h2>{project ? `New chat in ${project.name}` : 'New chat'}</h2>
                 <p className="chat-empty-path">{tab.cwd}</p>
                 <p>
-                  Ask for anything in this folder: fix a bug, explain some code, start the dev server, or commit and push your work. Claude
-                  asks before it changes files, unless you pick another mode below.
+                  Ask for anything in this folder: fix a bug, explain some code, start the dev server, or commit and push your work.
+                  {' '}{external ? 'Use the permission picker below to choose what the agent can do.' : 'Claude asks before it changes files, unless you pick another mode below.'}
                 </p>
               </div>
             ) : null}
@@ -465,7 +471,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
             ) : null}
             {(busy || chat.activity === 'compacting') && !partial && !thinking && !chat.permissions.length ? (
               <div ref={rise} className="tl tl-live tl-working">
-                <Working since={chat.startedAt} what={chat.activity === 'compacting' ? 'Compacting the conversation' : undefined} />
+                <Working since={chat.startedAt} what={chat.activity === 'compacting' ? 'Compacting the conversation' : `${name} is working`} />
               </div>
             ) : null}
             {chat.status === 'error' && chat.error && !chat.items.some((i) => i.kind === 'note' && i.tone === 'error') ? (
@@ -475,7 +481,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
             ) : null}
             {chat.permissions.map((p) => (
               <div key={p.requestId} ref={rise} className="tl tl-wait">
-                <PermissionCard tabId={tab.id} req={p} cwd={tab.cwd} />
+                <PermissionCard tabId={tab.id} req={p} cwd={tab.cwd} external={external} name={name} />
               </div>
             ))}
           </div>

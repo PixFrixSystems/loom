@@ -5,6 +5,7 @@ import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { installingUpdate, setupUpdates } from './updates'
 import type {
+  ChatProvider,
   ChatStartOptions,
   EffortLevel,
   FileWriteOptions,
@@ -20,25 +21,22 @@ import {
   claudeAuthStatus,
   claudeLogout,
   modelOptions,
-  releaseIdleChats,
   claudeInfo,
   claudeProgram,
-  closeAllChats,
-  closeChat,
   commandsFor,
   executableFor,
-  getChat,
   listAllSessions,
-  liveQuery,
   loadSdk,
   moveSession,
   pruneChatBackups,
   loadHistory,
-  openChat,
   renameSession,
-  runningChats,
   writeCommitMessage
 } from './claude'
+import { backgroundChatTool, closeAllChats, closeChat, getChat, liveClaudeQuery, openChat, releaseExternalChats, releaseIdleClaudeChats, runningChats, stopChatTask } from './chats'
+import { externalBrand, externalConfigFiles, externalProgram } from './externalAgent'
+import { cancelExternalLogin, clearExternalUsage, externalAuthStatus, externalUsage, logoutExternal, startExternalLogin } from './externalLogin'
+import { clearExternalSessions, listExternalModels, listExternalSessions, listExternalSkills, readExternalHistory, renameExternalSession } from './externalSession'
 import {
   diffForMessage,
   gitBranches,
@@ -89,6 +87,7 @@ const primary = app.requestSingleInstanceLock()
 let win: BrowserWindow | null = null
 let state: PersistedState = primary ? loadState() : emptyState()
 const settings = (): LoomSettings => state.settings
+const selectedExternalProgram = (): string => externalProgram(settings().externalProgram)
 
 if (!primary) {
   app.quit()
@@ -383,7 +382,7 @@ function windowsNotificationsOff(): Promise<boolean> {
 // a list saved while signed out (only the basic five) or under another account is replaced.
 const usageDeps = {
   sdk: loadSdk,
-  liveQuery,
+  liveQuery: liveClaudeQuery,
   executable: executableFor,
   settings,
   onModels: (models: Parameters<typeof modelOptions>[0]) => {
@@ -391,9 +390,18 @@ const usageDeps = {
   }
 }
 function accountChanged(): void {
-  releaseIdleChats()
+  releaseIdleClaudeChats()
   forgetUsage(win?.webContents ?? null)
   usageNow(true)
+}
+
+function externalAccountChanged(): void {
+  releaseExternalChats()
+  clearExternalSessions()
+  clearExternalUsage()
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.webContents.isDestroyed()) window.webContents.send('external:accountChanged')
+  }
 }
 
 function usageNow(force = false): void {
@@ -410,8 +418,13 @@ function registerIpc(): void {
   ipcMain.handle('state:load', () => state)
   ipcMain.on('state:save', (_e, next: PersistedState) => {
     const keep = state.settings.keepChatBackupsDays
+    const programChanged = next.settings.externalProgram !== state.settings.externalProgram
     state = next
     saveState(next)
+    if (programChanged) {
+      cancelExternalLogin()
+      externalAccountChanged()
+    }
     // Kept for less time than before: the copies past it go now, not tomorrow.
     if (next.settings.keepChatBackupsDays !== keep) pruneBackups()
   })
@@ -473,31 +486,57 @@ function registerIpc(): void {
     if (/^https?:/i.test(url)) void shell.openExternal(url)
   })
 
-  // Claude
-  ipcMain.handle('sessions:list', (_e, force?: boolean) => listAllSessions(force))
-  ipcMain.handle('sessions:history', async (_e, sessionId: string) => {
-    const history = await loadHistory(sessionId)
+  ipcMain.handle('external:brand', () => externalBrand)
+  ipcMain.handle('external:program', selectedExternalProgram)
+  ipcMain.handle('external:auth', () => externalAuthStatus(selectedExternalProgram()))
+  ipcMain.handle('external:usage', (_e, force?: boolean) => externalUsage(selectedExternalProgram(), force === true))
+  ipcMain.handle('external:login:start', () => startExternalLogin(selectedExternalProgram(), externalAccountChanged))
+  ipcMain.on('external:login:cancel', () => cancelExternalLogin())
+  ipcMain.handle('external:logout', async () => {
+    cancelExternalLogin()
+    const result = await logoutExternal(selectedExternalProgram())
+    if (result.ok) externalAccountChanged()
+    return result
+  })
+  ipcMain.handle('external:models', () => {
+    const program = selectedExternalProgram()
+    return program ? listExternalModels(program) : []
+  })
+  ipcMain.handle('sessions:list', async (_e, force?: boolean) => {
+    const program = selectedExternalProgram()
+    const [claude, external] = await Promise.all([
+      listAllSessions(force),
+      program ? listExternalSessions(program, force).catch(() => []) : []
+    ])
+    return [...claude, ...external.map((summary) => ({ ...summary, provider: 'external' as const }))]
+      .sort((a, b) => b.lastModified - a.lastModified)
+  })
+  ipcMain.handle('sessions:history', async (_e, sessionId: string, provider?: ChatProvider) => {
+    const history = provider === 'external' ? await readExternalHistory(selectedExternalProgram(), sessionId) : await loadHistory(sessionId)
     // Thumbnails beyond the first few are made here, a turn of the event loop between images.
     await finishThumbnails(history.items)
     return history
   })
-  ipcMain.handle('sessions:rename', (_e, sessionId: string, title: string) => renameSession(sessionId, title))
+  ipcMain.handle('sessions:rename', (_e, sessionId: string, title: string, provider?: ChatProvider) =>
+    provider === 'external' ? renameExternalSession(selectedExternalProgram(), sessionId, title) : renameSession(sessionId, title)
+  )
   ipcMain.handle('sessions:move', (_e, sessionId: string, fromCwd: string, toCwd: string) => moveSession(sessionId, fromCwd, toCwd))
 
   ipcMain.handle('chat:open', (e, tabId: string, opts: ChatStartOptions) => {
     openChat(e.sender, tabId, opts, settings, (id, error, ask) => {
       const tab = state.tabs.find((t) => t.id === id)
-      if (ask) return notify('Claude needs you', tab ? `${tab.title}: ${ask}` : ask)
-      notify(error ? 'Claude stopped with an error' : 'Claude finished', tab?.title ?? 'A chat finished')
-      setTimeout(() => usageNow(true), 1500)
+      const agent = opts.provider === 'external' ? externalBrand.name : 'Claude'
+      if (ask) return notify(`${agent} needs you`, tab ? `${tab.title}: ${ask}` : ask)
+      notify(error ? `${agent} stopped with an error` : `${agent} finished`, tab?.title ?? 'A chat finished')
+      if (opts.provider !== 'external') setTimeout(() => usageNow(true), 1500)
     })
   })
   ipcMain.handle('chat:send', (_e, tabId: string, text: string, images: ImageAttachment[], id?: string, background?: boolean) =>
     getChat(tabId)?.send(text, images, id, background === true)
   )
-  ipcMain.handle('chat:background', (_e, tabId: string, toolUseId: string) => getChat(tabId)?.background(toolUseId) ?? { ok: false, message: 'This chat is not running.' })
+  ipcMain.handle('chat:background', (_e, tabId: string, toolUseId: string) => backgroundChatTool(tabId, toolUseId))
   ipcMain.handle('chat:interrupt', (_e, tabId: string) => getChat(tabId)?.interrupt())
-  ipcMain.handle('chat:stopTask', (_e, tabId: string, taskId: string) => getChat(tabId)?.stopTask(taskId))
+  ipcMain.handle('chat:stopTask', (_e, tabId: string, taskId: string) => stopChatTask(tabId, taskId))
   ipcMain.handle('chat:setModel', (_e, tabId: string, model: string | null) => getChat(tabId)?.setModel(model))
   ipcMain.handle('chat:setEffort', (_e, tabId: string, effort: EffortLevel | null, ultracode: boolean) =>
     getChat(tabId)?.setEffort(effort, ultracode)
@@ -507,7 +546,9 @@ function registerIpc(): void {
     getChat(tabId)?.respond(requestId, response)
   )
   ipcMain.handle('chat:close', (_e, tabId: string) => closeChat(tabId))
-  ipcMain.handle('commands:list', (_e, cwd: string) => commandsFor(cwd, settings()))
+  ipcMain.handle('commands:list', (_e, cwd: string, provider?: ChatProvider) =>
+    provider === 'external' ? listExternalSkills(selectedExternalProgram(), cwd) : commandsFor(cwd, settings())
+  )
 
   // Files and git
   ipcMain.handle('fs:listDir', (_e, dir: string) => listDir(dir))
@@ -515,7 +556,9 @@ function registerIpc(): void {
   ipcMain.handle('fs:write', (_e, path: string, content: string, opts?: FileWriteOptions) => writeTextFile(path, content, opts))
   ipcMain.handle('fs:mtime', (_e, path: string) => fileMtime(path))
   ipcMain.handle('fs:projectFiles', (_e, root: string) => listProjectFiles(root))
-  ipcMain.handle('fs:configFiles', (_e, projectPath: string | null) => configFiles(projectPath))
+  ipcMain.handle('fs:configFiles', (_e, projectPath: string | null, provider?: ChatProvider) =>
+    provider === 'external' ? externalConfigFiles(projectPath) : configFiles(projectPath)
+  )
   ipcMain.handle('git:status', (_e, dir: string) => gitStatus(dir))
   ipcMain.handle('git:changes', (_e, dir: string) => gitChanges(dir))
   ipcMain.handle('git:diff', (_e, dir: string, abs: string, commit: string | null) => gitDiff(dir, abs, commit))
@@ -664,6 +707,7 @@ app.on('before-quit', (e) => {
       killAllTerminals()
       killAllServers()
       cancelLogin()
+      cancelExternalLogin()
       closeRemote()
     } catch (err) {
       console.error('[quit]', err)

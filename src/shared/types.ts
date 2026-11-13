@@ -94,10 +94,12 @@ export interface SubFolder {
 
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions' | 'auto' | 'dontAsk'
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+export type ChatProvider = 'claude' | 'external'
 
 export interface ChatTab {
   id: string
   kind: 'chat'
+  provider?: ChatProvider
   projectId: string | null
   sessionId: string | null
   cwd: string
@@ -238,6 +240,9 @@ export type NotifySound = 'off' | 'chime' | 'glass' | 'pluck' | 'rise'
 export interface LoomSettings {
   claudeSource: ClaudeSource
   claudeCustomPath: string
+  defaultProvider?: ChatProvider
+  externalProgram?: string
+  defaultExternalPermissionMode?: PermissionMode
   shell: ShellChoice
   sendWithCtrlEnter: boolean
   defaultPermissionMode: PermissionMode | null
@@ -368,6 +373,8 @@ export interface PermissionRequest {
   diff?: { before: string; after: string }
   reason?: string
   canAlwaysAllow: boolean
+  /** A phone has only a preview. Review and allow this request on the PC. */
+  desktopOnly?: boolean
   questions?: Question[]
   plan?: string
 }
@@ -433,6 +440,7 @@ export type ChatEvent =
 export interface ChatStartOptions {
   cwd: string
   sessionId: string | null
+  provider?: ChatProvider
   model: string | null
   permissionMode: PermissionMode | null
   effort: EffortLevel | null
@@ -447,6 +455,7 @@ export interface ImageAttachment {
 
 export interface SessionSummary {
   sessionId: string
+  provider?: ChatProvider
   title: string
   cwd: string
   lastModified: number

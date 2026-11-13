@@ -188,13 +188,15 @@ function FilesPane({ project }: { project: Project }): ReactNode {
   )
 }
 
-function ClaudePane({ project }: { project: Project | null }): ReactNode {
+function AgentPane({ project, external, name }: { project: Project | null; external: boolean; name: string }): ReactNode {
   const [files, setFiles] = useState<ConfigFileInfo[]>([])
   const info = useStore((s) => s.info)
   const [version, setVersion] = useState(0)
   useEffect(() => {
-    void window.loom.configFiles(project?.path ?? null).then(setFiles)
-  }, [project?.path, version])
+    let active = true
+    void window.loom.configFiles(project?.path ?? null, external ? 'external' : 'claude').then((result) => { if (active) setFiles(result) })
+    return () => { active = false }
+  }, [project?.path, version, external])
 
   const open = async (f: ConfigFileInfo): Promise<void> => {
     if (!f.exists) {
@@ -221,12 +223,12 @@ function ClaudePane({ project }: { project: Project | null }): ReactNode {
 
   return (
     <div className="pane pane-scroll">
-      {project ? section(project.name, files.filter((f) => f.scope === 'project')) : null}
-      {section('All projects', files.filter((f) => f.scope === 'global'))}
+      {project && files.some((f) => f.scope === 'project') ? section(project.name, files.filter((f) => f.scope === 'project')) : null}
+      {files.some((f) => f.scope === 'global') ? section('All projects', files.filter((f) => f.scope === 'global')) : null}
       <section className="config-section">
-        <h3>Claude for Loom</h3>
+        <h3>{name} for Loom</h3>
         <p className="pane-note">
-          Chats run with your Claude Code sign-in, settings, skills and hooks. Pick which Claude program runs them in{' '}
+          {external ? `Chats use your ${name} CLI settings and skills. Manage the account and executable in` : 'Chats run with your Claude Code sign-in, settings, skills and hooks. Pick which Claude program runs them in'}{' '}
           <a onClick={() => useStore.getState().openSettings()}>Settings</a>.
         </p>
       </section>
@@ -237,6 +239,8 @@ function ClaudePane({ project }: { project: Project | null }): ReactNode {
 export function RightPanel(): ReactNode {
   const s = useStore()
   const tab = s.tabs.find((t) => t.id === s.activeTabId)
+  const external = tab?.kind === 'chat' ? tab.provider === 'external' : s.settings.defaultProvider === 'external'
+  const name = external ? s.externalName : 'Claude'
   const project = s.projects.find((p) => p.id === tab?.projectId) ?? null
   const changeCount = project ? (s.gitChanges[project.id]?.files.length ?? s.git[project.id]?.changes ?? 0) : 0
   return (
@@ -251,7 +255,7 @@ export function RightPanel(): ReactNode {
             {changeCount ? <span className="seg-count">{changeCount}</span> : null}
           </button>
           <button role="tab" aria-selected={s.rightPanelView === 'claude'} onClick={() => s.set({ rightPanelView: 'claude' })}>
-            Claude
+            {name}
           </button>
         </div>
         <button className="icon-btn" title="Close panel" onClick={() => s.set({ rightPanelOpen: false })}>
@@ -271,7 +275,7 @@ export function RightPanel(): ReactNode {
           <p className="pane-note pad">Open a tab from a project to see its changes here.</p>
         )
       ) : (
-        <ClaudePane project={project} />
+        <AgentPane key={external ? 'external' : 'claude'} project={project} external={external} name={name} />
       )}
     </aside>
   )
