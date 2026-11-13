@@ -104,7 +104,7 @@ function modelChoices(tab?: ChatTab): ModelOption[] {
   const { detectedExternalProgram, externalModelOptions, knownModels, settings } = useStore.getState()
   if (tab?.provider === 'external') {
     const list = externalModelOptions?.program === (settings.externalProgram?.trim() || detectedExternalProgram) ? externalModelOptions?.models : undefined
-    return list?.length ? [{ value: '', label: 'Program default' }, ...list] : []
+    return [{ value: '', label: 'Program default' }, ...(list ?? [])]
   }
   return knownModels.length ? knownModels : DEFAULT_MODELS
 }
@@ -157,7 +157,7 @@ function sendWhole(track: Track, to?: string): void {
   track.sent = new Map(items.map((i) => [i.id, i]))
   track.earlier = start
   track.state = JSON.stringify(state)
-  window.loom.remotePush({ t: 'chat', tabId: track.tabId, reset: true, items: items.map(forPhone), earlier: start, state }, to)
+  window.loom.remotePush({ t: 'chat', tabId: track.tabId, reset: true, items: items.map(forPhone), earlier: start, state }, to, tab.provider === 'external')
   sendLive(track, true, to)
 }
 
@@ -187,7 +187,7 @@ function sendChanges(track: Track): void {
   track.sent = new Map(items.map((i) => [i.id, i]))
   track.earlier = start
   track.state = stateKey
-  window.loom.remotePush(msg)
+  window.loom.remotePush(msg, undefined, tab.provider === 'external')
 }
 
 /** The reply being written and the thought in progress: what was added, or all of it. */
@@ -210,7 +210,7 @@ function sendLive(track: Track, whole = false, to?: string): void {
   if (!msg.partial && msg.thinking === undefined) return
   track.partial = partial
   track.thinking = thought?.text ?? null
-  window.loom.remotePush(msg, to)
+  window.loom.remotePush(msg, to, chatTab(track.tabId)?.provider === 'external')
 }
 
 function flush(track: Track): void {
@@ -261,13 +261,16 @@ function reconcile(mine: boolean): void {
   }
 }
 
-async function open(tabId: string, device: string): Promise<void> {
+async function open(tabId: string, device: string, externalAgents: boolean): Promise<void> {
   const tab = owned(tabId)
   if (!tab) {
     if (!POPOUT_TAB && !chatTab(tabId)) window.loom.remotePush({ t: 'gone', tabId }, device)
     return
   }
-  if (tab.provider === 'external') void useStore.getState().loadExternalModels()
+  if (tab.provider === 'external') {
+    if (!externalAgents) return window.loom.remotePush({ t: 'gone', tabId }, device)
+    void useStore.getState().loadExternalModels()
+  }
   await withHistory(tabId)
   if (!owned(tabId) || !watching.includes(tabId)) return
   const track = tracks.get(tabId) ?? newTrack(tabId)
@@ -280,14 +283,14 @@ async function open(tabId: string, device: string): Promise<void> {
   }
 }
 
-function act(action: PhoneAction, device: string): void {
+function act(action: PhoneAction, device: string, externalAgents: boolean): void {
   if (action.t === 'project' || action.t === 'open-saved' || action.t === 'new-chat') {
     // Projects and saved chats are the main window's to answer for.
-    if (!POPOUT_TAB) void browse(action, device)
+    if (!POPOUT_TAB) void browse(action, device, externalAgents)
     return
   }
   const tab = owned(action.tabId)
-  if (!tab) return
+  if (!tab || (tab.provider === 'external' && !externalAgents)) return
   const s = useStore.getState()
   const c = s.chat(tab.id)
   switch (action.t) {
@@ -328,7 +331,7 @@ function act(action: PhoneAction, device: string): void {
       track.order = [...older.map((i) => i.id), ...track.order]
       for (const i of older) track.sent.set(i.id, i)
       track.earlier = from
-      window.loom.remotePush({ t: 'earlier', tabId: tab.id, items: older.map(forPhone), earlier: from })
+      window.loom.remotePush({ t: 'earlier', tabId: tab.id, items: older.map(forPhone), earlier: from }, undefined, tab.provider === 'external')
       break
     }
   }
@@ -341,21 +344,21 @@ function oneLine(text: string): string {
 }
 
 /** A project's saved chats that aren't open in a tab, newest first. */
-function savedChats(projectId: string): SessionSummary[] {
+function savedChats(projectId: string, externalAgents: boolean): SessionSummary[] {
   const s = useStore.getState()
   const open = new Set(s.tabs.flatMap((t) => (t.kind === 'chat' && t.sessionId ? [sessionKey(t)] : [])))
   return s.sessions
-    .filter((x) => !open.has(sessionKey(x)) && projectForPath(s.projects, x.cwd)?.id === projectId)
+    .filter((x) => (externalAgents || x.provider !== 'external') && !open.has(sessionKey(x)) && projectForPath(s.projects, x.cwd)?.id === projectId)
     .sort((a, b) => b.lastModified - a.lastModified)
 }
 
 /** What a phone asks of the projects: a project's saved chats, one of them opened, a new chat. */
-async function browse(action: Extract<PhoneAction, { t: 'project' | 'open-saved' | 'new-chat' }>, device: string): Promise<void> {
+async function browse(action: Extract<PhoneAction, { t: 'project' | 'open-saved' | 'new-chat' }>, device: string, externalAgents: boolean): Promise<void> {
   const s = useStore.getState()
   switch (action.t) {
     case 'project': {
       await s.refreshSessions(false)
-      const all = savedChats(action.projectId)
+      const all = savedChats(action.projectId, externalAgents)
       window.loom.remoteTell(
         {
           t: 'project',
@@ -363,23 +366,25 @@ async function browse(action: Extract<PhoneAction, { t: 'project' | 'open-saved'
           saved: all.slice(0, SAVED_PAGE).map((x) => ({ sessionId: sessionKey(x), title: oneLine(x.title).slice(0, 120) || 'Untitled chat', lastAt: x.lastModified })),
           more: Math.max(0, all.length - SAVED_PAGE)
         },
-        device
+        device,
+        externalAgents
       )
       break
     }
     case 'open-saved': {
       // Opened as a tab in Loom, the same as clicking it in the sidebar.
-      const session = s.sessions.find((x) => sessionKey(x) === action.sessionId)
+      const session = s.sessions.find((x) => (externalAgents || x.provider !== 'external') && sessionKey(x) === action.sessionId)
       if (session) s.openSession(session)
-      const tab = useStore.getState().tabs.find((t) => t.kind === 'chat' && sessionKey(t) === action.sessionId)
-      window.loom.remoteTell({ t: 'opened', ref: action.ref, tabId: tab?.id ?? null }, device)
+      const tab = useStore.getState().tabs.find((t): t is ChatTab =>
+        t.kind === 'chat' && (externalAgents || t.provider !== 'external') && sessionKey(t) === action.sessionId)
+      window.loom.remoteTell({ t: 'opened', ref: action.ref, tabId: tab?.id ?? null }, device, tab?.provider === 'external')
       break
     }
     case 'new-chat': {
       const before = new Set(s.tabs.map((t) => t.id))
-      if (s.projects.some((p) => p.id === action.projectId)) s.newChat(action.projectId)
-      const tab = useStore.getState().tabs.find((t) => t.kind === 'chat' && !before.has(t.id))
-      window.loom.remoteTell({ t: 'opened', ref: action.ref, tabId: tab?.id ?? null }, device)
+      if (s.projects.some((p) => p.id === action.projectId)) s.newChat(action.projectId, externalAgents ? undefined : 'claude')
+      const tab = useStore.getState().tabs.find((t): t is ChatTab => t.kind === 'chat' && !before.has(t.id))
+      window.loom.remoteTell({ t: 'opened', ref: action.ref, tabId: tab?.id ?? null }, device, tab?.provider === 'external')
       break
     }
   }
@@ -439,10 +444,10 @@ async function sendIcons(always = false): Promise<void> {
 let listTimer: ReturnType<typeof setTimeout> | null = null
 let lastList = ''
 
-function listNow(): RemoteList {
+function listNow(externalAgents: boolean): RemoteList {
   const s = useStore.getState()
   const chats: RemoteChatSummary[] = s.tabs
-    .filter((t): t is ChatTab => t.kind === 'chat')
+    .filter((t): t is ChatTab => t.kind === 'chat' && (externalAgents || t.provider !== 'external'))
     .map((tab) => {
       const c = s.chats[tab.id]
       const said = c?.items.findLast((i) => i.kind === 'assistant' || i.kind === 'user')
@@ -464,6 +469,7 @@ function listNow(): RemoteList {
   const open = new Set(s.tabs.flatMap((t) => (t.kind === 'chat' && t.sessionId ? [sessionKey(t)] : [])))
   const history = new Map<string, { saved: number; last: number }>()
   for (const x of s.sessions) {
+    if (!externalAgents && x.provider === 'external') continue
     const p = projectForPath(s.projects, x.cwd)
     if (!p) continue
     const h = history.get(p.id) ?? { saved: 0, last: 0 }
@@ -493,11 +499,12 @@ function listNow(): RemoteList {
 function sendList(always = false): void {
   if (listTimer) clearTimeout(listTimer)
   listTimer = null
-  const list = listNow()
-  const key = JSON.stringify(list)
+  const all = listNow(true)
+  const legacy = listNow(false)
+  const key = JSON.stringify([all, legacy])
   if (!always && key === lastList) return
   lastList = key
-  window.loom.remoteList(list)
+  window.loom.remoteList(all, legacy)
 }
 
 function phonesConnected(): boolean {
@@ -558,8 +565,8 @@ export function startRemoteAgent(): void {
     watching = tabIds
     reconcile(false)
   })
-  window.loom.onRemoteOpen((tabId, device) => void open(tabId, device))
-  window.loom.onRemoteAct((action, device) => act(action, device))
+  window.loom.onRemoteOpen((tabId, device, externalAgents) => void open(tabId, device, externalAgents))
+  window.loom.onRemoteAct((action, device, externalAgents) => act(action, device, externalAgents))
 
   useStore.subscribe((s, prev) => {
     if (s.tabs !== prev.tabs || s.detached !== prev.detached) reconcile(true)

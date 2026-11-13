@@ -177,7 +177,7 @@ npm run dist         # builds the installer into dist/
 
 The phone page and its relay live in `remote/` and run as one Cloudflare Worker: `remote/app` is the page, `remote/worker` the relay, and `src/shared/remote.ts` holds the messages and the encryption both sides share. See [remote/README.md](remote/README.md).
 
-Builds can provide an `agent-profile.json` in the packaged resources directory, or use `LOOM_AGENT_PROFILE` to point a source build at one. Set `name` and `accountName` for the labels, `executable` and optionally `installDirectory` relative to Windows local app data for detection, and `loginType` and `loginOrigins` for managed browser sign-in. `installUrl` can point to the agent's installation instructions.
+For a packaged build, place `agent-profile.json` in the repository's `resources/` directory before building. Builds that supply it beside `app.asar` are also supported. Use `LOOM_AGENT_PROFILE` to point a source build at a profile. Set `name` and `accountName` for the labels, `executable` and optionally `installDirectory` relative to Windows local app data for detection, and `loginType` and `loginOrigins` for managed browser sign-in. `installUrl` can point to the agent's installation instructions.
 
 ### Release a version
 

@@ -16,8 +16,11 @@ interface AgentProfile {
 }
 
 function readProfile(): AgentProfile {
-  const file = app.isPackaged ? join(process.resourcesPath, 'agent-profile.json') : process.env.LOOM_AGENT_PROFILE
-  if (file) {
+  const paths = app.isPackaged
+    ? [join(app.getAppPath(), 'resources', 'agent-profile.json'), join(process.resourcesPath, 'agent-profile.json')]
+    : [process.env.LOOM_AGENT_PROFILE]
+  for (const file of paths) {
+    if (!file) continue
     try {
       const profile = JSON.parse(readFileSync(file, 'utf8')) as AgentProfile
       if (typeof profile.name === 'string' && typeof profile.accountName === 'string') return profile

@@ -84,9 +84,9 @@ function AccountRow({ provider = 'claude' }: { provider?: ChatProvider }): React
         />
       ) : null}
       <div className="set-actions" hidden={busy === 'waiting'}>
-        {auth?.loggedIn && canLogin ? (
+        {auth?.loggedIn ? (
           <>
-            <button
+            {canLogin ? <button
               className="btn"
               disabled={!!busy}
               onClick={async () => {
@@ -103,7 +103,7 @@ function AccountRow({ provider = 'claude' }: { provider?: ChatProvider }): React
               }}
             >
               <RefreshCw /> Switch account
-            </button>
+            </button> : null}
             <button
               className="btn danger"
               disabled={!!busy}

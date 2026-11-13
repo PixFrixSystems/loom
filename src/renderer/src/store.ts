@@ -218,6 +218,7 @@ interface Store extends PersistedState {
   externalInstallUrl?: string
   detectedExternalProgram: string
   externalAuth: AuthStatus | null
+  externalAccountRevision: number
   refreshExternalAuth: () => Promise<AuthStatus>
   externalUsage: UsageSnapshot | null
   externalUsageChecking: boolean
@@ -295,7 +296,7 @@ interface Store extends PersistedState {
   closeTab: (tabId: string, closing?: Set<string>) => void
   moveTab: (tabId: string, toIndex: number) => void
   updateTab: (tabId: string, patch: Partial<Tab>) => void
-  newChat: (projectId: string | null) => void
+  newChat: (projectId: string | null, provider?: ChatProvider) => void
   openSession: (session: SessionSummary) => void
   /** Moves a chat to another project: its history goes with it, and Claude works in the new folder. */
   moveChat: (ref: { tabId?: string; session?: SessionSummary }, projectId: string) => Promise<void>
@@ -441,6 +442,7 @@ export const useStore = create<Store>((set, get) => {
   let authRequest: { program: string; pending: Promise<AuthStatus> } | null = null
   let sessionsRequest = 0
   let usageRequest = 0
+  let externalAccountRequest = 0
   const patchChat = (tabId: string, fn: (c: ChatRuntime) => Partial<ChatRuntime>): void => {
     set((s) => {
       // Late news for a tab that has closed (a history load, a last event) stays dropped.
@@ -500,6 +502,7 @@ export const useStore = create<Store>((set, get) => {
     externalLoginSupported: false,
     detectedExternalProgram: '',
     externalAuth: null,
+    externalAccountRevision: 0,
     externalUsage: null,
     externalUsageChecking: false,
     git: {},
@@ -543,10 +546,23 @@ export const useStore = create<Store>((set, get) => {
         externalInstallUrl: brand?.installUrl,
         detectedExternalProgram: state.settings.externalProgram?.trim() ? '' : program
       })
-      window.loom.onExternalAccountChanged(() => {
+      window.loom.onExternalAccountChanged(async () => {
+        const request = ++externalAccountRequest
+        modelRequest = null
         authRequest = null
         ++usageRequest
-        set({ externalModelOptions: null, externalUsage: null, externalUsageChecking: false })
+        set({ externalModelOptions: null, externalAuth: null, externalUsage: null, externalUsageChecking: false })
+        if (POPOUT_TAB) {
+          const [next, program] = await Promise.all([
+            window.loom.loadState().catch(() => null), window.loom.externalProgram().catch(() => '')
+          ])
+          if (request !== externalAccountRequest) return
+          if (next) {
+            const externalProgram = next.settings.externalProgram
+            set((current) => ({ settings: { ...current.settings, externalProgram }, detectedExternalProgram: externalProgram?.trim() ? '' : program }))
+          }
+        }
+        set((current) => ({ externalAccountRevision: current.externalAccountRevision + 1 }))
         void get().refreshExternalAuth()
         if (!POPOUT_TAB) void get().refreshSessions(true)
       })
@@ -924,11 +940,11 @@ export const useStore = create<Store>((set, get) => {
     updateTab: (tabId, patch) =>
       set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? ({ ...t, ...patch } as Tab) : t)) })),
 
-    newChat: (projectId) => {
-      if (POPOUT_TAB) return window.loom.mainDo('newChat', [projectId])
+    newChat: (projectId, requestedProvider) => {
+      if (POPOUT_TAB) return window.loom.mainDo('newChat', [projectId, requestedProvider])
       const project = get().projects.find((p) => p.id === projectId) ?? null
       const cwd = project?.path ?? get().info?.homeDir ?? 'C:\\'
-      const provider = get().settings.defaultProvider ?? 'claude'
+      const provider = requestedProvider ?? get().settings.defaultProvider ?? 'claude'
       get().openTab({ id: uid(), kind: 'chat', projectId: project?.id ?? null, sessionId: null, cwd, title: 'New chat', provider, ...get().chatDefaults(provider) })
     },
     moveChat: async (ref, projectId) => {
@@ -1074,7 +1090,9 @@ export const useStore = create<Store>((set, get) => {
       if (!program || get().externalModelOptions?.program === program) return
       if (modelRequest?.program === program) return modelRequest.pending
       const pending = window.loom.externalModels().then((models) => {
-        if (models.length && (get().settings.externalProgram?.trim() || get().detectedExternalProgram) === program) set({ externalModelOptions: { program, models } })
+        if (modelRequest?.pending === pending && models.length && (get().settings.externalProgram?.trim() || get().detectedExternalProgram) === program) {
+          set({ externalModelOptions: { program, models } })
+        }
       }).catch(() => undefined).finally(() => {
         if (modelRequest?.pending === pending) modelRequest = null
       })
@@ -1205,6 +1223,7 @@ export const useStore = create<Store>((set, get) => {
       // A popout saves nothing itself: the main window keeps the choice.
       if (POPOUT_TAB) return window.loom.mainDo('rememberChoice', [patch])
       if (patch.externalProgram !== undefined) {
+        modelRequest = null
         authRequest = null
         ++usageRequest
         set({ externalModelOptions: null, externalAuth: null, externalUsage: null, externalUsageChecking: false })

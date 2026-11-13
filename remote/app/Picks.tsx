@@ -90,8 +90,10 @@ export function Picks({ tabId, off }: { tabId: string; off: boolean }): ReactNod
   const setModel = useApp((s) => s.setModel)
   const setEffort = useApp((s) => s.setEffort)
   const [open, setOpen] = useState<'model' | 'effort' | null>(null)
-  const models = state?.models ?? listModels
-  if (!state || (state.provider === 'external' && !models?.length)) return null
+  if (!state) return null
+  const models = state.provider === 'external'
+    ? [{ value: '', label: 'Program default' }, ...(state.models ?? []).filter((model) => model.value !== '')]
+    : state.models ?? listModels
   const modelLabel = models?.find((m) => m.value === state.modelValue)?.label ?? (state.modelValue || 'Default')
   const usual = state.defaultEffort
   const effortLabel = state.effort ? EFFORT_LABELS[state.effort] : usual ? EFFORT_LABELS[usual] : 'Default'

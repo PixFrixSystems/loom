@@ -578,6 +578,7 @@ export interface LoginState {
 
 export interface AuthStatus {
   loggedIn: boolean
+  requiresSignIn?: boolean
   email?: string
   /** "max", "pro" and so on, for a Claude subscription */
   plan?: string

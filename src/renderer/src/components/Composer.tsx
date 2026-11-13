@@ -1,7 +1,7 @@
 import { ArrowUp, Cpu, Gauge, MessageSquare, Paperclip, SendToBack, ShieldCheck, Square, X } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type ModelOption, type PermissionMode, type SlashCommandInfo } from '@shared/types'
-import { EMPTY_CHAT, POPOUT_TAB, useStore } from '../store'
+import { EMPTY_CHAT, useStore } from '../store'
 import { agentName, chatProviders, EXTERNAL_MODE_OPTIONS, externalPermissionMode } from '../lib/providers'
 import { Dropdown } from './Menu'
 
@@ -170,6 +170,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   const externalAccountName = useStore((st) => st.externalAccountName)
   const externalLoginSupported = useStore((st) => st.externalLoginSupported)
   const externalAuth = useStore((st) => st.externalAuth)
+  const externalAccountRevision = useStore((st) => st.externalAccountRevision)
   const detectedExternalProgram = useStore((st) => st.detectedExternalProgram)
   const [text, setText] = useState(chat.draft || tab.draft || '')
   const images = chat.attachments
@@ -187,8 +188,10 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
   const program = settings.externalProgram?.trim() || detectedExternalProgram
   const externalModels = program && externalModelOptions?.program === program ? externalModelOptions.models : []
   const models = external ? [PROGRAM_DEFAULT_MODEL, ...externalModels] : knownModels.length ? knownModels : DEFAULT_MODELS
-  const needsProgram = external && !program && !chat.opened && !POPOUT_TAB
-  const needsSignIn = external && !!program && externalLoginSupported && externalAuth?.loggedIn === false && !externalAuth.error && !externalAuth.missing
+  const needsProgram = external && (!program || externalAuth?.missing === true)
+  const needsSignIn = external && !needsProgram && externalLoginSupported && externalAuth?.loggedIn === false && externalAuth.requiresSignIn !== false && !externalAuth.error
+  const showUsage = isUsageCommand(text) && !images.length
+  const canSend = showUsage || (!!(text.trim() || images.length) && !chat.moving && !needsProgram && !needsSignIn)
   const pickProvider = !tab.sessionId && !chat.opened && !chat.items.length && !busy
   const modelValue = tab.model ?? ''
   const modes = external ? EXTERNAL_MODE_OPTIONS : MODE_OPTIONS
@@ -268,10 +271,10 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
 
   useEffect(() => {
     if (external && program) void s.loadExternalModels()
-  }, [external, program, tab.sessionId, chat.status === 'idle'])
+  }, [external, program, externalAccountRevision, tab.sessionId, chat.status === 'idle'])
   useEffect(() => {
-    if (external && program && externalLoginSupported) void s.refreshExternalAuth()
-  }, [external, program, externalLoginSupported])
+    if (external && program) void s.refreshExternalAuth()
+  }, [external, program])
 
   const addFiles = async (files: FileList | File[]): Promise<void> => {
     const list = [...files]
@@ -312,12 +315,12 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
 
   /** `background`: Claude hands the job to a background agent and the chat stays free (Alt+Enter). */
   const submit = (background = false): void => {
-    if (isUsageCommand(text) && !images.length) {
+    if (!canSend) return
+    if (showUsage) {
       s.showUsage(provider)
       setText('')
       return
     }
-    if ((!text.trim() && !images.length) || chat.moving || needsProgram) return
     if (background && (external || !text.trim())) return
     void s.send(tab.id, text, images, undefined, background)
     setText('')
@@ -552,7 +555,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
             className="send"
             title={settings.sendWithCtrlEnter ? 'Send (Ctrl+Enter)' : 'Send (Enter)'}
             aria-label="Send"
-            disabled={(!text.trim() && !images.length) || chat.moving || (needsProgram && !isUsageCommand(text))}
+            disabled={!canSend}
             onClick={() => submit()}
           >
             <ArrowUp />

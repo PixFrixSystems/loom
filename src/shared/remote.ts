@@ -25,6 +25,7 @@
 import type { ChatItem, ChatProvider, ChatStatus, EffortLevel, PermissionMode, PermissionRequest, PermissionResponse, ThreadColor, UsageSnapshot } from './types'
 
 export const REMOTE_VERSION = 1
+export const REMOTE_EXTERNAL_AGENTS = 'external-agents'
 
 /** Where the phone page and the relay live */
 export const REMOTE_ADDRESS = 'https://remote.loom.baby'
@@ -228,6 +229,8 @@ export type FromPhone = { t: 'list' } | { t: 'open'; tabId: string } | { t: 'clo
 export interface Hi {
   t: 'hi'
   nonce: string
+  /** Features this phone page can display and operate. Absent on older phone pages. */
+  can?: string[]
 }
 
 /** The sealed part of every message after the hi */

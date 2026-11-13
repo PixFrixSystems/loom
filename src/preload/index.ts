@@ -294,20 +294,20 @@ const api = {
     ipcRenderer.on('remote:watching', (_e, tabIds: string[]) => cb(tabIds))
   },
   /** A phone opened a chat: it wants the chat as it is now */
-  onRemoteOpen: (cb: (tabId: string, device: string) => void): void => {
-    ipcRenderer.on('remote:open', (_e, tabId: string, device: string) => cb(tabId, device))
+  onRemoteOpen: (cb: (tabId: string, device: string, externalAgents: boolean) => void): void => {
+    ipcRenderer.on('remote:open', (_e, tabId: string, device: string, externalAgents: boolean) => cb(tabId, device, externalAgents))
   },
-  onRemoteAct: (cb: (action: PhoneAction, device: string) => void): void => {
-    ipcRenderer.on('remote:act', (_e, action: PhoneAction, device: string) => cb(action, device))
+  onRemoteAct: (cb: (action: PhoneAction, device: string, externalAgents: boolean) => void): void => {
+    ipcRenderer.on('remote:act', (_e, action: PhoneAction, device: string, externalAgents: boolean) => cb(action, device, externalAgents))
   },
   onRemoteListRequest: (cb: () => void): void => {
     ipcRenderer.on('remote:list-request', () => cb())
   },
   /** For the phones that have this chat open, or only the one named */
-  remotePush: (msg: ToPhone, to?: string): void => ipcRenderer.send('remote:push', msg, to),
+  remotePush: (msg: ToPhone, to?: string, external = false): void => ipcRenderer.send('remote:push', msg, to, external),
   /** For every connected phone, or only the one named: project icons, saved chats, a chat just opened */
-  remoteTell: (msg: ToPhone, to?: string): void => ipcRenderer.send('remote:tell', msg, to),
-  remoteList: (list: RemoteList): void => ipcRenderer.send('remote:list', list)
+  remoteTell: (msg: ToPhone, to?: string, external = false): void => ipcRenderer.send('remote:tell', msg, to, external),
+  remoteList: (all: RemoteList, legacy: RemoteList): void => ipcRenderer.send('remote:list', all, legacy)
 }
 
 export type LoomApi = typeof api

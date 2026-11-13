@@ -70,11 +70,12 @@ export async function externalAuthStatus(program: string): Promise<AuthStatus> {
   try {
     const result = await request<{
       account: { email?: string; planType?: string; type?: string } | null
+      requiresOpenaiAuth?: boolean
     }>(program, 'account/read', { refreshToken: false })
     const account = result.account
     return account
       ? { loggedIn: true, email: account.email, plan: account.planType, method: account.type === agentProfile.loginType ? externalBrand.accountName : account.type }
-      : { loggedIn: false }
+      : { loggedIn: false, requiresSignIn: result.requiresOpenaiAuth }
   } catch (error) {
     return { loggedIn: false, error: message(error) }
   }

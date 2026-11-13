@@ -505,7 +505,7 @@ function registerIpc(): void {
   ipcMain.handle('sessions:list', async (_e, force?: boolean) => {
     const program = selectedExternalProgram()
     const [claude, external] = await Promise.all([
-      listAllSessions(force),
+      listAllSessions(force).catch(() => []),
       program ? listExternalSessions(program, force).catch(() => []) : []
     ])
     return [...claude, ...external.map((summary) => ({ ...summary, provider: 'external' as const }))]

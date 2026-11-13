@@ -190,6 +190,8 @@ export function StatusBar(): ReactNode {
   const chat = tab?.kind === 'chat' ? s.chats[tab.id] : undefined
   const external = tab?.kind === 'chat' && tab.provider === 'external'
   const externalProgram = s.settings.externalProgram?.trim() || s.detectedExternalProgram
+  const externalUsageAccount = JSON.stringify([s.externalAccountRevision, s.externalAuth?.email, s.externalAuth?.method, s.externalAuth?.loggedIn])
+  const previousUsageAccount = useRef(externalUsageAccount)
   const running = Object.values(s.chats).filter((c) => chatWorking(c)).length
   const agents = Object.values(s.chats).reduce((n, c) => n + (c.tasks?.length ?? 0), 0)
   const waiting = Object.values(s.chats).filter((c) => c.permissions.length).length
@@ -205,12 +207,14 @@ export function StatusBar(): ReactNode {
 
   useEffect(() => {
     if (!external || !externalProgram) return
-    void s.refreshExternalUsage()
+    const accountChanged = previousUsageAccount.current !== externalUsageAccount
+    previousUsageAccount.current = externalUsageAccount
+    void s.refreshExternalUsage(accountChanged)
     const timer = setInterval(() => {
       if (document.hasFocus()) void s.refreshExternalUsage()
     }, 60_000)
     return () => clearInterval(timer)
-  }, [external, externalProgram, s.externalAuth?.loggedIn, chat?.status === 'idle'])
+  }, [external, externalProgram, externalUsageAccount, chat?.status === 'idle'])
 
   const mode = tab?.kind === 'chat' ? (tab.permissionMode ?? chat?.permissionMode) : null
   // A phone is using Loom right now: say so, and lead to where it can be removed.
