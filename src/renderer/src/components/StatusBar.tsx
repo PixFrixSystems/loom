@@ -74,7 +74,7 @@ function UsagePopover({ usage, anchor, onClose }: { usage: UsageSnapshot; anchor
         <p className="usage-note">Plan limits are not available for this sign-in.</p>
       ) : usage.limits.length ? (
         usage.limits.map((l) => (
-          <div key={l.key} className={`usage-row${l.active ? '' : ' inactive'}`}>
+          <div key={l.key} className="usage-row">
             <div className="usage-line">
               <span className="usage-label">{l.label === '5h' ? '5-hour session' : l.label === 'Week' ? 'This week' : modelWeek(l) ? `${modelWeek(l)}, this week` : l.label}</span>
               <span className={`usage-pct lvl-${level(l, usage.stopAt)}`}>{Math.round(l.percent)}% used</span>
@@ -111,10 +111,12 @@ function UsageMeters(): ReactNode {
   const usage = useStore((s) => s.usage)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   if (!usage || !usage.available) return null
-  const shown = usage.limits.filter((l) => l.active && (l.label === '5h' || l.label === 'Week'))
-  const base = shown.length ? shown : usage.limits.filter((l) => l.active).slice(0, 2)
-  // Models with a weekly limit of their own (Fable, say) get a meter too, counting or not.
-  const list = [...base, ...usage.limits.filter((l) => modelWeek(l) && !base.includes(l))]
+  // The 5-hour session and the week for all models, then a meter for each model with a weekly limit
+  // of its own (Fable, say). Every one is shown: the server marks one row as its headline pick, but
+  // the others count all the same, and the week for all models must never drop out.
+  const main = usage.limits.filter((l) => l.label === '5h' || l.label === 'Week')
+  const models = usage.limits.filter((l) => modelWeek(l))
+  const list = main.length || models.length ? [...main, ...models] : usage.limits.slice(0, 2)
   return (
     <>
       <button

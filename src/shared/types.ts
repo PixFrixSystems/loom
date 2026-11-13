@@ -602,6 +602,10 @@ export interface UsageLimit {
   percent: number
   resetsAt: number | null
   severity: 'normal' | 'warning' | 'critical'
+  /**
+   * The server's headline pick: the one row a single-number indicator would show (the Fable week,
+   * say, while that is the tightest). Every row counts whether or not it is the pick.
+   */
   active: boolean
 }
 
