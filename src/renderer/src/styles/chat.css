@@ -266,7 +266,7 @@
 }
 
 .pinned-prompt {
-  background: rgba(16, 19, 28, 0.9);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow: 0 1px 0 var(--line);
@@ -379,8 +379,8 @@
   max-width: 88%;
   padding: 9px 13px;
   border-radius: 14px 14px 4px 14px;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: var(--bubble);
+  box-shadow: var(--bubble-shadow);
   color: var(--text);
   font-size: 14px;
   line-height: 1.55;
@@ -589,7 +589,7 @@
   border-radius: 10px;
   background: var(--bg-sunken);
   box-shadow: inset 0 0 0 1px var(--line);
-  color: #d4d8e4;
+  color: var(--code-text);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -764,11 +764,11 @@
 
 @keyframes tl-pulse {
   0% {
-    box-shadow: 0 0 8px var(--brand-glow), 0 0 0 0 rgba(140, 138, 246, 0.6);
+    box-shadow: 0 0 8px var(--brand-glow), 0 0 0 0 color-mix(in srgb, var(--brand) 60%, transparent);
   }
   70%,
   100% {
-    box-shadow: 0 0 8px var(--brand-glow), 0 0 0 8px rgba(140, 138, 246, 0);
+    box-shadow: 0 0 8px var(--brand-glow), 0 0 0 8px color-mix(in srgb, var(--brand) 0%, transparent);
   }
 }
 
@@ -1368,8 +1368,8 @@
   gap: 10px;
   padding: 12px 14px;
   border-radius: var(--radius-l);
-  background: rgba(132, 130, 246, 0.08);
-  box-shadow: inset 0 1px 0 rgba(214, 212, 253, 0.22), inset 0 0 0 1px rgba(196, 194, 252, 0.16);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--light) 22%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--light) 16%, transparent);
 }
 
 .ask-head {
@@ -1397,7 +1397,7 @@
   border-radius: var(--radius);
   background: var(--bg-sunken);
   box-shadow: inset 0 0 0 1px var(--line);
-  color: #d4d8e4;
+  color: var(--code-text);
   font-family: var(--font-code);
   font-size: 12px;
   line-height: 1.6;
@@ -1491,8 +1491,8 @@
 }
 
 .option.selected {
-  background: rgba(132, 130, 246, 0.1);
-  box-shadow: inset 0 1px 0 rgba(214, 212, 253, 0.22), inset 0 0 0 1px rgba(196, 194, 252, 0.5);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--light) 22%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--light) 50%, transparent);
 }
 
 .option-label {
@@ -1568,14 +1568,14 @@
 }
 
 .composer:has(.composer-input:focus) {
-  box-shadow: inset 0 1px 0 rgba(214, 212, 253, 0.25), inset 0 0 0 1px rgba(196, 194, 252, 0.35), 0 30px 60px -36px rgba(0, 0, 0, 0.9),
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--light) 25%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--light) 35%, transparent), 0 30px 60px -36px rgba(0, 0, 0, 0.9),
     0 18px 40px -24px var(--light-glow);
 }
 
 /* Files dragged over the chat: the message box is where they go */
 .chat.drag-files .composer {
-  background: linear-gradient(rgba(132, 130, 246, 0.08), rgba(132, 130, 246, 0.08)), var(--glass);
-  outline: 1px dashed rgba(196, 194, 252, 0.7);
+  background: linear-gradient(color-mix(in srgb, var(--brand) 8%, transparent), color-mix(in srgb, var(--brand) 8%, transparent)), var(--glass);
+  outline: 1px dashed color-mix(in srgb, var(--light) 70%, transparent);
   outline-offset: -1px;
 }
 
@@ -1708,8 +1708,8 @@
   --k: 22px; /* key size */
   --pad: 3px;
   --r: 8px; /* key corner radius */
-  --glow: #c3c1fb;
-  --glow-soft: rgba(176, 174, 250, 0.4);
+  --glow: var(--light);
+  --glow-soft: color-mix(in srgb, var(--brand) 40%, transparent);
   --glow-core: rgba(244, 244, 255, 0.55);
   --turn: 0deg;
   --lit: 0.55;
@@ -1723,9 +1723,9 @@
 }
 
 .ultra-switch.on .gkey {
-  --glow: #8c8af6;
-  --glow-soft: rgba(140, 138, 246, 0.6);
-  --glow-core: #e9e8ff;
+  --glow: var(--brand);
+  --glow-soft: color-mix(in srgb, var(--brand) 60%, transparent);
+  --glow-core: color-mix(in srgb, var(--light) 40%, white);
   --turn: 180deg;
   --lit: 1;
 }
@@ -1930,7 +1930,7 @@
 }
 
 .send:hover:not(:disabled) {
-  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 26px -8px rgba(156, 154, 250, 0.7);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 26px -8px color-mix(in srgb, var(--brand) 70%, transparent);
 }
 
 .send:active:not(:disabled) {
@@ -2022,13 +2022,13 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(8, 10, 16, 0.75);
+  background: color-mix(in srgb, var(--bg-sunken) 75%, transparent);
   color: var(--text);
   transition: background-color var(--base) var(--ease-out);
 }
 
 .attachment-remove:hover {
-  background: rgba(8, 10, 16, 0.92);
+  background: color-mix(in srgb, var(--bg-sunken) 92%, transparent);
 }
 
 .attachment-remove svg {
@@ -2264,8 +2264,8 @@
   padding: 0 10px 0 9px;
   border: 0;
   border-radius: var(--pill);
-  background: rgba(132, 130, 246, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(196, 194, 252, 0.25);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--light) 25%, transparent);
   color: var(--text);
   font: inherit;
   font-size: 12px;
@@ -2276,7 +2276,7 @@
 
 .agents-btn:hover,
 .agents-btn.open {
-  background: rgba(132, 130, 246, 0.2);
+  background: color-mix(in srgb, var(--brand) 20%, transparent);
 }
 
 @container (max-width: 360px) {

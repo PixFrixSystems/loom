@@ -575,6 +575,8 @@ export const useStore = create<Store>((set, get) => {
         }
         window.loom.onServers((servers) => set({ servers }))
         void window.loom.serverList().then((servers) => set({ servers }))
+        // Settings live in the main window; a popout follows its theme.
+        window.loom.onTheme((theme) => set((st) => ({ settings: { ...st.settings, theme } })))
         return
       }
       window.loom.onPopoutTab((tab) => set((st) => ({ tabs: st.tabs.map((t) => (t.id === tab.id ? tab : t)) })))

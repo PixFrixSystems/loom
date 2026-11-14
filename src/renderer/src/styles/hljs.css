@@ -1,23 +1,27 @@
-/* Code colours in replies: the brand syntax palette, the same as the file view. Plain code text
-   (#d4d8e4) comes from the code well in chat.css; function names stay in it. */
+/* Code colours in replies: the theme's syntax palette (--code-* in tokens.css), the same as the
+   file view. Plain code text (--code-text) comes from the code well in chat.css. */
 .hljs-comment,
 .hljs-quote {
-  color: #5f667a;
+  color: var(--code-comment);
 }
 
-/* Keywords, tags, selectors and headings */
+/* Keywords and headings */
 .hljs-keyword,
 .hljs-literal,
 .hljs-doctag,
 .hljs-meta,
+.hljs-section {
+  color: var(--code-keyword);
+}
+
+/* Tags and selectors */
 .hljs-tag,
 .hljs-name,
-.hljs-section,
 .hljs-selector-tag,
 .hljs-selector-class,
 .hljs-selector-id,
 .hljs-selector-pseudo {
-  color: #9fb0ff;
+  color: var(--code-tag);
 }
 
 /* Properties and attributes */
@@ -26,39 +30,45 @@
 .hljs-property,
 .hljs-selector-attr,
 .hljs-link {
-  color: #8fd3c4;
+  color: var(--code-attr);
 }
 
 .hljs-string,
 .hljs-regexp,
 .hljs-char.escape_,
 .hljs-meta .hljs-string {
-  color: #f0c38a;
+  color: var(--code-string);
 }
 
-/* Types and variables */
 .hljs-type,
 .hljs-built_in,
 .hljs-title.class_,
-.hljs-title.class_.inherited__,
+.hljs-title.class_.inherited__ {
+  color: var(--code-type);
+}
+
 .hljs-variable,
 .hljs-variable.language_,
 .hljs-template-variable {
-  color: #e2a6ff;
+  color: var(--code-variable);
+}
+
+.hljs-title.function_ {
+  color: var(--code-function);
 }
 
 .hljs-number,
 .hljs-symbol {
-  color: #f0a3ab;
+  color: var(--code-number);
 }
 
 /* Diffs written in a reply */
 .hljs-addition {
-  color: #4fd18b;
+  color: var(--ok);
 }
 
 .hljs-deletion {
-  color: #ff8595;
+  color: var(--danger);
 }
 
 .hljs-emphasis {
