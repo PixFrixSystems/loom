@@ -12,14 +12,14 @@ export const MODE_OPTIONS: { value: PermissionMode; label: string; description: 
   { value: 'bypassPermissions', label: 'Full access', description: 'Never asks. Only for folders you trust' }
 ]
 
-const EFFORT_LABELS: Record<EffortLevel, string> = {
+export const EFFORT_LABELS: Record<EffortLevel, string> = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
   xhigh: 'Extra high',
   max: 'Max'
 }
-const ALL_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
+export const ALL_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 const BUILTIN_COMMANDS: SlashCommandInfo[] = [
   { name: 'compact', description: 'Summarize the conversation to free up context', builtin: true },

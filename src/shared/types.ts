@@ -260,19 +260,16 @@ export interface LoomSettings {
   claudeCustomPath: string
   shell: ShellChoice
   sendWithCtrlEnter: boolean
-  defaultPermissionMode: PermissionMode | null
-  /** What new chats start with: the last model, effort and Ultracode setting picked in any chat */
-  defaultModel?: string | null
   /**
-   * The model every new chat starts with, chosen in Settings. Unset: the last one picked in a chat
-   * (defaultModel). '': Claude Code's own default. Otherwise a model, and picking another in a chat
-   * changes only that chat.
+   * What a new chat starts with, chosen in Settings: the permission mode, the model and the effort.
+   * Unset, a new chat takes what Claude Code recommends. Changing one of them in a chat changes
+   * that chat only; it is never carried over to the next new chat.
    */
+  defaultPermissionMode: PermissionMode | null
   newChatModel?: string | null
+  newChatEffort?: EffortLevel | null
   /** The last version whose What's new was shown (or skipped, on a first install) */
   lastSeenVersion?: string
-  defaultEffort?: EffortLevel | null
-  defaultUltracode?: boolean
   notifyWhenDone: boolean
   /** A sound Loom plays itself when it would notify; works even with Windows notifications off */
   notifySound?: NotifySound

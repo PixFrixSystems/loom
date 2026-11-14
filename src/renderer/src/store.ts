@@ -339,7 +339,6 @@ interface Store extends PersistedState {
   /** Fetches the chat's commands and skills before it has started, so the / menu has them all. */
   loadCommands: (tabId: string) => Promise<void>
   /** Remembers a choice made in a chat's message box, so the next chat starts with it. */
-  rememberChoice: (patch: Partial<LoomSettings>) => void
   /** The options a new or reopened chat starts with: the ones you picked last. */
   chatDefaults: () => Pick<ChatTab, 'model' | 'permissionMode' | 'effort' | 'ultracode'>
   /** Opens a project's site in a browser tab, beside what you're working on. */
@@ -613,7 +612,7 @@ export const useStore = create<Store>((set, get) => {
       })
       window.loom.onMainDo((action, args) => {
         const st = get() as unknown as Record<string, (...a: unknown[]) => void>
-        if (['openFile', 'openPaths', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice', 'openDiff', 'openStart'].includes(action)) st[action](...args)
+        if (['openFile', 'openPaths', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'openDiff', 'openStart'].includes(action)) st[action](...args)
       })
       // Server output tabs belong to servers that stopped when Loom last quit.
       const tabs = state.tabs.filter((t) => t.kind !== 'server')
@@ -1155,25 +1154,22 @@ export const useStore = create<Store>((set, get) => {
           items: [...c.items, { kind: 'note', id: uid(), tone: 'info', text: `Switched from ${name(before)} to ${name(model ?? '')}`, ts: new Date().toISOString() }]
         }))
       }
-      get().rememberChoice({ defaultModel: model })
+      // This chat only: a new chat starts with what Settings says, not with the last pick here.
       get().updateTab(tabId, { model })
       patchChat(tabId, () => ({ activeModel: model || undefined }))
       if (get().chat(tabId).opened) void window.loom.chatSetModel(tabId, model)
     },
     setMode: (tabId, mode) => {
-      get().rememberChoice({ defaultPermissionMode: mode })
       get().updateTab(tabId, { permissionMode: mode })
       patchChat(tabId, () => ({ permissionMode: mode }))
       if (get().chat(tabId).opened) void window.loom.chatSetMode(tabId, mode)
     },
     setEffort: (tabId, effort) => {
-      get().rememberChoice({ defaultEffort: effort })
       get().updateTab(tabId, { effort } as Partial<ChatTab>)
       const tab = get().tabs.find((t) => t.id === tabId)
       if (get().chat(tabId).opened && tab?.kind === 'chat') void window.loom.chatSetEffort(tabId, effort, tab.ultracode === true)
     },
     setUltracode: (tabId, on) => {
-      get().rememberChoice({ defaultUltracode: on })
       get().updateTab(tabId, { ultracode: on } as Partial<ChatTab>)
       const tab = get().tabs.find((t) => t.id === tabId)
       if (get().chat(tabId).opened && tab?.kind === 'chat') void window.loom.chatSetEffort(tabId, tab.effort ?? null, on)
@@ -1190,20 +1186,16 @@ export const useStore = create<Store>((set, get) => {
       const url = path ? await window.loom.readIcon(path).catch(() => null) : null
       set((s) => ({ groupIcons: { ...s.groupIcons, [groupId]: url } }))
     },
-    rememberChoice: (patch) => {
-      set((s) => ({ settings: { ...s.settings, ...patch } }))
-      // A popout saves nothing itself: the main window keeps the choice.
-      if (POPOUT_TAB) window.loom.mainDo('rememberChoice', [patch])
-    },
+    // What a new chat starts with: Claude Code's recommended model and effort, unless Settings
+    // names others, the permission mode from Settings, and Ultracode off. What you change in one
+    // chat stays in that chat.
     chatDefaults: () => {
       const st = get().settings
-      // A model chosen in Settings wins; '' there is Claude Code's own default.
-      const pinned = st.newChatModel
       return {
-        model: pinned == null ? (st.defaultModel ?? null) : pinned || null,
+        model: st.newChatModel || null,
         permissionMode: st.defaultPermissionMode ?? null,
-        effort: st.defaultEffort ?? null,
-        ultracode: st.defaultUltracode === true
+        effort: st.newChatEffort ?? null,
+        ultracode: false
       }
     },
     loadCommands: async (tabId) => {

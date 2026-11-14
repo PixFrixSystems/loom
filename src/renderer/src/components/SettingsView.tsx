@@ -1,10 +1,10 @@
 import { BellRing, LogIn, LogOut, Play, RefreshCw } from 'lucide-react'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useState, type ReactNode } from 'react'
-import type { AuthStatus, ClaudeSource, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
+import type { AuthStatus, ClaudeSource, EffortLevel, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
 import { timeAgo } from '../lib/paths'
 import { useStore } from '../store'
-import { MODE_OPTIONS } from './Composer'
+import { ALL_EFFORTS, EFFORT_LABELS, MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
 import { ServiceAccounts } from './Accounts'
 import { account } from './Onboarding'
@@ -193,28 +193,35 @@ function NotifyRow({
 }
 
 /**
- * The model new chats start with: the one picked last in a chat (as before), Claude Code's own
- * default, or one chosen here for good.
+ * The model and the effort a new chat starts with: what Claude Code recommends, unless one is
+ * chosen here. Changing either in a chat changes that chat only.
  */
-function ModelRow({ value, update }: { value: string | null | undefined; update: (patch: Partial<LoomSettings>) => void }): ReactNode {
+function NewChatRows({ model, effort, update }: { model: string | null | undefined; effort: EffortLevel | null | undefined; update: (patch: Partial<LoomSettings>) => void }): ReactNode {
   const known = useStore((s) => s.knownModels)
-  const last = useStore((s) => s.settings.defaultModel ?? '')
+  const usual = useStore((s) => s.info?.defaultEffort ?? null)
   const claudeDefault = known.find((m) => m.value === '')
-  const nameOf = (v: string): string => (v ? (known.find((m) => m.value === v)?.label ?? v) : `Claude Code's default${claudeDefault?.description ? ` (${claudeDefault.description.split(' · ')[0]})` : ''}`)
-  const options = [
-    { value: 'last', label: 'The one I picked last', description: `Now ${nameOf(last)}. Picking a model in any chat changes it` },
+  const models = [
     { value: '', label: "Claude Code's default", description: claudeDefault?.description ?? 'What Claude Code recommends for your account' },
     ...known.filter((m) => m.value !== '').map((m) => ({ value: m.value, label: m.label, description: m.description }))
   ]
   // A model that is no longer offered still shows as chosen, by its name.
-  if (value && !options.some((o) => o.value === value)) options.push({ value, label: value, description: 'Not in the current list of models' })
+  if (model && !models.some((o) => o.value === model)) models.push({ value: model, label: model, description: 'Not in the current list of models' })
+  const efforts: { value: EffortLevel | ''; label: string; description?: string }[] = [
+    { value: '', label: usual ? `Default (${EFFORT_LABELS[usual]})` : 'Default', description: 'What your Claude settings use' },
+    ...ALL_EFFORTS.map((e) => ({ value: e, label: EFFORT_LABELS[e] }))
+  ]
   return (
-    <Row
-      title="Model for new chats"
-      hint="Choose a model and every new chat starts with it; picking another in a chat then changes only that chat. Claude Code's default is what Claude Code recommends on this PC, and can differ from one account or version to another."
-    >
-      <Dropdown<string> value={value == null ? 'last' : value} options={options} onChange={(v) => update({ newChatModel: v === 'last' ? null : v })} />
-    </Row>
+    <>
+      <Row
+        title="Model for new chats"
+        hint="Every new chat starts with this model. Picking another in a chat changes that chat only. Claude Code's default is what Claude Code recommends on this PC, and can differ from one account or version to another."
+      >
+        <Dropdown<string> value={model || ''} options={models} onChange={(v) => update({ newChatModel: v || null })} />
+      </Row>
+      <Row title="Effort for new chats" hint="How hard Claude thinks before answering, in a new chat. Changing it in a chat changes that chat only; a model that can't use the level chosen here falls back to its own.">
+        <Dropdown<EffortLevel | ''> value={effort ?? ''} options={efforts} onChange={(v) => update({ newChatEffort: v || null })} />
+      </Row>
+    </>
   )
 }
 
@@ -316,7 +323,7 @@ export function SettingsView(): ReactNode {
           </Row>
           <Row
             title="Permission mode for new chats"
-            hint="What Claude may do without asking. Picking a mode in any chat's message box changes this too, so new chats start the way you last worked. The same goes for effort and Ultracode."
+            hint="What Claude may do without asking, in a new chat. Changing the mode in a chat changes that chat only."
           >
             <Dropdown<PermissionMode | 'settings'>
               value={st.defaultPermissionMode ?? 'settings'}
@@ -324,7 +331,7 @@ export function SettingsView(): ReactNode {
               onChange={(v) => update({ defaultPermissionMode: v === 'settings' ? null : v })}
             />
           </Row>
-          <ModelRow value={st.newChatModel} update={update} />
+          <NewChatRows model={st.newChatModel} effort={st.newChatEffort} update={update} />
           <Row title="Send messages with" hint="The other combination adds a new line.">
             <div className="segmented">
               <button aria-selected={!st.sendWithCtrlEnter} onClick={() => update({ sendWithCtrlEnter: false })}>

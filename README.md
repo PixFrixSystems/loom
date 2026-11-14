@@ -45,7 +45,7 @@ Just enough IDE: a chat in the middle, and around it only the tools you reach fo
 
 ### Chats that read like a timeline
 
-Your message, then a thread of Claude's steps. Commands and edits show what went in and what came out, reads and searches open on a click, and every step says how long it took. Approve or deny an edit on a card, attach images, type `/` for every command and skill Claude has in that folder, and watch a small meter for how full the chat is getting. Pick the model, permission mode and effort per chat; new chats start with whatever you picked last, or with the model you set in Settings.
+Your message, then a thread of Claude's steps. Commands and edits show what went in and what came out, reads and searches open on a click, and every step says how long it took. Approve or deny an edit on a card, attach images, type `/` for every command and skill Claude has in that folder, and watch a small meter for how full the chat is getting. Pick the model, permission mode and effort per chat; what you change in one chat stays in that chat. A new chat starts with what Claude Code recommends, or with the model, effort and permission mode you choose in Settings.
 Switching the model mid-chat is noted in the timeline, from which model to which.
 While Claude works, its last step says so in lavender with a running clock; a finished turn ends with a green check and how long it took.
 Any earlier Claude Code chat for a project can be picked up where it left off.
