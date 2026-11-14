@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CircleCheck, Cpu, FolderTree, Gauge, PanelTop, SendToBack } from 'lucide-react'
+import { ArrowRightLeft, CircleCheck, Cpu, FolderTree, Gauge, Image, PanelTop, SendToBack } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../store'
@@ -23,6 +23,8 @@ function Icon({ name }: { name: HighlightIcon }): ReactNode {
       return <Gauge />
     case 'files':
       return <FolderTree />
+    case 'media':
+      return <Image />
   }
 }
 

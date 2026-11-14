@@ -2,7 +2,7 @@
 // Add an entry for a release with something people should notice; leave out fixes nobody would
 // look for. Newest first. A few short lines each: what it is, and where to find it.
 
-export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files'
+export type HighlightIcon = 'cloud' | 'model' | 'done' | 'switch' | 'background' | 'pin' | 'usage' | 'files' | 'media'
 
 export interface Highlight {
   icon: HighlightIcon
@@ -17,6 +17,31 @@ export interface ReleaseNotes {
 
 export const RELEASE_NOTES: ReleaseNotes[] = [
   {
+    version: '0.1.15',
+    highlights: [
+      {
+        icon: 'files',
+        title: 'Open any file, from anywhere',
+        body: 'Drag files in from File Explorer or the desktop to open them (a folder becomes a project), press Ctrl+O, or pick Loom under Open with in File Explorer. Dropped on the message box, a file goes into your message instead.'
+      },
+      {
+        icon: 'media',
+        title: 'Pictures and videos open in Loom',
+        body: 'Open a picture, a video or a sound file and it shows in a tab: pictures fit the pane, videos play and seek.'
+      },
+      {
+        icon: 'model',
+        title: 'New chats start fresh',
+        body: 'A new chat starts with the recommended model and effort, not with whatever you picked in your last chat. What you change in a chat stays in that chat; set your own starting model, effort and mode in Settings, Claude.'
+      },
+      {
+        icon: 'files',
+        title: 'Files that are not UTF-8 open too',
+        body: 'Notes saved as UTF-16 by Notepad or PowerShell, and older Greek and other Windows encodings, now open as text and are saved back the way they were.'
+      }
+    ]
+  },
+  {
     version: '0.1.14',
     highlights: [
       {
@@ -27,7 +52,7 @@ export const RELEASE_NOTES: ReleaseNotes[] = [
       {
         icon: 'model',
         title: 'Choose the model new chats start with',
-        body: "Settings, Claude: keep the one you picked last, follow Claude Code's default, or set one model for every new chat."
+        body: "Settings, Claude: follow Claude Code's default, or set one model for every new chat."
       },
       {
         icon: 'done',
