@@ -459,6 +459,67 @@
   line-height: 1.5;
 }
 
+/* A picture, video or sound in a tab: centred on the pane, never larger than it unless asked */
+.media-details {
+  flex: none;
+  color: var(--text-3);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.media-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--bg-sunken);
+}
+
+/* The chequered ground shows through a picture's transparent parts, as image editors do */
+.media-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  background-color: #1a1d28;
+  background-image: linear-gradient(45deg, #232735 25%, transparent 25%, transparent 75%, #232735 75%), linear-gradient(45deg, #232735 25%, transparent 25%, transparent 75%, #232735 75%);
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: zoom-in;
+}
+
+/* At its real size the picture can be larger than the pane, which then scrolls */
+.media-stage.is-actual {
+  align-items: safe center;
+  justify-content: safe center;
+}
+
+.media-stage.is-actual .media-image {
+  flex: none;
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}
+
+.media-video {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  background: #000;
+  box-shadow: 0 0 0 1px var(--line);
+  color-scheme: dark;
+  outline: none;
+}
+
+.media-audio {
+  width: min(520px, 100%);
+  color-scheme: dark;
+}
+
 /* A file saved in something other than UTF-8 says which, quietly, in its header */
 .file-encoding {
   flex: none;

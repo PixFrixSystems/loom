@@ -40,6 +40,7 @@ import type {
   UsageSnapshot
 } from '@shared/types'
 import type { PhoneAction, RemoteList, RemoteStatus, ToPhone } from '@shared/remote'
+import type { MediaInfo } from '@shared/media'
 
 const api = {
   loadState: (): Promise<PersistedState> => ipcRenderer.invoke('state:load'),
@@ -148,6 +149,8 @@ const api = {
   readFile: (path: string): Promise<FileReadResult> => ipcRenderer.invoke('fs:read', path),
   writeFile: (path: string, content: string, opts?: FileWriteOptions): Promise<FileWriteResult> => ipcRenderer.invoke('fs:write', path, content, opts),
   fileMtime: (path: string): Promise<number | null> => ipcRenderer.invoke('fs:mtime', path),
+  /** A picture, video or sound file: where to load it from and its size; null when it isn't one or is gone */
+  mediaInfo: (path: string): Promise<MediaInfo | null> => ipcRenderer.invoke('media:info', path),
   projectFiles: (root: string): Promise<string[]> => ipcRenderer.invoke('fs:projectFiles', root),
   configFiles: (projectPath: string | null): Promise<ConfigFileInfo[]> => ipcRenderer.invoke('fs:configFiles', projectPath),
   gitStatus: (dir: string): Promise<GitStatus | null> => ipcRenderer.invoke('git:status', dir),

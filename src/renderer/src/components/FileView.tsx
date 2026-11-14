@@ -4,6 +4,8 @@ import type { FileTab } from '@shared/types'
 import { languageFor, relPath } from '../lib/paths'
 import { monaco } from '../lib/monaco'
 import { fileSavers, liveDrafts, useStore } from '../store'
+import { mediaKind } from '@shared/media'
+import { MediaView } from './MediaView'
 import { ProjectMark } from './ProjectMark'
 
 type Load =
@@ -11,7 +13,12 @@ type Load =
   | { state: 'ready' }
   | { state: 'unavailable'; message: string }
 
+/** A file in a tab: pictures, videos and sound are shown; everything else opens as text to edit. */
 export function FileView({ tab, active, visible = active }: { tab: FileTab; active: boolean; visible?: boolean }): ReactNode {
+  return mediaKind(tab.path) ? <MediaView tab={tab} visible={visible} /> : <TextFileView tab={tab} active={active} visible={visible} />
+}
+
+function TextFileView({ tab, active, visible = active }: { tab: FileTab; active: boolean; visible?: boolean }): ReactNode {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const saved = useRef('')

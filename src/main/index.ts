@@ -74,6 +74,7 @@ import {
   writeServer
 } from './servers'
 import { findCloudflared, killAllTunnels, listTunnels, serversChanged, startTunnel, stopTunnel } from './tunnels'
+import { mediaInfo, registerMediaScheme, serveMedia } from './media'
 import { closeAllPopouts, setupPopouts } from './popouts'
 import { closeRemote, setupRemote } from './remote'
 import { githubSign, serviceAccount, setupAccounts } from './accounts'
@@ -87,6 +88,9 @@ if (process.env.LOOM_USER_DATA) app.setPath('userData', process.env.LOOM_USER_DA
 
 // One Loom at a time. A second launch brings the first to the front and quits without doing
 // anything itself: it doesn't read the state file, open a window or start the updater.
+// Pictures and videos shown in tabs load from a private address, which has to be declared this early.
+registerMediaScheme()
+
 const primary = app.requestSingleInstanceLock()
 
 let win: BrowserWindow | null = null
@@ -540,6 +544,7 @@ function registerIpc(): void {
   // Files and git
   ipcMain.handle('fs:listDir', (_e, dir: string) => listDir(dir))
   ipcMain.handle('fs:read', (_e, path: string) => readTextFile(path))
+  ipcMain.handle('media:info', (_e, path: string) => mediaInfo(path))
   ipcMain.handle('fs:write', (_e, path: string, content: string, opts?: FileWriteOptions) => writeTextFile(path, content, opts))
   ipcMain.handle('fs:mtime', (_e, path: string) => fileMtime(path))
   ipcMain.handle('fs:projectFiles', (_e, root: string) => listProjectFiles(root))
@@ -646,6 +651,7 @@ function ensureShortcuts(): void {
 
 app.whenReady().then(() => {
   if (!primary) return
+  serveMedia()
   ensureShortcuts()
   if (!isDev) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -653,7 +659,9 @@ app.whenReady().then(() => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'"
+            // loom-media: is the private address pictures, videos and sound in tabs load from;
+            // it is allowed for showing media only, never for scripts or requests.
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: loom-media:; media-src 'self' loom-media:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'"
           ]
         }
       })
