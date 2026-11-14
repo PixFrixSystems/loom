@@ -2,7 +2,7 @@ import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, na
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { isAbsolute, join, normalize } from 'node:path'
 import { installingUpdate, setupUpdates } from './updates'
 import type {
   ChatStartOptions,
@@ -96,12 +96,26 @@ const settings = (): LoomSettings => state.settings
 if (!primary) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv) => {
     if (!win) return
     if (win.isMinimized()) win.restore()
     win.focus()
+    // "Open with" Loom while it is running: the files open in the window already there.
+    const paths = pathsIn(argv)
+    if (paths.length && !win.webContents.isDestroyed()) win.webContents.send('app:openPaths', paths)
   })
 }
+
+/**
+ * Files and folders named when Loom is started: "Open with" in File Explorer, or something dropped
+ * on Loom's icon. Switches and anything that isn't there are left out.
+ */
+function pathsIn(argv: string[]): string[] {
+  const self = normalize(app.getAppPath()).toLowerCase()
+  return argv.slice(1).filter((a) => !a.startsWith('-') && isAbsolute(a) && existsSync(a) && normalize(a).toLowerCase() !== self)
+}
+/** The ones Loom was started with, handed to the window once it is ready for them. */
+let launchPaths = pathsIn(process.argv)
 
 // The installed app and a copy built from source get separate Windows identities, so Windows
 // never shows one's name or icon on the other's taskbar button, and their shortcuts don't fight.
@@ -423,6 +437,17 @@ function registerIpc(): void {
     if (!win) return null
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Add a project folder' })
     return r.canceled ? null : r.filePaths[0] ?? null
+  })
+  // Ctrl+O: any files, opened as tabs. Starts in the folder of the project in front.
+  ipcMain.handle('app:pickFiles', async (_e, startIn?: string) => {
+    if (!win) return []
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], title: 'Open a file', defaultPath: startIn || undefined })
+    return r.canceled ? [] : r.filePaths
+  })
+  ipcMain.handle('app:launchPaths', () => {
+    const paths = launchPaths
+    launchPaths = []
+    return paths
   })
   ipcMain.handle('app:pickFile', async (_e, title: string) => {
     if (!win) return null

@@ -252,6 +252,15 @@ interface Store extends PersistedState {
   /** Unsaved file text handed over from another window, used once by the file's view */
   fileDrafts: Record<string, string>
   usage: UsageSnapshot | null
+  /** Files are being dragged over the window from outside (File Explorer, the desktop) */
+  fileDrag: boolean
+  /**
+   * Opens files as tabs and adds folders as projects: dropped from outside, picked with Ctrl+O, or
+   * sent by "Open with". `at`: where they were dropped, to open them in the pane under that point.
+   */
+  openPaths: (paths: string[], at?: { x: number; y: number }) => Promise<void>
+  /** Ctrl+O: choose files to open */
+  pickAndOpenFiles: () => Promise<void>
   /** What's new, open: the release notes shown after an update, or from Settings */
   whatsNew: ReleaseNotes[] | null
   /** Opens What's new for the version running now (Settings) */
@@ -511,6 +520,7 @@ export const useStore = create<Store>((set, get) => {
     detached: {},
     fileDrafts: {},
     usage: null,
+    fileDrag: false,
     whatsNew: null,
     usageOpen: false,
     usageChecking: false,
@@ -603,7 +613,7 @@ export const useStore = create<Store>((set, get) => {
       })
       window.loom.onMainDo((action, args) => {
         const st = get() as unknown as Record<string, (...a: unknown[]) => void>
-        if (['openFile', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice', 'openDiff', 'openStart'].includes(action)) st[action](...args)
+        if (['openFile', 'openPaths', 'newChat', 'newTerminal', 'openSettings', 'openSession', 'showServerOutput', 'runProject', 'openPreview', 'rememberChoice', 'openDiff', 'openStart'].includes(action)) st[action](...args)
       })
       // Server output tabs belong to servers that stopped when Loom last quit.
       const tabs = state.tabs.filter((t) => t.kind !== 'server')
@@ -620,6 +630,11 @@ export const useStore = create<Store>((set, get) => {
       // First launch: nothing saved yet, so show the getting-started steps.
       if (state.onboarded === undefined && !state.projects.length && !tabs.some((t) => t.kind === 'start')) get().openStart()
       window.loom.onChatEvent((tabId, event) => get().handleChatEvent(tabId, event))
+      // Started with files ("Open with" Loom), or sent some while running.
+      window.loom.onOpenPaths((paths) => void get().openPaths(paths))
+      void window.loom.launchPaths().then((paths) => {
+        if (paths.length) void get().openPaths(paths)
+      })
       let last = pickPersisted(get())
       let timer: ReturnType<typeof setTimeout> | null = null
       useStore.subscribe((s) => {
@@ -984,6 +999,38 @@ export const useStore = create<Store>((set, get) => {
       if (open) return get().activate(open.id)
       const project = projectId !== undefined ? get().projects.find((p) => p.id === projectId) : projectForPath(get().projects, path)
       get().openTab({ id: uid(), kind: 'file', projectId: project?.id ?? null, path, title: baseName(path) })
+    },
+    openPaths: async (paths, at) => {
+      if (POPOUT_TAB) return window.loom.mainDo('openPaths', [paths])
+      const list = [...new Set(paths.filter(Boolean))]
+      if (!list.length) return
+      const isDir = await window.loom.dirsExist(list).catch(() => list.map(() => false))
+      // Dropped on one pane of a split screen: that pane takes them.
+      if (at) {
+        const pane = [...document.querySelectorAll<HTMLElement>('.content [data-pane]')].find((el) => {
+          const r = el.getBoundingClientRect()
+          return at.x >= r.left && at.x <= r.right && at.y >= r.top && at.y <= r.bottom
+        })
+        if (pane?.dataset.pane) get().focusPane(pane.dataset.pane)
+      }
+      const added: string[] = []
+      const had: string[] = []
+      list.forEach((p, i) => {
+        if (!isDir[i]) return get().openFile(p)
+        // A folder becomes a project, as Add a project folder would make it.
+        const known = get().projects.some((x) => normPath(x.path) === normPath(p))
+        const project = get().addProject(p)
+        ;(known ? had : added).push(project.name)
+      })
+      if (added.length || had.length) set({ sidebarOpen: true })
+      if (added.length) get().showToast(added.length === 1 ? `${added[0]} is now one of your projects.` : `${added.length} folders are now projects: ${added.join(', ')}.`)
+      else if (had.length) get().showToast(had.length === 1 ? `${had[0]} is already one of your projects.` : 'Those folders are already projects.')
+    },
+    pickAndOpenFiles: async () => {
+      const tab = get().tabs.find((t) => t.id === get().activeTabId)
+      const project = get().projects.find((p) => p.id === tab?.projectId)
+      const paths = await window.loom.pickFiles(project?.path)
+      if (paths.length) await get().openPaths(paths)
     },
     newTerminal: (projectId, dir) => {
       if (POPOUT_TAB) return window.loom.mainDo('newTerminal', [projectId, dir])

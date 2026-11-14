@@ -1648,6 +1648,37 @@
   height: 12px;
 }
 
+/* Files dragged in from File Explorer or the desktop: a note at the top says what a drop does */
+.file-drop-hint {
+  position: fixed;
+  /* Below the tab rows and a pane's header, over the work itself */
+  top: 122px;
+  left: 50%;
+  z-index: 900;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 12px;
+  border-radius: var(--pill);
+  background: var(--float);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-pop), 0 0 0 1px rgba(196, 194, 252, 0.35);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: panel-layer-in 160ms var(--ease-out);
+}
+
+.file-drop-hint svg {
+  width: 14px;
+  height: 14px;
+  color: var(--light);
+}
+
 /* ---------- Split layout ---------- */
 .content > .split,
 .content > .pane-slot {

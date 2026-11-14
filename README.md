@@ -80,6 +80,8 @@ See what changed, read a side-by-side diff, stage or throw away changes (Loom ke
 
 Every project sits in the sidebar, and every tab (a chat, a file, a terminal, a running site) shares one tab bar, whichever project it belongs to. Group projects; each one picks up its site's favicon. A group can watch a folder: when new folders appear there, the group offers them with one click to add. Open and edit files in Monaco, find any file or chat with Ctrl+P, and open a terminal (PowerShell, Command Prompt or Git Bash) in any project folder. A chat can move to another project, history and all.
 
+Files from anywhere open too: drag them in from File Explorer or the desktop (a folder becomes a project), press Ctrl+O, or right-click a file in File Explorer and pick Loom under Open with.
+Dropped on a chat's message box, a file goes into your message instead, and pictures dropped anywhere on a chat are attached.
 Text that isn't UTF-8 (UTF-16 from Notepad or PowerShell, an older Windows code page such as Greek) opens as it reads and is saved back in its own encoding, which the file's header names.
 
 ### Your chats on your phone
@@ -129,6 +131,7 @@ The first launch walks through signing in to Claude, adding projects and choosin
 | Close tab | Ctrl+W |
 | Next and previous tab | Ctrl+Tab, Ctrl+Shift+Tab |
 | Open a file or a chat | Ctrl+P |
+| Open a file from anywhere on the PC | Ctrl+O |
 | New terminal | Ctrl+` |
 | Split to the right, split down | Ctrl+\, Ctrl+Shift+\ |
 | Move between panes | Ctrl+Alt+arrows |

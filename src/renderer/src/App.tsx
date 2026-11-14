@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ConfirmHost, ToastHost } from './components/Confirm'
 import { WhatsNew } from './components/WhatsNew'
+import { FileDropHint, useFileDrop } from './components/FileDrop'
 import { ImageViewer } from './components/ImageViewer'
 import { ContextMenuHost } from './components/Menu'
 import { QuickOpen } from './components/QuickOpen'
@@ -69,6 +70,9 @@ function useShortcuts(): void {
       } else if (key === 'p' && !e.shiftKey) {
         e.preventDefault()
         s.set({ quickOpen: !s.quickOpen })
+      } else if (key === 'o' && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        void s.pickAndOpenFiles()
       } else if (key === '`') {
         e.preventDefault()
         s.newTerminal(tab?.projectId ?? null)
@@ -130,6 +134,7 @@ function Resizer({ side }: { side: 'left' | 'right' }): ReactNode {
 
 export function App(): ReactNode {
   const s = useStore()
+  useFileDrop()
   useShortcuts()
 
   useEffect(() => {
@@ -181,6 +186,7 @@ export function App(): ReactNode {
       {s.quickOpen ? <QuickOpen /> : null}
       <ConfirmHost />
       <WhatsNew />
+      <FileDropHint />
       <ToastHost />
     </div>
   )

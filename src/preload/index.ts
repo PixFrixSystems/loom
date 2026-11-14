@@ -47,6 +47,16 @@ const api = {
 
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('app:pickFolder'),
   pickFile: (title: string): Promise<string | null> => ipcRenderer.invoke('app:pickFile', title),
+  /** Ctrl+O: the files chosen to open, none when cancelled */
+  pickFiles: (startIn?: string): Promise<string[]> => ipcRenderer.invoke('app:pickFiles', startIn),
+  /** Files and folders Loom was started with ("Open with"), given once */
+  launchPaths: (): Promise<string[]> => ipcRenderer.invoke('app:launchPaths'),
+  /** Files and folders sent to the running Loom by "Open with" */
+  onOpenPaths: (cb: (paths: string[]) => void): (() => void) => {
+    const listener = (_e: unknown, paths: string[]): void => cb(paths)
+    ipcRenderer.on('app:openPaths', listener)
+    return () => ipcRenderer.removeListener('app:openPaths', listener)
+  },
   claudeInfo: (): Promise<ClaudeInfo> => ipcRenderer.invoke('app:claudeInfo'),
   authStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('claude:auth'),
   /** Signs Claude Code out on this PC */

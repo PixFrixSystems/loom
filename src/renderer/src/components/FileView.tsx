@@ -84,6 +84,8 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
         padding: { top: 10 },
         wordWrap: languageFor(tab.path) === 'markdown' ? 'on' : 'off',
         stickyScroll: { enabled: false },
+        // A file dropped on the editor opens in a tab (the window handles it), not typed in as a path.
+        dropIntoEditor: { enabled: false },
         fixedOverflowWidgets: true
       })
       editor.current = ed

@@ -341,7 +341,9 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
     <div
       ref={root}
       className={`chat${dragFiles ? ' drag-files' : ''}`}
-      // Files dropped anywhere on the chat go to its message box: images attach, others are mentioned.
+      // Files dropped on the message box go into the message: images attach, others are mentioned.
+      // Dropped anywhere else on the chat, images still attach (a screenshot is for Claude) and
+      // other files open in tabs, as they do everywhere in Loom.
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files') || chat.moving) return
         e.preventDefault()
@@ -355,7 +357,15 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         setDragFiles(false)
         if (!e.dataTransfer.files.length || chat.moving) return
         e.preventDefault()
-        composers.get(tab.id)?.addFiles([...e.dataTransfer.files])
+        // Handled here: the window's own drop handling leaves it alone.
+        e.stopPropagation()
+        useStore.setState({ fileDrag: false })
+        const files = [...e.dataTransfer.files]
+        const onBox = !!(e.target as HTMLElement).closest('.chat-foot')
+        const forMessage = onBox ? files : files.filter((f) => f.type.startsWith('image/'))
+        const toOpen = onBox ? [] : files.filter((f) => !f.type.startsWith('image/'))
+        if (forMessage.length) composers.get(tab.id)?.addFiles(forMessage)
+        if (toOpen.length) void useStore.getState().openPaths(toOpen.map((f) => window.loom.pathForFile(f)), { x: e.clientX, y: e.clientY })
       }}
     >
       <div className="chat-head thread" data-color={project?.color}>

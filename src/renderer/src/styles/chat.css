@@ -1572,7 +1572,25 @@
     0 18px 40px -24px var(--light-glow);
 }
 
-/* Files dragged over the chat: the message box is where they go */
+/* Files dragged over the chat: dropped on the message box they go into the message, and it says so */
+.chat.drag-files .chat-foot::before {
+  content: 'Drop here to add it to your message';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: var(--pill);
+  background: var(--float);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .chat.drag-files .composer {
   background: linear-gradient(rgba(132, 130, 246, 0.08), rgba(132, 130, 246, 0.08)), var(--glass);
   outline: 1px dashed rgba(196, 194, 252, 0.7);
