@@ -1,8 +1,22 @@
-import { BellRing, LogIn, LogOut, Play, RefreshCw } from 'lucide-react'
+import { BellRing, LogIn, LogOut, Pencil, Play, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { DEFAULT_VOLUME, playTone, TONES } from '../lib/tones'
 import { useEffect, useState, type ReactNode } from 'react'
-import type { AuthStatus, ClaudeSource, LoomSettings, NotifySound, PermissionMode, ShellChoice, UpdateStatus } from '@shared/types'
-import { timeAgo } from '../lib/paths'
+import { cleanThemeName, readableSeeds, readCustomThemes } from '@shared/customTheme'
+import {
+  THEME_SEEDS,
+  THEMES,
+  type AuthStatus,
+  type ClaudeSource,
+  type CustomTheme,
+  type LoomSettings,
+  type NotifySound,
+  type PermissionMode,
+  type ShellChoice,
+  type ThemeChoice,
+  type ThemeSeeds,
+  type UpdateStatus
+} from '@shared/types'
+import { timeAgo, uid } from '../lib/paths'
 import { useStore } from '../store'
 import { MODE_OPTIONS } from './Composer'
 import { Dropdown } from './Menu'
@@ -230,6 +244,170 @@ function Row({ title, hint, children }: { title: string; hint?: ReactNode; child
   )
 }
 
+/** A theme being made: new, or a saved one being changed (its id) */
+type Draft = { id: CustomTheme['id'] | null; name: string; colours: ThemeSeeds }
+
+/**
+ * The theme, and themes of your own: describe one and Claude picks the colours on your Claude
+ * account, then change any colour by hand. The draft shows across this window while you work on
+ * it (the store's themePreview); Save keeps it and wears it, leaving Settings drops it.
+ */
+function AppearanceSection(): ReactNode {
+  const st = useStore((s) => s.settings)
+  const own = readCustomThemes(st.customThemes)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
+
+  useEffect(() => {
+    useStore.getState().set({ themePreview: draft && { name: draft.name, colours: draft.colours } })
+  }, [draft])
+  useEffect(() => () => useStore.getState().set({ themePreview: null }), [])
+
+  const setSettings = (patch: Partial<LoomSettings>): void => {
+    const s = useStore.getState()
+    s.set({ settings: { ...s.settings, ...patch } })
+  }
+
+  const ask = async (): Promise<void> => {
+    const description = text.trim()
+    if (!description || busy) return
+    setBusy(true)
+    setError(null)
+    const r = await window.loom.writeTheme(description, draft && { name: draft.name, colours: draft.colours })
+    setBusy(false)
+    if (!r.colours) return setError(r.error ?? 'Claude did not answer. Try again.')
+    // Claude's colours arrive already made readable, so the pickers show what the window shows.
+    setDraft({ id: draft?.id ?? null, name: r.name ?? draft?.name ?? 'My theme', colours: readableSeeds(r.colours) })
+    setText('')
+  }
+
+  const save = (): void => {
+    if (!draft) return
+    const id = draft.id ?? (`custom-${uid()}` as CustomTheme['id'])
+    const theme: CustomTheme = { id, name: cleanThemeName(draft.name), colours: draft.colours }
+    const list = readCustomThemes(useStore.getState().settings.customThemes)
+    setSettings({ customThemes: list.some((t) => t.id === id) ? list.map((t) => (t.id === id ? theme : t)) : [...list, theme], theme: id })
+    setDraft(null)
+  }
+
+  const remove = async (t: CustomTheme): Promise<void> => {
+    const pick = await useStore.getState().ask({
+      title: `Delete ${t.name}?`,
+      body: "It can't be brought back. If it's the theme in use, Loom goes back to its own colours.",
+      choices: [
+        { id: 'delete', label: 'Delete', kind: 'danger' },
+        { id: 'cancel', label: 'Cancel', kind: 'ghost' }
+      ],
+      cancel: 'cancel'
+    })
+    if (pick !== 'delete') return
+    const now = useStore.getState().settings
+    setSettings({ customThemes: readCustomThemes(now.customThemes).filter((x) => x.id !== t.id), theme: now.theme === t.id ? 'loom' : now.theme })
+    if (draft?.id === t.id) setDraft(null)
+  }
+
+  const choices = [...THEMES, ...own.map((t) => ({ value: t.id, label: t.name, description: 'Your own theme' }))]
+  const chosen = choices.some((c) => c.value === st.theme) ? st.theme! : 'loom'
+  const shown = draft && readableSeeds(draft.colours)
+
+  return (
+    <section className="set-section">
+      <h2>Appearance</h2>
+      <Row title="Theme" hint="The colours of every window: chats, files, the editor and terminals.">
+        <Dropdown<ThemeChoice>
+          value={chosen}
+          options={choices}
+          onChange={(v) => {
+            setDraft(null)
+            setSettings({ theme: v })
+          }}
+        />
+      </Row>
+      <Row
+        title="Make your own"
+        hint="Describe a theme and Claude picks the colours, using your Claude account. You see it everywhere at once, can change any colour, and keep it with Save."
+      >
+        <div className="theme-maker">
+          <div className="inline-field">
+            <input
+              className="field"
+              aria-label={draft ? 'What should change' : 'Describe a theme'}
+              placeholder={draft ? 'More gold, less red…' : 'Marvel heroes, Iron Man red and gold…'}
+              value={text}
+              maxLength={400}
+              disabled={busy}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void ask()}
+            />
+            <button className="btn" disabled={busy || !text.trim()} onClick={() => void ask()}>
+              <Sparkles /> {busy ? 'Choosing…' : draft ? 'Change it' : 'Create'}
+            </button>
+          </div>
+          <p className="theme-status" aria-live="polite">
+            {busy ? 'Claude is choosing colours. This takes a few seconds.' : draft ? `Showing ${draft.name || 'your theme'}. Save it to keep it.` : ''}
+          </p>
+          {error ? (
+            <p className="theme-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {own.length ? (
+            <ul className="theme-own" aria-label="Your themes">
+              {own.map((t) => (
+                <li key={t.id}>
+                  <span className="theme-chip" style={{ background: t.colours.background, borderColor: t.colours.accent }} aria-hidden="true" />
+                  <span className="theme-own-name">{t.name}</span>
+                  <button
+                    className="icon-btn"
+                    title={`Change ${t.name}`}
+                    aria-label={`Change ${t.name}`}
+                    onClick={() => {
+                      setError(null)
+                      setDraft({ id: t.id, name: t.name, colours: t.colours })
+                    }}
+                  >
+                    <Pencil />
+                  </button>
+                  <button className="icon-btn" title={`Delete ${t.name}`} aria-label={`Delete ${t.name}`} onClick={() => void remove(t)}>
+                    <Trash2 />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </Row>
+      {draft && shown ? (
+        <div className="theme-draft">
+          <label className="theme-name">
+            <span>Name</span>
+            <input className="field" value={draft.name} maxLength={40} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          </label>
+          <div className="swatches">
+            {THEME_SEEDS.map(({ key, label, hint }) => (
+              <label key={key} className="swatch" title={hint}>
+                <input type="color" value={draft.colours[key]} onChange={(e) => setDraft({ ...draft, colours: { ...draft.colours, [key]: e.target.value } })} />
+                <span className="swatch-label">{label}</span>
+                {shown[key] !== draft.colours[key] ? <span className="swatch-note">Adjusted on screen so it stays readable</span> : null}
+              </label>
+            ))}
+          </div>
+          <div className="set-actions">
+            <button className="btn primary" onClick={save}>
+              Save theme
+            </button>
+            <button className="btn ghost" onClick={() => setDraft(null)}>
+              Discard
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 /** What the About section says about updates. */
 function updateLine(u: UpdateStatus): string {
   if (!u.enabled) return 'This copy is built from source. Update it with git pull, then npm run build.'
@@ -337,6 +515,8 @@ export function SettingsView(): ReactNode {
           </Row>
           <NotifyRow notifyWhenDone={st.notifyWhenDone} sound={st.notifySound ?? 'off'} volume={st.notifyVolume ?? DEFAULT_VOLUME} update={update} />
         </section>
+
+        <AppearanceSection />
 
         <PhoneAccess />
 

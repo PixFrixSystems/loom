@@ -36,6 +36,9 @@ import type {
   TabSnapshot,
   ServiceAccount,
   ServiceId,
+  CustomTheme,
+  ThemeChoice,
+  ThemeSeeds,
   UpdateStatus,
   UsageSnapshot
 } from '@shared/types'
@@ -91,6 +94,17 @@ const api = {
     ipcRenderer.on('app:notifySound', listener)
     return () => ipcRenderer.removeListener('app:notifySound', listener)
   },
+  /** The theme was changed in Settings; a popout follows it */
+  onTheme: (cb: (theme: ThemeChoice | undefined, customThemes: CustomTheme[]) => void): (() => void) => {
+    const listener = (_e: unknown, theme: ThemeChoice | undefined, customThemes: CustomTheme[]): void => cb(theme, customThemes)
+    ipcRenderer.on('app:theme', listener)
+    return () => ipcRenderer.removeListener('app:theme', listener)
+  },
+  /** Asks Claude for a theme from a description, or for changes to `current` */
+  writeTheme: (description: string, current: { name: string; colours: ThemeSeeds } | null): Promise<{ name?: string; colours?: ThemeSeeds; error?: string }> =>
+    ipcRenderer.invoke('theme:write', description, current),
+  /** Paints this window's frame in a theme being previewed; null goes back to the saved theme */
+  previewFrame: (seeds: ThemeSeeds | null): void => ipcRenderer.send('theme:previewFrame', seeds),
   /** Puts an image (a data: URL) on the clipboard; false when it isn't one */
   copyImage: (dataUrl: string): Promise<boolean> => ipcRenderer.invoke('app:copyImage', dataUrl),
   reportUnsaved: (names: string[]): void => ipcRenderer.send('app:unsaved', names),

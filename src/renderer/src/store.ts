@@ -33,7 +33,8 @@ import {
   type UpdateStatus,
   type AgentTask,
   type UsageSnapshot,
-  type TunnelInfo
+  type TunnelInfo,
+  type ThemeSeeds
 } from '@shared/types'
 import type { RemoteStatus } from '@shared/remote'
 import {
@@ -205,6 +206,8 @@ export interface MenuState {
 type PersistedKeys = keyof PersistedState
 
 interface Store extends PersistedState {
+  /** A theme being made in Settings, shown everywhere in this window until it is saved or dropped. Never saved. */
+  themePreview: { name: string; colours: ThemeSeeds } | null
   ready: boolean
   info: ClaudeInfo | null
   chats: Record<string, ChatRuntime>
@@ -483,6 +486,7 @@ export const useStore = create<Store>((set, get) => {
     onboarded: undefined,
 
     ready: false,
+    themePreview: null,
     info: null,
     chats: {},
     terminals: {},
@@ -575,6 +579,8 @@ export const useStore = create<Store>((set, get) => {
         }
         window.loom.onServers((servers) => set({ servers }))
         void window.loom.serverList().then((servers) => set({ servers }))
+        // Settings live in the main window; a popout follows its theme.
+        window.loom.onTheme((theme, customThemes) => set((st) => ({ settings: { ...st.settings, theme, customThemes } })))
         return
       }
       window.loom.onPopoutTab((tab) => set((st) => ({ tabs: st.tabs.map((t) => (t.id === tab.id ? tab : t)) })))
