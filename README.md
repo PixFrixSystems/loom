@@ -83,6 +83,7 @@ Every project sits in the sidebar, and every tab (a chat, a file, a terminal, a 
 Pictures, videos and sound open in a tab of their own: a picture fits the pane (click it for its real size), a video plays and seeks, and a file that changes on disk is shown afresh.
 
 Files from anywhere open too: drag them in from File Explorer or the desktop (a folder becomes a project), press Ctrl+O, or right-click a file in File Explorer and pick Loom under Open with.
+The installer adds Loom to that list for text and code files without changing what any file type opens with by default.
 Dropped on a chat's message box, a file goes into your message instead, and pictures dropped anywhere on a chat are attached.
 Text that isn't UTF-8 (UTF-16 from Notepad or PowerShell, an older Windows code page such as Greek) opens as it reads and is saved back in its own encoding, which the file's header names.
 

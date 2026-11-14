@@ -43,6 +43,8 @@ nsis:
   uninstallDisplayName: Loom
   # Uninstalling keeps projects, tabs and settings, in case Loom is installed again.
   deleteAppDataOnUninstall: false
+  # Adds Loom to "Open with" for text and code files, without changing any default app.
+  include: installer/open-with.nsh
 
 # The repository comes from package.json or the git remote. Releases start as drafts to check before publishing.
 publish:
