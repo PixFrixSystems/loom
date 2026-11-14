@@ -80,6 +80,8 @@ See what changed, read a side-by-side diff, stage or throw away changes (Loom ke
 
 Every project sits in the sidebar, and every tab (a chat, a file, a terminal, a running site) shares one tab bar, whichever project it belongs to. Group projects; each one picks up its site's favicon. A group can watch a folder: when new folders appear there, the group offers them with one click to add. Open and edit files in Monaco, find any file or chat with Ctrl+P, and open a terminal (PowerShell, Command Prompt or Git Bash) in any project folder. A chat can move to another project, history and all.
 
+Text that isn't UTF-8 (UTF-16 from Notepad or PowerShell, an older Windows code page such as Greek) opens as it reads and is saved back in its own encoding, which the file's header names.
+
 ### Your chats on your phone
 
 Link a phone in Settings, Phone access: Loom shows a QR code, the phone scans it, and Loom asks you on the PC whether to let it in, with the same four digits on both screens. From then on [remote.loom.baby](https://remote.loom.baby) on that phone shows your projects and their chats. Follow a chat as Claude writes, send messages and pictures, stop it, pick its model and effort, and answer its approvals, questions and plans, from anywhere. Loom has to be running on the PC, which still does all the work.

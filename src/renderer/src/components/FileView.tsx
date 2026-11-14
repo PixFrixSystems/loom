@@ -19,6 +19,9 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
   const savedVersion = useRef(0)
   const eol = useRef<'lf' | 'crlf'>('lf')
   const bom = useRef(false)
+  /** How the file is saved (UTF-8, UTF-16, an older Windows code page): it is written back the same way */
+  const encoding = useRef('utf-8')
+  const [encodingShown, setEncodingShown] = useState<string | null>(null)
   const mtime = useRef<number>(0)
   const [load, setLoad] = useState<Load>({ state: 'loading' })
   const [changedOnDisk, setChangedOnDisk] = useState(false)
@@ -54,6 +57,8 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
     saved.current = r.content
     eol.current = r.eol
     bom.current = r.bom
+    encoding.current = r.encoding
+    setEncodingShown(r.encoding === 'utf-8' ? null : r.encoding === 'utf-16le' ? 'UTF-16 LE' : r.encoding === 'utf-16be' ? 'UTF-16 BE' : r.encoding.replace(/^windows-/, 'Windows-'))
     mtime.current = r.mtime
     return r.content
   }, [tab.path])
@@ -127,7 +132,7 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
       setSaving(true)
       setSaveError(null)
       try {
-        const r = await window.loom.writeFile(tab.path, value, { bom: bom.current, expectMtime: overwrite ? undefined : mtime.current })
+        const r = await window.loom.writeFile(tab.path, value, { bom: bom.current, encoding: encoding.current, expectMtime: overwrite ? undefined : mtime.current })
         if (!r.ok) {
           if (r.reason === 'changed') setChangedOnDisk(true)
           else setSaveError(r.message ?? 'The file could not be written.')
@@ -222,6 +227,11 @@ export function FileView({ tab, active, visible = active }: { tab: FileTab; acti
         ) : saveError ? (
           <span className="file-conflict" role="alert" title={saveError}>
             Couldn't save: {saveError}
+          </span>
+        ) : null}
+        {encodingShown ? (
+          <span className="file-encoding" title={`This file is saved as ${encodingShown} rather than UTF-8. Loom reads it and saves it that way, so nothing else that uses it breaks.`}>
+            {encodingShown}
           </span>
         ) : null}
         <button className="icon-btn" title="Show in File Explorer" onClick={() => void window.loom.reveal(tab.path)}>

@@ -498,13 +498,21 @@ export interface DirEntry {
   isDir: boolean
 }
 
+/**
+ * How a text file is saved: 'utf-8', 'utf-16le', 'utf-16be', or an older Windows code page such as
+ * 'windows-1253'. A file is written back the way it was read.
+ */
+export type TextEncoding = string
+
 export type FileReadResult =
-  | { ok: true; content: string; mtime: number; eol: 'lf' | 'crlf'; bom: boolean }
+  | { ok: true; content: string; mtime: number; eol: 'lf' | 'crlf'; bom: boolean; encoding: TextEncoding }
   | { ok: false; reason: 'binary' | 'too-large' | 'missing' | 'encoding' | 'error'; message?: string; size?: number }
 
 export interface FileWriteOptions {
-  /** Start the file with a UTF-8 byte order mark, as it had one when read */
+  /** Start the file with a byte order mark, as it had one when read */
   bom?: boolean
+  /** The encoding the file was read in; UTF-8 when left out */
+  encoding?: TextEncoding
   /** The modified time the editor last saw. A newer file on disk is not overwritten. */
   expectMtime?: number
 }
