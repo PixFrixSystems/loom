@@ -356,14 +356,15 @@
 }
 
 /* ---------- The question before something can't be undone ---------- */
+/* Questions sit in the middle of the window, a touch above it, where the eye takes the centre to be */
 .confirm-backdrop {
   position: fixed;
   inset: 0;
   z-index: 1000;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding-top: 18vh;
+  padding-bottom: 8vh;
   background: rgba(5, 6, 10, 0.5);
   animation: panel-scrim-in 180ms var(--ease-out);
   -webkit-app-region: no-drag;
@@ -380,7 +381,7 @@
   backdrop-filter: blur(16px);
   border-radius: 14px;
   box-shadow: var(--shadow-pop);
-  transform-origin: top center;
+  transform-origin: center;
   animation: panel-layer-in 180ms var(--ease-out);
 }
 
