@@ -2,6 +2,7 @@ import { SquareArrowDownLeft } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { ConfirmHost, ToastHost } from './components/Confirm'
 import { ImageViewer } from './components/ImageViewer'
+import { LookVideo } from './components/LookVideo'
 import { ContextMenuHost } from './components/Menu'
 import { ProjectMark } from './components/ProjectMark'
 import { UsagePopover } from './components/StatusBar'
@@ -38,6 +39,7 @@ export function Popout(): ReactNode {
 
   return (
     <div className="popout">
+      <LookVideo area="window" />
       <header className="popout-bar thread" data-color={project?.color}>
         <ProjectMark project={project} size={14} />
         {project ? <span className="popout-project">{project.name}</span> : null}

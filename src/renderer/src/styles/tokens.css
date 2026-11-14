@@ -55,11 +55,26 @@
   /* What floats over content: menus, popovers, dialogs */
   --float: rgba(22, 25, 38, 0.97);
   --shadow-pop: inset 0 1px 0 var(--hi), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 24px 48px -16px rgba(0, 0, 0, 0.9);
+  /* Your message in a chat */
+  --bubble: rgba(255, 255, 255, 0.08);
+  --bubble-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   /* The lit white button */
   --lit: linear-gradient(180deg, #ffffff 0%, #e2e6f4 100%);
   --lit-ink: #0c0f1d;
   --lit-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 30px -10px var(--light-glow);
   --lit-shadow-hover: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 44px -8px rgba(156, 154, 250, 0.7);
+
+  /* Code in replies (hljs.css): the same colours as the file view. Function names stay plain. */
+  --code-text: #d4d8e4;
+  --code-comment: #5f667a;
+  --code-keyword: #9fb0ff;
+  --code-tag: #9fb0ff;
+  --code-attr: #8fd3c4;
+  --code-string: #f0c38a;
+  --code-type: #e2a6ff;
+  --code-variable: #e2a6ff;
+  --code-number: #f0a3ab;
+  --code-function: var(--code-text);
 
   /* Project tiles: deep, quiet tints. Only the violet carries meaning. */
   --t-woad: linear-gradient(180deg, #2a3466 0%, #1c2348 100%);
@@ -87,4 +102,281 @@
   --statusbar: 28px;
 
   color-scheme: dark;
+}
+
+/*
+ * One Dark: Atom's One Dark as kept by One Dark Pro for VS Code (MIT, Binaryify), laid out the way
+ * VS Code shows a chat in it: panes on the sidebar grey, with your messages, the message box, tool
+ * output and terminals sunk darker, while the code editor keeps the lighter editor grey. Menus still
+ * float lighter. Its blue takes the violet's place. Muted text and red are a step lighter than One
+ * Dark's own, so small text keeps 4.5:1 on every surface.
+ */
+:root[data-theme='one-dark'] {
+  --bg-deep: #181a1f;
+  --window: #1d1f23;
+  --bg: #21252b;
+  --bg-shell: #21252b;
+  --bg-top: #282c34;
+  --bg-raised: #2c313a;
+  --bg-input: #1d1f23;
+  --bg-sunken: #1d1f23;
+
+  --text: #d7dae0;
+  --text-2: #abb2bf;
+  --text-3: #959ca8;
+
+  --brand: #61afef;
+  --brand-glow: rgba(97, 175, 239, 0.55);
+  --brand-deep: #3a6aa0;
+  --light: #a8d3f6;
+  --light-glow: rgba(97, 175, 239, 0.45);
+
+  --accent-hover: #7dbdf2;
+  --accent-ink: #282c34;
+  --accent-soft: rgba(97, 175, 239, 0.14);
+  --accent-line: rgba(168, 211, 246, 0.35);
+
+  --ok: #98c379;
+  --ok-soft: rgba(152, 195, 121, 0.16);
+  --warn: #e5c07b;
+  --warn-soft: rgba(229, 192, 123, 0.16);
+  --danger: #e8818a;
+  --danger-soft: rgba(224, 108, 117, 0.14);
+
+  --glass: #1d1f23;
+  --float: rgba(44, 49, 58, 0.97);
+  --bubble: #1d1f23;
+  --bubble-shadow: inset 0 0 0 1px #181a1f;
+  --lit-ink: #282c34;
+  --lit-shadow-hover: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 44px -8px rgba(97, 175, 239, 0.7);
+
+  --code-text: #abb2bf;
+  --code-comment: #7f848e;
+  --code-keyword: #c678dd;
+  --code-tag: #e06c75;
+  --code-attr: #d19a66;
+  --code-string: #98c379;
+  --code-type: #e5c07b;
+  --code-variable: #e06c75;
+  --code-number: #d19a66;
+  --code-function: #61afef;
+}
+
+/*
+ * The themes below follow the same plan as One Dark: panes take the theme's VS Code sidebar colour,
+ * your messages and the message box its input colour, tool output and terminals its terminal colour,
+ * menus its dropdown colour, and code its own syntax colours. Muted text and status colours are only
+ * lifted where the original misses 4.5:1 on one of those surfaces.
+ */
+
+/* Dracula, from Dracula Theme for VS Code (MIT). Comment blue-grey and red lifted for contrast. */
+:root[data-theme='dracula'] {
+  --bg-deep: #191a21;
+  --window: #191a21;
+  --bg: #21222c;
+  --bg-shell: #21222c;
+  --bg-top: #191a21;
+  --bg-raised: #343746;
+  --bg-input: #282a36;
+  --bg-sunken: #282a36;
+
+  --text: #f8f8f2;
+  --text-2: #bcc2d3;
+  --text-3: #96a1c2;
+
+  --brand: #bd93f9;
+  --brand-glow: rgba(189, 147, 249, 0.55);
+  --brand-deep: #44475a;
+  --light: #d6acff;
+  --light-glow: rgba(189, 147, 249, 0.45);
+
+  --accent-hover: #caa9fa;
+  --accent-ink: #21222c;
+  --accent-soft: rgba(189, 147, 249, 0.14);
+  --accent-line: rgba(214, 172, 255, 0.35);
+
+  --ok: #50fa7b;
+  --ok-soft: rgba(80, 250, 123, 0.16);
+  --warn: #ffb86c;
+  --warn-soft: rgba(255, 184, 108, 0.16);
+  --danger: #ff7575;
+  --danger-soft: rgba(255, 85, 85, 0.14);
+
+  --glass: #282a36;
+  --float: rgba(52, 55, 70, 0.97);
+  --bubble: #282a36;
+  --bubble-shadow: inset 0 0 0 1px #191a21;
+  --lit-ink: #21222c;
+  --lit-shadow-hover: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 44px -8px rgba(189, 147, 249, 0.7);
+
+  --code-text: #f8f8f2;
+  --code-comment: #6272a4;
+  --code-keyword: #ff79c6;
+  --code-tag: #ff79c6;
+  --code-attr: #50fa7b;
+  --code-string: #f1fa8c;
+  --code-type: #8be9fd;
+  --code-variable: #f8f8f2;
+  --code-number: #bd93f9;
+  --code-function: #50fa7b;
+}
+
+/* GitHub Dark, from GitHub Theme for VS Code, Dark Default (MIT): github.com's page grey for panes,
+   its inset black for wells. Nothing needed lifting. */
+:root[data-theme='github-dark'] {
+  --bg-deep: #010409;
+  --window: #010409;
+  --bg: #0d1117;
+  --bg-shell: #010409;
+  --bg-top: #010409;
+  --bg-raised: #161b22;
+  --bg-input: #0d1117;
+  --bg-sunken: #010409;
+
+  --text: #e6edf3;
+  --text-2: #b1bac4;
+  --text-3: #7d8590;
+
+  --brand: #58a6ff;
+  --brand-glow: rgba(88, 166, 255, 0.55);
+  --brand-deep: #1f6feb;
+  --light: #a5d6ff;
+  --light-glow: rgba(88, 166, 255, 0.45);
+
+  --accent-hover: #79c0ff;
+  --accent-ink: #0d1117;
+  --accent-soft: rgba(88, 166, 255, 0.14);
+  --accent-line: rgba(165, 214, 255, 0.35);
+
+  --ok: #3fb950;
+  --ok-soft: rgba(63, 185, 80, 0.16);
+  --warn: #d29922;
+  --warn-soft: rgba(210, 153, 34, 0.16);
+  --danger: #f85149;
+  --danger-soft: rgba(248, 81, 73, 0.14);
+
+  --glass: #0d1117;
+  --float: rgba(22, 27, 34, 0.97);
+  --bubble: #161b22;
+  --bubble-shadow: inset 0 0 0 1px #30363d;
+  --lit-ink: #0d1117;
+  --lit-shadow-hover: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 44px -8px rgba(88, 166, 255, 0.7);
+
+  --code-text: #e6edf3;
+  --code-comment: #8b949e;
+  --code-keyword: #ff7b72;
+  --code-tag: #7ee787;
+  --code-attr: #79c0ff;
+  --code-string: #a5d6ff;
+  --code-type: #ffa657;
+  --code-variable: #ffa657;
+  --code-number: #79c0ff;
+  --code-function: #d2a8ff;
+}
+
+/* Nord, from Nord for VS Code (MIT): one polar-night grey for panes and terminals, the next one up for
+   messages, the message box and menus. Comment grey and red lifted for contrast. */
+:root[data-theme='nord'] {
+  --bg-deep: #2e3440;
+  --window: #2e3440;
+  --bg: #2e3440;
+  --bg-shell: #2e3440;
+  --bg-top: #2e3440;
+  --bg-raised: #3b4252;
+  --bg-input: #3b4252;
+  --bg-sunken: #2e3440;
+
+  --text: #eceff4;
+  --text-2: #d8dee9;
+  --text-3: #a7aebc;
+
+  --brand: #88c0d0;
+  --brand-glow: rgba(136, 192, 208, 0.55);
+  --brand-deep: #5778a0;
+  --light: #b8d9e3;
+  --light-glow: rgba(136, 192, 208, 0.45);
+
+  --accent-hover: #a0cdd9;
+  --accent-ink: #2e3440;
+  --accent-soft: rgba(136, 192, 208, 0.14);
+  --accent-line: rgba(184, 217, 227, 0.35);
+
+  --ok: #a3be8c;
+  --ok-soft: rgba(163, 190, 140, 0.16);
+  --warn: #ebcb8b;
+  --warn-soft: rgba(235, 203, 139, 0.16);
+  --danger: #d89fa4;
+  --danger-soft: rgba(191, 97, 106, 0.18);
+
+  --glass: #3b4252;
+  --float: rgba(59, 66, 82, 0.97);
+  --bubble: #3b4252;
+  --bubble-shadow: none;
+  --lit-ink: #2e3440;
+  --lit-shadow-hover: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 44px -8px rgba(136, 192, 208, 0.7);
+
+  --code-text: #d8dee9;
+  --code-comment: #616e88;
+  --code-keyword: #81a1c1;
+  --code-tag: #81a1c1;
+  --code-attr: #8fbcbb;
+  --code-string: #a3be8c;
+  --code-type: #8fbcbb;
+  --code-variable: #d8dee9;
+  --code-number: #b48ead;
+  --code-function: #88c0d0;
+}
+
+/* Monokai, from VS Code's built-in Monokai (MIT), after Wimer Hazenberg's original. Its cyan is the
+   meaning colour, since its pink, green and yellow already mean danger, done and warning. Comment
+   olive and pink lifted for contrast. */
+:root[data-theme='monokai'] {
+  --bg-deep: #1e1f1c;
+  --window: #1e1f1c;
+  --bg: #1e1f1c;
+  --bg-shell: #1e1f1c;
+  --bg-top: #1e1f1c;
+  --bg-raised: #414339;
+  --bg-input: #414339;
+  --bg-sunken: #272822;
+
+  --text: #f8f8f2;
+  --text-2: #d6d5cb;
+  --text-3: #b0aea0;
+
+  --brand: #66d9ef;
+  --brand-glow: rgba(102, 217, 239, 0.55);
+  --brand-deep: #3a7d8c;
+  --light: #a3e8f5;
+  --light-glow: rgba(102, 217, 239, 0.45);
+
+  --accent-hover: #85e1f2;
+  --accent-ink: #1e1f1c;
+  --accent-soft: rgba(102, 217, 239, 0.14);
+  --accent-line: rgba(163, 232, 245, 0.35);
+
+  --ok: #a6e22e;
+  --ok-soft: rgba(166, 226, 46, 0.16);
+  --warn: #fd971f;
+  --warn-soft: rgba(253, 151, 31, 0.16);
+  --danger: #fc8ab3;
+  --danger-soft: rgba(249, 38, 114, 0.16);
+
+  --glass: #414339;
+  --float: rgba(65, 67, 57, 0.97);
+  --bubble: #414339;
+  --bubble-shadow: none;
+  --lit-ink: #1e1f1c;
+  --lit-shadow-hover: inset 0 1px 0 #fff, 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 44px -8px rgba(102, 217, 239, 0.7);
+
+  --code-text: #f8f8f2;
+  --code-comment: #88846f;
+  --code-keyword: #f92672;
+  --code-tag: #f92672;
+  --code-attr: #a6e22e;
+  --code-string: #e6db74;
+  --code-type: #66d9ef;
+  --code-variable: #f8f8f2;
+  --code-number: #ae81ff;
+  --code-function: #a6e22e;
 }

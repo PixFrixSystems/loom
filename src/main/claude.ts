@@ -34,8 +34,10 @@ import type {
   PermissionResponse,
   Question,
   SessionSummary,
-  SlashCommandInfo
+  SlashCommandInfo,
+  ThemeSeeds
 } from '@shared/types'
+import { cleanThemeName, readSeeds, THEME_SCHEMA } from '@shared/customTheme'
 import { assistantItems, BACKGROUND_ASK, describeTool, historyToItems, messageModel, modelNote, parseUserContent, truncate } from './convert'
 import { fillThumbnails } from './images'
 import { skillOrigin } from './skillOrigin'
@@ -1198,6 +1200,61 @@ export async function writeCommitMessage(cwd: string, files: string, diff: strin
     }
     const message = text.trim().replace(/^```\w*\n?|\n?```$/g, '').trim()
     return message ? { message } : { error: 'Claude did not write a message. Try again.' }
+  } catch (e) {
+    return { error: abort.signal.aborted ? 'Claude took too long. Try again.' : (e as Error).message }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * A colour theme from a description ("Marvel heroes, Iron Man red and gold"), chosen by Claude on
+ * the user's own sign-in, the same way as the commit message: one answer, no tools, nothing saved
+ * to the chat history. Given the current theme, Claude changes it as asked instead of starting
+ * over. The answer comes back in THEME_SCHEMA's shape and is checked again here, colour by colour.
+ */
+export async function writeTheme(
+  description: string,
+  current: { name: string; colours: ThemeSeeds } | null,
+  settings: LoomSettings
+): Promise<{ name?: string; colours?: ThemeSeeds; error?: string }> {
+  const sdk = await loadSdk()
+  const prompt = [
+    'Design a colour theme for Loom, a desktop app for chatting with Claude Code, from this description:',
+    description,
+    ...(current ? ['', 'Change this current theme as the description asks, keeping what it does not mention:', JSON.stringify({ name: current.name, ...current.colours })] : []),
+    '',
+    'The theme must be dark: background, surface and well are dark colours, close to each other, with text light on them.',
+    'The accent should be the most recognisable colour of the description, and differ from the done, warning and error colours.',
+    'Code colours sit on the well and should all be easy to tell apart. Fill in every field.'
+  ].join('\n')
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), 90_000)
+  try {
+    let answer: unknown = null
+    for await (const m of sdk.query({
+      prompt,
+      options: {
+        cwd: homedir(),
+        model: 'sonnet',
+        maxTurns: 1,
+        persistSession: false,
+        abortController: abort,
+        systemPrompt: 'You design colour themes for apps. Answer only with the colours asked for.',
+        outputFormat: { type: 'json_schema', schema: THEME_SCHEMA },
+        pathToClaudeCodeExecutable: executableFor(settings),
+        // The description is the user's own words, but nothing in an answer should be able to run anything.
+        tools: [],
+        mcpServers: {},
+        strictMcpConfig: true,
+        canUseTool: async () => ({ behavior: 'deny', message: 'Choose the colours only.' })
+      }
+    })) {
+      if (m.type === 'result' && m.subtype === 'success') answer = m.structured_output
+    }
+    const colours = readSeeds(answer)
+    if (!colours) return { error: "Claude's answer wasn't a complete theme. Try again." }
+    return { name: cleanThemeName((answer as { name?: unknown }).name), colours }
   } catch (e) {
     return { error: abort.signal.aborted ? 'Claude took too long. Try again.' : (e as Error).message }
   } finally {

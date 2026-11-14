@@ -255,6 +255,108 @@ export type ShellChoice = 'powershell' | 'cmd' | 'gitbash'
 
 export type NotifySound = 'off' | 'chime' | 'glass' | 'pluck' | 'rise'
 
+export type ThemeName = 'loom' | 'one-dark' | 'dracula' | 'github-dark' | 'nord' | 'monokai'
+
+/**
+ * Loom's colour themes. Each one's colours live in tokens.css (the page), lib/monaco.ts (the editor)
+ * and TerminalView.tsx (terminals). `frame` is what the main process paints itself: the window's
+ * background before the page shows, and the title bar behind Windows' minimise, maximise and close.
+ */
+export const THEMES: { value: ThemeName; label: string; description: string; frame: { background: string; titleBar: string; symbols: string } }[] = [
+  { value: 'loom', label: 'Loom', description: 'Graphite glass with a violet light', frame: { background: '#0c0e15', titleBar: '#12141b', symbols: '#a9afbf' } },
+  { value: 'one-dark', label: 'One Dark', description: "Atom's One Dark, as in One Dark Pro for VS Code", frame: { background: '#1d1f23', titleBar: '#282c34', symbols: '#abb2bf' } },
+  { value: 'dracula', label: 'Dracula', description: 'Purple, pink and green on deep blue-grey', frame: { background: '#191a21', titleBar: '#191a21', symbols: '#bcc2d3' } },
+  { value: 'github-dark', label: 'GitHub Dark', description: "GitHub's own dark mode", frame: { background: '#010409', titleBar: '#010409', symbols: '#b1bac4' } },
+  { value: 'nord', label: 'Nord', description: 'Arctic blue-greys and frost', frame: { background: '#2e3440', titleBar: '#2e3440', symbols: '#d8dee9' } },
+  { value: 'monokai', label: 'Monokai', description: 'The classic: pink, green and yellow on olive black', frame: { background: '#1e1f1c', titleBar: '#1e1f1c', symbols: '#d6d5cb' } }
+]
+
+/** The colours a theme made in Settings starts from, each '#rrggbb'. shared/customTheme.ts works out the rest. */
+export const THEME_SEEDS = [
+  { key: 'background', label: 'Background', hint: 'Panes: chats, Settings, the sidebar' },
+  { key: 'surface', label: 'Surface', hint: 'Your messages, the message box, menus' },
+  { key: 'well', label: 'Well', hint: 'The code editor, terminals, tool output' },
+  { key: 'text', label: 'Text', hint: 'Most text' },
+  { key: 'muted', label: 'Muted text', hint: 'Hints, times, labels' },
+  { key: 'accent', label: 'Accent', hint: 'The one colour that means live, active, selected' },
+  { key: 'ok', label: 'Done', hint: 'Success and additions' },
+  { key: 'warn', label: 'Warning', hint: 'Things to check' },
+  { key: 'danger', label: 'Error', hint: 'Errors and deletions' },
+  { key: 'comment', label: 'Code: comments', hint: 'Comments in code' },
+  { key: 'keyword', label: 'Code: keywords', hint: 'if, return, const' },
+  { key: 'string', label: 'Code: strings', hint: 'Text in quotes' },
+  { key: 'number', label: 'Code: numbers', hint: 'Numbers and attributes' },
+  { key: 'type', label: 'Code: types', hint: 'Types and classes' },
+  { key: 'function', label: 'Code: functions', hint: 'Function names' },
+  { key: 'variable', label: 'Code: variables', hint: 'Variable names' },
+  { key: 'tag', label: 'Code: tags', hint: 'HTML tags, JSON keys' }
+] as const
+
+export type ThemeSeedKey = (typeof THEME_SEEDS)[number]['key']
+export type ThemeSeeds = Record<ThemeSeedKey, string>
+
+/** A theme made in Settings, with Claude's help or by hand */
+export interface CustomTheme {
+  /** 'custom-' and letters, digits and dashes: it ends up in a CSS selector */
+  id: `custom-${string}`
+  name: string
+  colours: ThemeSeeds
+}
+
+/** A built-in theme, or one of the user's own */
+export type ThemeChoice = ThemeName | CustomTheme['id']
+
+/** The parts of the window a picture can go behind */
+export const LOOK_AREAS = [
+  { value: 'window', label: 'Whole window' },
+  { value: 'chat', label: 'Chat' },
+  { value: 'sidebar', label: 'Sidebar' },
+  { value: 'files', label: 'File panel' },
+  { value: 'composer', label: 'Message box' }
+] as const
+
+export type LookArea = (typeof LOOK_AREAS)[number]['value']
+
+/** A picture behind one area, shown faintly under the area's own colour */
+export interface AreaPicture {
+  /** Loom's copy of it, a file name in userData/backgrounds */
+  file: string
+  /** How much of the picture shows, 0 to 40 (%) */
+  opacity: number
+  /** Fill the area, cropped, or show the whole picture */
+  size: 'fill' | 'fit'
+  /** The point of the picture that stays in view, 0 to 100 (%) across and down */
+  x: number
+  y: number
+  /** Blur, 0 to 16 px */
+  blur: number
+  /** Fade into the area's edges */
+  fade: boolean
+}
+
+export type LookPattern = 'none' | 'scanlines' | 'dots' | 'stars'
+
+/** Pictures and decorations, worn over whichever theme is chosen. Read through readLook: the file can be edited by hand. */
+export interface Look {
+  pictures: Partial<Record<LookArea, AreaPicture>>
+  /** How solid the chat's boxes are, 50 to 100 (%); below 100 they're frosted */
+  boxes: number
+  /** The sidebar and file panel let the window's picture through */
+  glass: boolean
+  /** Their blur, 0 to 14 px */
+  glassBlur: number
+  /** A soft rim in the theme's colour around your messages and the message box */
+  glow: boolean
+  /** Bracket corners on your messages and the message box */
+  corners: boolean
+  /** A wash of the theme's colour along the chat's header */
+  banner: boolean
+  /** An ornament line between an answer and your next message */
+  dividers: boolean
+  /** A faint pattern over the chat */
+  pattern: LookPattern
+}
+
 export interface LoomSettings {
   claudeSource: ClaudeSource
   claudeCustomPath: string
@@ -280,6 +382,12 @@ export interface LoomSettings {
   notifyVolume?: number
   /** Days to keep the copies a moved chat leaves in ~/.claude/chat-backups; 0 keeps them forever */
   keepChatBackupsDays?: number
+  /** The colour theme; none is Loom's own */
+  theme?: ThemeChoice
+  /** Themes made in Settings. Read through readCustomThemes: the file can be edited by hand. */
+  customThemes?: CustomTheme[]
+  /** Pictures behind areas, and decorations (Settings, Pictures and decorations) */
+  look?: Look
 }
 
 export interface ModelOption {

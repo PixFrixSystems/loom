@@ -1,11 +1,13 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type ITheme } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { TerminalTab } from '@shared/types'
+import { customTerminal } from '@shared/customTheme'
+import type { TerminalTab, ThemeName } from '@shared/types'
 import { relPath, shortPath } from '../lib/paths'
+import { lookKey, type Look } from '../lib/theme'
 import { useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 
@@ -14,7 +16,7 @@ import { ProjectMark } from './ProjectMark'
  * the code colours. Bright black is the comment grey rather than near black, so dimmed output
  * (hints, timings) stays readable.
  */
-export const THEME = {
+const LOOM: ITheme = {
   background: '#080a10',
   foreground: '#d9dce6',
   cursor: '#c8c6fa',
@@ -38,6 +40,150 @@ export const THEME = {
   brightWhite: '#f2f3f7'
 }
 
+/**
+ * One Dark Pro's terminal colours, in the same inset well (One Dark's input grey, darker than its
+ * panes). Bright black is One Dark's comment grey for the same reason as above: its own #4f5666 is
+ * too dim to read.
+ */
+const ONE_DARK: ITheme = {
+  background: '#1d1f23',
+  foreground: '#abb2bf',
+  cursor: '#528bff',
+  cursorAccent: '#1d1f23',
+  selectionBackground: '#67769660',
+  black: '#3f4451',
+  red: '#e05561',
+  green: '#8cc265',
+  yellow: '#d18f52',
+  blue: '#4aa5f0',
+  magenta: '#c162de',
+  cyan: '#42b3c2',
+  white: '#d7dae0',
+  brightBlack: '#7f848e',
+  brightRed: '#ff616e',
+  brightGreen: '#a5e075',
+  brightYellow: '#f0a45d',
+  brightBlue: '#4dc4ff',
+  brightMagenta: '#de73ff',
+  brightCyan: '#4cd1e0',
+  brightWhite: '#e6e6e6'
+}
+
+// The four below are each theme's own terminal colours from its VS Code file, on the theme's
+// --bg-sunken (the well around the terminal). Bright black is lifted to 4.5:1 where it was dimmer.
+
+const DRACULA: ITheme = {
+  background: '#282a36',
+  foreground: '#f8f8f2',
+  cursor: '#f8f8f2',
+  cursorAccent: '#282a36',
+  selectionBackground: '#44475a',
+  black: '#21222c',
+  red: '#ff5555',
+  green: '#50fa7b',
+  yellow: '#f1fa8c',
+  blue: '#bd93f9',
+  magenta: '#ff79c6',
+  cyan: '#8be9fd',
+  white: '#f8f8f2',
+  brightBlack: '#8390b7',
+  brightRed: '#ff6e6e',
+  brightGreen: '#69ff94',
+  brightYellow: '#ffffa5',
+  brightBlue: '#d6acff',
+  brightMagenta: '#ff92df',
+  brightCyan: '#a4ffff',
+  brightWhite: '#ffffff'
+}
+
+const GITHUB_DARK: ITheme = {
+  background: '#010409',
+  foreground: '#e6edf3',
+  cursor: '#2f81f7',
+  cursorAccent: '#010409',
+  selectionBackground: '#264f78',
+  black: '#484f58',
+  red: '#ff7b72',
+  green: '#3fb950',
+  yellow: '#d29922',
+  blue: '#58a6ff',
+  magenta: '#bc8cff',
+  cyan: '#39c5cf',
+  white: '#b1bac4',
+  brightBlack: '#8b949e',
+  brightRed: '#ffa198',
+  brightGreen: '#56d364',
+  brightYellow: '#e3b341',
+  brightBlue: '#79c0ff',
+  brightMagenta: '#d2a8ff',
+  brightCyan: '#56d4dd',
+  brightWhite: '#ffffff'
+}
+
+const NORD: ITheme = {
+  background: '#2e3440',
+  foreground: '#d8dee9',
+  cursor: '#d8dee9',
+  cursorAccent: '#2e3440',
+  selectionBackground: '#434c5ecc',
+  black: '#3b4252',
+  red: '#bf616a',
+  green: '#a3be8c',
+  yellow: '#ebcb8b',
+  blue: '#81a1c1',
+  magenta: '#b48ead',
+  cyan: '#88c0d0',
+  white: '#e5e9f0',
+  brightBlack: '#949cae',
+  brightRed: '#bf616a',
+  brightGreen: '#a3be8c',
+  brightYellow: '#ebcb8b',
+  brightBlue: '#81a1c1',
+  brightMagenta: '#b48ead',
+  brightCyan: '#8fbcbb',
+  brightWhite: '#eceff4'
+}
+
+const MONOKAI: ITheme = {
+  background: '#272822',
+  foreground: '#f8f8f2',
+  cursor: '#f8f8f0',
+  cursorAccent: '#272822',
+  selectionBackground: '#878b9180',
+  black: '#333333',
+  red: '#c4265e',
+  green: '#86b42b',
+  yellow: '#b3b42b',
+  blue: '#6a7ec8',
+  magenta: '#8c6bc8',
+  cyan: '#56adbc',
+  white: '#e3e3dd',
+  brightBlack: '#928e7b',
+  brightRed: '#f92672',
+  brightGreen: '#a6e22e',
+  brightYellow: '#e2e22e',
+  brightBlue: '#819aff',
+  brightMagenta: '#ae81ff',
+  brightCyan: '#66d9ef',
+  brightWhite: '#f8f8f2'
+}
+
+const TERMINAL_THEMES: Record<ThemeName, ITheme> = {
+  loom: LOOM,
+  'one-dark': ONE_DARK,
+  dracula: DRACULA,
+  'github-dark': GITHUB_DARK,
+  nord: NORD,
+  monokai: MONOKAI
+}
+
+/** The terminal colours for the look on screen (a lookKey). Server output uses them too. */
+export function terminalTheme(key: string): ITheme {
+  const look = JSON.parse(key) as Look
+  if (look.seeds) return customTerminal(look.seeds)
+  return look.theme === 'custom' ? LOOM : TERMINAL_THEMES[look.theme]
+}
+
 export function TerminalView({ tab, active, visible = active }: { tab: TerminalTab; active: boolean; visible?: boolean }): ReactNode {
   const host = useRef<HTMLDivElement>(null)
   const term = useRef<Terminal | null>(null)
@@ -47,6 +193,7 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
   const [generation, setGeneration] = useState(0)
   const project = useStore((s) => s.projects.find((p) => p.id === tab.projectId))
   const home = useStore((s) => s.info?.homeDir)
+  const look = useStore(lookKey)
 
   useEffect(() => {
     if (!host.current) return
@@ -57,7 +204,7 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
       cursorBlink: true,
       allowProposedApi: true,
       scrollback: 8000,
-      theme: THEME,
+      theme: terminalTheme(lookKey(useStore.getState())),
       // Programs print links as terminal hyperlinks too (Claude Code's sign-in address, for one):
       // those open in the browser like plain ones, instead of xterm's own prompt and window.
       linkHandler: { activate: (_e, uri) => void window.loom.openExternal(uri) }
@@ -148,6 +295,11 @@ export function TerminalView({ tab, active, visible = active }: { tab: TerminalT
       term.current = null
     }
   }, [tab.id, generation])
+
+  // A new theme recolours the running terminal; its output stays.
+  useEffect(() => {
+    if (term.current) term.current.options.theme = terminalTheme(look)
+  }, [look])
 
   useEffect(() => {
     if (!visible) return

@@ -2,6 +2,7 @@ import { ArrowUp, Cpu, Gauge, Paperclip, SendToBack, ShieldCheck, Square, X } fr
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_MODELS, type ChatTab, type ContextInfo, type EffortLevel, type ImageAttachment, type PermissionMode, type SlashCommandInfo } from '@shared/types'
 import { EMPTY_CHAT, useStore } from '../store'
+import { LookVideo } from './LookVideo'
 import { Dropdown } from './Menu'
 
 export const MODE_OPTIONS: { value: PermissionMode; label: string; description: string }[] = [
@@ -338,6 +339,7 @@ export const Composer = memo(function Composer({ tab, focusKey }: { tab: ChatTab
 
   return (
     <div className="composer">
+      <LookVideo area="composer" />
       {commands.length ? (
         <div className="cmd-list" role="listbox" ref={cmdList}>
           {!chat.commands.length ? <div className="cmd-loading">Loading your skills and commands</div> : null}

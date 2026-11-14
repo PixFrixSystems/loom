@@ -14,8 +14,13 @@ import type {
   PermissionResponse,
   PersistedState,
   RunTarget,
-  ServiceId
+  ServiceId,
+  ThemeChoice
 } from '@shared/types'
+import { THEMES } from '@shared/types'
+import { cleanThemeName, customFrame, readCustomThemes, readSeeds } from '@shared/customTheme'
+import { lookFiles } from '@shared/look'
+import { setupPictures } from './pictures'
 import {
   claudeAuthStatus,
   claudeLogout,
@@ -37,7 +42,8 @@ import {
   openChat,
   renameSession,
   runningChats,
-  writeCommitMessage
+  writeCommitMessage,
+  writeTheme
 } from './claude'
 import {
   diffForMessage,
@@ -109,14 +115,41 @@ const APP_ID = app.isPackaged ? 'gr.pixfrix.loom' : 'gr.pixfrix.loom.source'
 app.setAppUserModelId(APP_ID)
 app.setName('Loom')
 
+type Frame = (typeof THEMES)[number]['frame']
+
+/** The colours the main process paints for a theme, built-in or the user's own; an unknown or missing one is Loom's own. */
+function frameOf(s: LoomSettings): Frame {
+  const own = readCustomThemes(s.customThemes).find((t) => t.id === s.theme)
+  if (own) return customFrame(own.colours)
+  return (THEMES.find((t) => t.value === s.theme) ?? THEMES[0]).frame
+}
+
+function paintFrame(w: BrowserWindow, frame: Frame): void {
+  w.setBackgroundColor(frame.background)
+  w.setTitleBarOverlay({ color: frame.titleBar, symbolColor: frame.symbols })
+}
+
+/**
+ * A new theme, or new colours for the user's own: every window's background and title bar buttons
+ * change now, and every page is told. Popouts need telling, since they read settings only when they open.
+ */
+function wearTheme(s: LoomSettings): void {
+  const frame = frameOf(s)
+  for (const w of BrowserWindow.getAllWindows()) {
+    paintFrame(w, frame)
+    w.webContents.send('app:theme', s.theme, s.customThemes ?? [])
+  }
+}
+
 /** What every Loom window shares: the frame, the colours, the preload bridge. */
 function windowOptions(): BrowserWindowConstructorOptions {
+  const frame = frameOf(state.settings)
   return {
     show: false,
     title: 'Loom',
-    backgroundColor: '#0c0e15',
+    backgroundColor: frame.background,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#12141b', symbolColor: '#a9afbf', height: 42 },
+    titleBarOverlay: { color: frame.titleBar, symbolColor: frame.symbols, height: 42 },
     // An .ico on Windows: the taskbar shows it, where it would show electron.exe's icon instead of a PNG.
     icon: join(__dirname, '../../resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
@@ -203,7 +236,9 @@ function guardNavigation(w: BrowserWindow): void {
   })
 }
 
-function loadRenderer(w: BrowserWindow, query: Record<string, string> = {}): void {
+function loadRenderer(w: BrowserWindow, extra: Record<string, string> = {}): void {
+  // The page wears the theme from its first frame, before its saved state has loaded.
+  const query = { ...extra, theme: state.settings.theme ?? 'loom' }
   if (isDev) {
     const qs = new URLSearchParams(query).toString()
     void w.loadURL(`${process.env.ELECTRON_RENDERER_URL!}${qs ? `?${qs}` : ''}`)
@@ -413,10 +448,17 @@ function registerIpc(): void {
   ipcMain.handle('state:load', () => state)
   ipcMain.on('state:save', (_e, next: PersistedState) => {
     const keep = state.settings.keepChatBackupsDays
+    const looks = JSON.stringify([state.settings.theme, state.settings.customThemes])
+    const look = JSON.stringify(state.settings.look ?? null)
     state = next
     saveState(next)
     // Kept for less time than before: the copies past it go now, not tomorrow.
     if (next.settings.keepChatBackupsDays !== keep) pruneBackups()
+    if (JSON.stringify([next.settings.theme, next.settings.customThemes]) !== looks) wearTheme(next.settings)
+    // Pictures and decorations: popouts read settings only when they open, so they're told.
+    if (JSON.stringify(next.settings.look ?? null) !== look) {
+      for (const w of BrowserWindow.getAllWindows()) w.webContents.send('app:look', next.settings.look ?? null)
+    }
   })
 
   ipcMain.handle('app:pickFolder', async () => {
@@ -538,6 +580,20 @@ function registerIpc(): void {
     if (!d.files.trim()) return { error: 'There is nothing to commit.' }
     return writeCommitMessage(dir, d.files, d.text, settings())
   })
+  ipcMain.handle('theme:write', (_e, description: unknown, current: unknown) => {
+    const text = typeof description === 'string' ? description.trim().slice(0, 400) : ''
+    if (!text) return { error: 'Describe the theme first.' }
+    const base = current as { name?: unknown; colours?: unknown } | null
+    const colours = readSeeds(base?.colours)
+    return writeTheme(text, colours ? { name: cleanThemeName(base?.name), colours } : null, settings())
+  })
+  // A theme being previewed in Settings: the asking window's frame follows it until it is saved or dropped.
+  ipcMain.on('theme:previewFrame', (e, seeds: unknown) => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    if (!w) return
+    const colours = readSeeds(seeds)
+    paintFrame(w, colours ? customFrame(colours) : frameOf(state.settings))
+  })
   ipcMain.handle('project:icon', async (_e, root: string, mode: string, customPath: string | null, others: string[]) => {
     if (mode === 'none') return null
     const path = mode === 'custom' && customPath ? customPath : await detectProjectIcon(root, others)
@@ -628,7 +684,7 @@ app.whenReady().then(() => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'"
           ]
         }
       })
@@ -636,6 +692,7 @@ app.whenReady().then(() => {
   }
   installMenu()
   registerIpc()
+  setupPictures({ main: () => win, inUse: () => lookFiles(state.settings.look) })
   lockDownPreviews()
   setupPopouts({ main: () => win, quitting: () => quitting, options: windowOptions, load: loadRenderer, guard: guardNavigation })
   createWindow()

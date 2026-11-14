@@ -8,6 +8,7 @@ import { ChatItemView, ChatTabContext, LiveThinking, rise, timelineClass, useArr
 import { Composer, composers } from './Composer'
 import { Markdown } from './Markdown'
 import { PermissionCard } from './PermissionCard'
+import { LookVideo } from './LookVideo'
 import { ProjectMark } from './ProjectMark'
 import { RunControl } from './Servers'
 
@@ -358,6 +359,7 @@ export function ChatView({ tab, active, visible: shown = active }: { tab: ChatTa
         composers.get(tab.id)?.addFiles([...e.dataTransfer.files])
       }}
     >
+      <LookVideo area="chat" />
       <div className="chat-head thread" data-color={project?.color}>
         <ProjectMark project={project} />
         <span className="chat-head-project" title={tab.cwd}>

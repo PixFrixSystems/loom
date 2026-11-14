@@ -5,10 +5,11 @@ import '@xterm/xterm/css/xterm.css'
 import { Play } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { ServerTab } from '@shared/types'
+import { lookKey } from '../lib/theme'
 import { useStore } from '../store'
 import { ProjectMark } from './ProjectMark'
 import { ServerControls } from './Servers'
-import { THEME } from './TerminalView'
+import { terminalTheme } from './TerminalView'
 
 /** The live output of a dev server Loom started. Closing the tab leaves the server running. */
 export function ServerView({ tab, active, visible = active }: { tab: ServerTab; active: boolean; visible?: boolean }): ReactNode {
@@ -17,6 +18,7 @@ export function ServerView({ tab, active, visible = active }: { tab: ServerTab; 
   const fit = useRef<FitAddon | null>(null)
   const project = useStore((s) => s.projects.find((p) => p.id === tab.projectId))
   const server = useStore((s) => s.servers.find((x) => x.id === tab.serverId))
+  const look = useStore(lookKey)
 
   useEffect(() => {
     if (!host.current) return
@@ -28,7 +30,7 @@ export function ServerView({ tab, active, visible = active }: { tab: ServerTab; 
       convertEol: true,
       allowProposedApi: true,
       scrollback: 10000,
-      theme: THEME,
+      theme: terminalTheme(lookKey(useStore.getState())),
       linkHandler: { activate: (_e, uri) => void window.loom.openExternal(uri) }
     })
     const f = new FitAddon()
@@ -94,6 +96,10 @@ export function ServerView({ tab, active, visible = active }: { tab: ServerTab; 
       term.current = null
     }
   }, [tab.serverId])
+
+  useEffect(() => {
+    if (term.current) term.current.options.theme = terminalTheme(look)
+  }, [look])
 
   useEffect(() => {
     if (!visible) return

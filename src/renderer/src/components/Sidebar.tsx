@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { THREAD_COLORS, type ChatTab, type GitStatus, type Group, type Project, type SessionSummary, type SubFolder } from '@shared/types'
 import { baseName, normPath, projectForPath, timeAgo } from '../lib/paths'
 import { chatWorking, useStore, type MenuItem } from '../store'
+import { LookVideo } from './LookVideo'
 import { ProjectMark } from './ProjectMark'
 import { defaultTarget, primaryServer, projectRunItems, ServerMark } from './Servers'
 
@@ -592,6 +593,7 @@ export function Sidebar(): ReactNode {
 
   return (
     <aside className="sidebar">
+      <LookVideo area="sidebar" />
       <div className="sidebar-scroll">
         <div className="sidebar-section-head">
           <span>Projects</span>
